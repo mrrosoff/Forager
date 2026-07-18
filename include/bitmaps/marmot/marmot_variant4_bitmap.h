@@ -1,4 +1,5 @@
-// Marmot mood-variant artwork (variant4) -- hoary marmot profile on a rock, sourced from Wikimedia Commons.
+// Marmot mood-variant artwork (variant4) -- hoary marmot profile on a rock, sourced from Wikimedia
+// Commons.
 #pragma once
 
 #include <pgmspace.h>

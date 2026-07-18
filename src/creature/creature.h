@@ -16,6 +16,20 @@ void save(const CreatureState& s);
 // the chosen mood.
 Mood evaluate(CreatureState& s, const struct tm& now, const WeatherData& weather);
 
+// Eating a species on the Foraging view feeds the creature directly --
+// this is the player-driven counterpart to events::resolve()'s ForagingFind
+// bonus (which stacks on top when the eaten species also happens to match
+// a pending find). inSeason gives a small extra happiness bump.
+void feedForaged(CreatureState& s, time_t now, bool inSeason);
+
+/**
+ * Growth stage from real elapsed time since birth (see BABY_STAGE_DAYS /
+ * JUVENILE_STAGE_DAYS in config.h). birthDate == 0 (never born) is treated
+ * as Baby -- callers detect the birth-sequence case separately by checking
+ * birthDate directly, this just needs to not divide by a negative duration.
+ */
+Stage computeStage(time_t birthDate, time_t now);
+
 const char* moodName(Mood m);
 
 }  // namespace creature

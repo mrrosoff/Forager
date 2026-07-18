@@ -1,4 +1,5 @@
-// Marmot mood-variant artwork (variant5) -- hoary marmot on a boardwalk, sourced from Wikimedia Commons.
+// Marmot mood-variant artwork (variant5) -- hoary marmot on a boardwalk, sourced from Wikimedia
+// Commons.
 #pragma once
 
 #include <pgmspace.h>

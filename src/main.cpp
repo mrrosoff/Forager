@@ -1,13 +1,14 @@
 #include <Arduino.h>
+#include <Preferences.h>
 
 #include <algorithm>
-#include <cstring>
 
 #include "config.h"
 #include "creature.h"
 #include "display.h"
 #include "events.h"
 #include "foraging.h"
+#include "journal.h"
 #include "model.h"
 #include "net.h"
 
@@ -26,6 +27,26 @@ struct Btn {
 static Btn bLeft{PIN_BTN_LEFT, false, 0};
 static Btn bRight{PIN_BTN_RIGHT, false, 0};
 static Btn bEnter{PIN_BTN_ENTER, false, 0};
+static Btn bSettings{PIN_BTN_SETTINGS, false, 0};
+
+/**
+ * Settings overlay state (see loop()) -- not part of the View cycle, since
+ * it's triggered by its own dedicated button rather than LEFT/RIGHT paging.
+ * selectedOption: 0 = Power Off, 1 = Reset Game.
+ */
+static bool inSettings = false;
+static int selectedOption = 0;
+static bool confirmPending = false;
+
+// Accelerating hold-to-scroll state for RIGHT on the Foraging view (see
+// loop()): a held press repeats faster the longer it's held, down to a
+// floor, rather than a fixed step size.
+static bool rightHeld = false;
+static uint32_t rightNextStepMs = 0;
+static int rightHoldSteps = 0;
+static const uint32_t RIGHT_HOLD_INITIAL_MS = 450;
+static const uint32_t RIGHT_HOLD_FLOOR_MS = 60;
+static const uint32_t RIGHT_HOLD_ACCEL_MS = 40;
 
 static void goToSleep() {
 #if DEV_MODE_NO_SLEEP
@@ -43,7 +64,37 @@ static void goToSleep() {
 #endif
 }
 
-static void buildContext() {
+/**
+ * Settings -> Power Off: deep-sleeps with NO wake source armed at all
+ * (skips both ext0 and the timer backstop goToSleep() uses) -- only the
+ * physical inline power switch brings the device back, which re-runs
+ * setup() fresh. This is a true "off", not just a longer sleep.
+ */
+static void doPowerOff() {
+  display::renderPowerOff();
+  display::hibernate();
+  esp_deep_sleep_start();
+}
+
+/**
+ * Settings -> Reset Game (confirmed): wipes the single "forager" NVS
+ * namespace -- creature state, event cooldown, and the journal all live
+ * there (see the module-level Preferences usage in creature.cpp/events.cpp/
+ * journal.cpp), so one clear() resets everything at once -- then reboots
+ * straight into the first-ever-boot path, triggering the birth sequence.
+ */
+static void doResetGame() {
+  Preferences p;
+  p.begin("forager", /*readOnly=*/false);
+  p.clear();
+  p.end();
+  esp_restart();
+}
+
+// Returns true the very first time this ever runs (birthDate == 0, no prior
+// save) -- setup() uses this to show the one-time birth sequence. Sets
+// birthDate immediately so a later wake never re-triggers it.
+static bool buildContext() {
   time_t nowUtc = time(nullptr);
   localtime_r(&nowUtc, &ctx.now);
   int month = ctx.now.tm_mon + 1;
@@ -51,18 +102,29 @@ static void buildContext() {
   ctx.featured = foraging::featured(month);
 
   creature::load(ctx.creature);
+  bool firstBoot = (ctx.creature.birthDate == 0);
+  if (firstBoot) ctx.creature.birthDate = nowUtc;
+
   creature::evaluate(ctx.creature, ctx.now, ctx.weather);
   creature::save(ctx.creature);
 
+  journal::load();
+
+  Stage stage = creature::computeStage(ctx.creature.birthDate, nowUtc);
+  ctx.stage = (uint8_t)stage;
+
   // Spawn-check runs exactly once per wake, here -- there's no live
   // background timer since the device is asleep the rest of the time.
-  events::PendingEvent ev = events::checkForEvent(nowUtc, month);
+  events::PendingEvent ev = events::checkForEvent(nowUtc, month, stage);
   ctx.eventType = (uint8_t)ev.type;
   ctx.eventDataId = ev.dataId;
+  ctx.eventExact = ev.exact ? 1 : 0;
 
   // Foraging browse order is relevance-ranked (season + rain) with per-wake
   // randomization, so it's not the same order every time either.
   foraging::rebuildBrowseOrder(month, ctx.weather.postRain);
+
+  return firstBoot;
 }
 
 static bool pressed(Btn& b) {
@@ -76,8 +138,15 @@ static bool pressed(Btn& b) {
   return fired;
 }
 
-// LEFT/RIGHT step backward/forward through Main <-> Foraging <-> Status,
-// clamped at each end (no wraparound).
+// LEFT/RIGHT step backward/forward through Achievements <-> Status <-> Main
+// <-> Foraging, clamped at each end (no wraparound). Foraging is hidden
+// during Baby stage (nothing to eat there could be resolved yet) -- treat
+// Main as if it were the rightmost boundary in that case.
+static bool viewReachable(View v) {
+  if (v == View::Foraging && (Stage)ctx.stage == Stage::Baby) return false;
+  return true;
+}
+
 static void retreatView() {
   if ((int)currentView <= 0) return;
   currentView = (View)((int)currentView - 1);
@@ -87,23 +156,25 @@ static void retreatView() {
 static void advanceView() {
   int n = (int)View::COUNT;
   if ((int)currentView >= n - 1) return;
-  currentView = (View)((int)currentView + 1);
+  View next = (View)((int)currentView + 1);
+  if (!viewReachable(next)) return;
+  currentView = next;
   display::renderView(currentView, ctx, forageIdx);
 }
 
 // ENTER's action depends on the current view: resolve a pending sighting/
 // mishap/weather event on Main (ForagingFind events are NOT resolved here --
-// see below), page forward through species on Foraging (clamped at the
-// last entry, or deliver a pending ForagingFind if the species on screen
-// matches its required category), or nothing on Status. There's no manual
-// "feed" action anymore -- hunger and happiness are only moved by events
-// (see src/events/).
+// see below), eat the species currently on screen on Foraging (this always
+// feeds the creature -- see creature::feedForaged() -- and additionally
+// resolves a pending ForagingFind on top if the eaten species satisfies it,
+// per events::eventMatchesSpecies()), or nothing on Status.
 static void onEnter() {
   switch (currentView) {
     case View::Main: {
       events::PendingEvent ev;
       ev.type = (events::EventType)ctx.eventType;
       ev.dataId = ctx.eventDataId;
+      ev.exact = ctx.eventExact != 0;
       if (ev.type != events::EventType::None && ev.type != events::EventType::ForagingFind) {
         events::resolve(ev, ctx.creature, time(nullptr));
         creature::evaluate(ctx.creature, ctx.now, ctx.weather);
@@ -117,18 +188,19 @@ static void onEnter() {
       events::PendingEvent ev;
       ev.type = (events::EventType)ctx.eventType;
       ev.dataId = ctx.eventDataId;
+      ev.exact = ctx.eventExact != 0;
       const Forageable& current = foraging::speciesAtRank(forageIdx);
-      if (ev.type == events::EventType::ForagingFind &&
-          strcmp(current.kind, events::eventCategory(ev)) == 0) {
+      int month = ctx.now.tm_mon + 1;
+      creature::feedForaged(ctx.creature, time(nullptr), foraging::inSeason(current, month));
+      journal::markEaten(foraging::indexAtRank(forageIdx));
+      journal::save();
+      if (events::eventMatchesSpecies(ev, current)) {
         events::resolve(ev, ctx.creature, time(nullptr));
-        creature::evaluate(ctx.creature, ctx.now, ctx.weather);
-        creature::save(ctx.creature);
         ctx.eventType = (uint8_t)events::EventType::None;
-        display::renderView(View::Foraging, ctx, forageIdx);
-      } else if (forageIdx < foraging::speciesCount() - 1) {
-        forageIdx++;
-        display::renderView(View::Foraging, ctx, forageIdx);
       }
+      creature::evaluate(ctx.creature, ctx.now, ctx.weather);
+      creature::save(ctx.creature);
+      display::renderView(View::Foraging, ctx, forageIdx);
       break;
     }
     default:
@@ -136,12 +208,11 @@ static void onEnter() {
   }
 }
 
-// On the Foraging view, RIGHT jumps 10 species ahead instead of cycling
-// views (Foraging is already the rightmost view, so that would be a no-op
-// anyway).
-static void skipTenSpecies() {
+// Foraging-view species stepping, shared by a plain RIGHT tap and the
+// accelerating hold-to-scroll in loop().
+static void advanceForageIdx() {
   int maxIdx = foraging::speciesCount() - 1;
-  forageIdx = std::min(forageIdx + 10, maxIdx);
+  forageIdx = std::min(forageIdx + 1, maxIdx);
   display::renderView(View::Foraging, ctx, forageIdx);
 }
 
@@ -151,6 +222,7 @@ void setup() {
   pinMode(PIN_BTN_LEFT, INPUT_PULLDOWN);
   pinMode(PIN_BTN_RIGHT, INPUT_PULLDOWN);
   pinMode(PIN_BTN_ENTER, INPUT_PULLDOWN);
+  pinMode(PIN_BTN_SETTINGS, INPUT_PULLDOWN);
   log_i("Woke");
 
   ctx.netOk = net::connectStrongest();
@@ -163,37 +235,101 @@ void setup() {
   }
   net::shutdown();
 
-  buildContext();
+  bool firstBoot = buildContext();
 
   display::begin();
+  if (firstBoot) display::renderBirth();
   display::renderView(currentView, ctx, forageIdx);
   log_i("Mood: %s", creature::moodName(ctx.creature.mood));
 
   lastActivityMs = millis();
 }
 
-void loop() {
-  if (pressed(bLeft)) {
-    retreatView();
-    lastActivityMs = millis();
+// Settings overlay button handling -- takes over LEFT/RIGHT/ENTER entirely
+// while active (mirrors how Foraging already takes over RIGHT today).
+static void handleSettingsInput() {
+  if (confirmPending) {
+    if (pressed(bEnter)) {
+      doResetGame();  // never returns -- esp_restart()
+    }
+    if (pressed(bLeft)) {
+      confirmPending = false;
+      display::renderSettings(selectedOption, confirmPending);
+    }
+    return;
   }
   if (pressed(bRight)) {
-    if (currentView == View::Foraging)
-      skipTenSpecies();
-    else
-      advanceView();
-    lastActivityMs = millis();
+    selectedOption = (selectedOption + 1) % 2;
+    display::renderSettings(selectedOption, confirmPending);
   }
   if (pressed(bEnter)) {
-    onEnter();
+    if (selectedOption == 0) {
+      doPowerOff();  // never returns -- deep sleep with no wake source
+    } else {
+      confirmPending = true;
+      display::renderSettings(selectedOption, confirmPending);
+    }
+  }
+  if (pressed(bLeft)) {
+    inSettings = false;
+    display::renderView(currentView, ctx, forageIdx);
+  }
+}
+
+void loop() {
+  if (pressed(bSettings) && !inSettings) {
+    inSettings = true;
+    selectedOption = 0;
+    confirmPending = false;
+    display::renderSettings(selectedOption, confirmPending);
     lastActivityMs = millis();
+  } else if (inSettings) {
+    handleSettingsInput();
+    lastActivityMs = millis();
+  } else {
+    if (pressed(bLeft)) {
+      retreatView();
+      lastActivityMs = millis();
+    }
+    if (currentView == View::Foraging) {
+      // Accelerating hold-to-scroll: a fresh press steps once immediately;
+      // holding repeats with a shrinking interval down to a floor.
+      bool rightDown = digitalRead(PIN_BTN_RIGHT) == HIGH;
+      if (rightDown && !rightHeld) {
+        rightHeld = true;
+        rightHoldSteps = 0;
+        advanceForageIdx();
+        rightNextStepMs = millis() + RIGHT_HOLD_INITIAL_MS;
+        lastActivityMs = millis();
+      } else if (rightDown && rightHeld && millis() >= rightNextStepMs) {
+        rightHoldSteps++;
+        uint32_t interval = RIGHT_HOLD_INITIAL_MS > rightHoldSteps * RIGHT_HOLD_ACCEL_MS
+                                ? RIGHT_HOLD_INITIAL_MS - rightHoldSteps * RIGHT_HOLD_ACCEL_MS
+                                : RIGHT_HOLD_FLOOR_MS;
+        if (interval < RIGHT_HOLD_FLOOR_MS) interval = RIGHT_HOLD_FLOOR_MS;
+        advanceForageIdx();
+        rightNextStepMs = millis() + interval;
+        lastActivityMs = millis();
+      } else if (!rightDown) {
+        rightHeld = false;
+      }
+      bRight.prev = rightDown;
+    } else if (pressed(bRight)) {
+      advanceView();
+      lastActivityMs = millis();
+    }
+    if (pressed(bEnter)) {
+      onEnter();
+      lastActivityMs = millis();
+    }
   }
 
 #if DEV_MODE_NO_SLEEP
-  static int lastLeft = -1, lastRight = -1, lastEnter = -1;
+  static int lastLeft = -1, lastRight = -1, lastEnter = -1, lastSettings = -1;
   int left = digitalRead(PIN_BTN_LEFT);
   int right = digitalRead(PIN_BTN_RIGHT);
   int enter = digitalRead(PIN_BTN_ENTER);
+  int settings = digitalRead(PIN_BTN_SETTINGS);
   if (left != lastLeft) {
     log_i("LEFT  (GPIO%d) = %d", PIN_BTN_LEFT, left);
     lastLeft = left;
@@ -205,6 +341,10 @@ void loop() {
   if (enter != lastEnter) {
     log_i("ENTER (GPIO%d) = %d", PIN_BTN_ENTER, enter);
     lastEnter = enter;
+  }
+  if (settings != lastSettings) {
+    log_i("SETTINGS (GPIO%d) = %d", PIN_BTN_SETTINGS, settings);
+    lastSettings = settings;
   }
 #endif
 

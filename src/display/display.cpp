@@ -30,19 +30,32 @@
 #include "bitmaps/animals/river_otter_bitmap.h"
 #include "bitmaps/animals/snowshoe_hare_bitmap.h"
 #include "bitmaps/animals/stellers_jay_bitmap.h"
+#include "bitmaps/marmot/marmot_baby2_bitmap.h"
+#include "bitmaps/marmot/marmot_baby3_bitmap.h"
+#include "bitmaps/marmot/marmot_baby_bitmap.h"
 #include "bitmaps/marmot/marmot_bitmap.h"
 #include "bitmaps/marmot/marmot_hungry_bitmap.h"
+#include "bitmaps/marmot/marmot_juvenile2_bitmap.h"
+#include "bitmaps/marmot/marmot_juvenile_bitmap.h"
+#include "bitmaps/marmot/marmot_variant10_bitmap.h"
+#include "bitmaps/marmot/marmot_variant11_bitmap.h"
+#include "bitmaps/marmot/marmot_variant12_bitmap.h"
 #include "bitmaps/marmot/marmot_variant1_bitmap.h"
 #include "bitmaps/marmot/marmot_variant2_bitmap.h"
 #include "bitmaps/marmot/marmot_variant3_bitmap.h"
 #include "bitmaps/marmot/marmot_variant4_bitmap.h"
 #include "bitmaps/marmot/marmot_variant5_bitmap.h"
+#include "bitmaps/marmot/marmot_variant6_bitmap.h"
+#include "bitmaps/marmot/marmot_variant7_bitmap.h"
+#include "bitmaps/marmot/marmot_variant8_bitmap.h"
+#include "bitmaps/marmot/marmot_variant9_bitmap.h"
 #include "bitmaps/species/species_index.h"
 #include "config.h"
 #include "creature.h"
 #include "epd_adapter.h"
 #include "events.h"
 #include "foraging.h"
+#include "journal.h"
 
 namespace display {
 
@@ -239,14 +252,61 @@ static const MarmotArt kMarmotVariants[] = {
     {MARMOT_VARIANT3_BITMAP, MARMOT_VARIANT3_W, MARMOT_VARIANT3_H, MARMOT_VARIANT3_H},
     {MARMOT_VARIANT4_BITMAP, MARMOT_VARIANT4_W, MARMOT_VARIANT4_H, MARMOT_VARIANT4_H},
     {MARMOT_VARIANT5_BITMAP, MARMOT_VARIANT5_W, MARMOT_VARIANT5_H, MARMOT_VARIANT5_H},
+    {MARMOT_VARIANT6_BITMAP, MARMOT_VARIANT6_W, MARMOT_VARIANT6_H, MARMOT_VARIANT6_H},
+    {MARMOT_VARIANT7_BITMAP, MARMOT_VARIANT7_W, MARMOT_VARIANT7_H, MARMOT_VARIANT7_H},
+    {MARMOT_VARIANT8_BITMAP, MARMOT_VARIANT8_W, MARMOT_VARIANT8_H, MARMOT_VARIANT8_H},
+    {MARMOT_VARIANT9_BITMAP, MARMOT_VARIANT9_W, MARMOT_VARIANT9_H, MARMOT_VARIANT9_H},
+    {MARMOT_VARIANT10_BITMAP, MARMOT_VARIANT10_W, MARMOT_VARIANT10_H, MARMOT_VARIANT10_H},
+    {MARMOT_VARIANT11_BITMAP, MARMOT_VARIANT11_W, MARMOT_VARIANT11_H, MARMOT_VARIANT11_H},
+    {MARMOT_VARIANT12_BITMAP, MARMOT_VARIANT12_W, MARMOT_VARIANT12_H, MARMOT_VARIANT12_H},
 };
 static const int kMarmotVariantCount = sizeof(kMarmotVariants) / sizeof(kMarmotVariants[0]);
+
+// Dedicated Baby and Juvenile pose pools -- real hoary/yellow-bellied marmot
+// pup photos found on a wider Commons sweep (zoo/park and family shots turned
+// out to have much cleaner backgrounds than the wild adult shots this
+// project mostly draws from), each rotated randomly per wake exactly like
+// the adult pool below.
+static const MarmotArt kBabyVariants[] = {
+    {MARMOT_BABY_BITMAP, MARMOT_BABY_W, MARMOT_BABY_H, MARMOT_BABY_H},
+    {MARMOT_BABY2_BITMAP, MARMOT_BABY2_W, MARMOT_BABY2_H, MARMOT_BABY2_H},
+    {MARMOT_BABY3_BITMAP, MARMOT_BABY3_W, MARMOT_BABY3_H, MARMOT_BABY3_H},
+};
+static const int kBabyVariantCount = sizeof(kBabyVariants) / sizeof(kBabyVariants[0]);
+
+static const MarmotArt kJuvenileVariants[] = {
+    {MARMOT_JUVENILE_BITMAP, MARMOT_JUVENILE_W, MARMOT_JUVENILE_H, MARMOT_JUVENILE_H},
+    {MARMOT_JUVENILE2_BITMAP, MARMOT_JUVENILE2_W, MARMOT_JUVENILE2_H, MARMOT_JUVENILE2_H},
+};
+static const int kJuvenileVariantCount = sizeof(kJuvenileVariants) / sizeof(kJuvenileVariants[0]);
 
 // A hoary marmot -- hardcoded, dithered pen-and-ink-style/photo bitmaps (see
 // include/bitmaps/marmot/) rather than live procedural shapes, for real fur
 // texture and a recognizable silhouette. No procedural eye/nose/sparkle
 // overlay -- just the bitmap.
-static void drawCreature(int cx, int groundY, Mood mood) {
+// Deep sleep wipes ordinary RAM, so a function-local static naturally
+// re-rolls the first time it's read each wake and then holds steady for
+// the rest of the session -- shared helper for every per-wake pose pool
+// (baby/juvenile/adult) below.
+static int8_t pickVariant(int8_t& cache, int count) {
+  if (cache < 0) cache = (int8_t)random(count);
+  return cache;
+}
+
+static void drawCreature(int cx, int groundY, Mood mood, Stage stage) {
+  if (stage == Stage::Baby || stage == Stage::Juvenile) {
+    static int8_t babyVariant = -1;
+    static int8_t juvenileVariant = -1;
+    const MarmotArt& art =
+        (stage == Stage::Baby)
+            ? kBabyVariants[pickVariant(babyVariant, kBabyVariantCount)]
+            : kJuvenileVariants[pickVariant(juvenileVariant, kJuvenileVariantCount)];
+    int bx = cx - art.w / 2;
+    int by = groundY - art.groundY;
+    epd.drawBitmap(bx, by, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
+    return;
+  }
+
   if (mood == Mood::Hungry) {
     int bx = cx - MARMOT_HUNGRY_W / 2;
     int by = groundY - MARMOT_HUNGRY_GROUND_Y;
@@ -254,12 +314,8 @@ static void drawCreature(int cx, int groundY, Mood mood) {
                    C_WHITE);
     return;
   }
-  // Deep sleep wipes ordinary RAM, so a function-local static naturally
-  // re-rolls on the very first drawCreature() call each wake and then holds
-  // steady for the rest of the session.
   static int8_t variant = -1;
-  if (variant < 0) variant = (int8_t)random(kMarmotVariantCount);
-  const MarmotArt& art = kMarmotVariants[variant];
+  const MarmotArt& art = kMarmotVariants[pickVariant(variant, kMarmotVariantCount)];
   int bx = cx - art.w / 2;
   int by = groundY - art.groundY;
   epd.drawBitmap(bx, by, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
@@ -346,7 +402,7 @@ static void renderEncounter(const AppContext& ctx, const events::PendingEvent& e
     y = by + art->h + 10;
   } else {
     int stageCx = SCREEN_W / 2, stageGroundY = 235;
-    drawCreature(stageCx, stageGroundY, negative ? Mood::Annoyed : Mood::Excited);
+    drawCreature(stageCx, stageGroundY, negative ? Mood::Annoyed : Mood::Excited, (Stage)ctx.stage);
     y = stageGroundY + 15;
   }
 
@@ -376,7 +432,7 @@ static void renderMain(const AppContext& ctx) {
   // own rock ledge baked in, and a second ground line under it just clashed.
   int stageCx = STAGE_X + STAGE_W / 2 - 20;
   int stageGroundY = STAGE_Y + STAGE_H - 24;
-  drawCreature(stageCx, stageGroundY, ctx.creature.mood);
+  drawCreature(stageCx, stageGroundY, ctx.creature.mood, (Stage)ctx.stage);
 
   drawNavBar("Status", "", "Foraging");
 }
@@ -418,11 +474,13 @@ static void renderForaging(const AppContext& ctx, int speciesIdx) {
   events::PendingEvent ev;
   ev.type = (events::EventType)ctx.eventType;
   ev.dataId = ctx.eventDataId;
-  bool isMatch =
-      ev.type == events::EventType::ForagingFind && strcmp(f.kind, events::eventCategory(ev)) == 0;
+  ev.exact = ctx.eventExact != 0;
+  bool isMatch = events::eventMatchesSpecies(ev, f);
 
   char posBuf[16];
-  snprintf(posBuf, sizeof(posBuf), "%d/%d", speciesIdx + 1, foraging::speciesCount());
+  bool eaten = journal::hasEaten(foraging::indexAtRank(speciesIdx));
+  snprintf(posBuf, sizeof(posBuf), "%d/%d%s", speciesIdx + 1, foraging::speciesCount(),
+           eaten ? " (eaten)" : "");
   int16_t pbx, pby;
   uint16_t pbw, pbh;
   epd.setFont(nullptr);
@@ -482,7 +540,7 @@ static void renderForaging(const AppContext& ctx, int speciesIdx) {
 
   if (isMatch) textCentered(0, SCREEN_W, y + 16, "MATCHES ACTIVE FIND!", 1);
 
-  drawNavBar("Main", isMatch ? "Feed!" : "Next", "+10");
+  drawNavBar("Main", "Eat", "Scroll");
 }
 
 // Energy: derived from time of day, not persisted -- low overnight, ramps
@@ -505,13 +563,26 @@ static uint8_t computeCuriosity(const WeatherData& w) {
   return 35;
 }
 
+static const char* stageName(Stage s) {
+  switch (s) {
+    case Stage::Baby:
+      return "Baby";
+    case Stage::Juvenile:
+      return "Juvenile";
+    default:
+      return "Adult";
+  }
+}
+
 static void renderStatus(const AppContext& ctx) {
-  textAt(8, 6, "Status", 2);
+  char titleBuf[24];
+  snprintf(titleBuf, sizeof(titleBuf), "Status - %s", stageName((Stage)ctx.stage));
+  textAt(8, 6, titleBuf, 2);
 
   // No mood-name text or "Foraged X days ago" line anymore -- the mascot
   // moves down to fill the space those left behind.
   int stageCx = SCREEN_W / 2, stageGroundY = 230;
-  drawCreature(stageCx, stageGroundY, ctx.creature.mood);
+  drawCreature(stageCx, stageGroundY, ctx.creature.mood, (Stage)ctx.stage);
 
   auto bar = [&](int y, const char* label, uint8_t pct) {
     textAt(20, y, label, 1);
@@ -531,7 +602,58 @@ static void renderStatus(const AppContext& ctx) {
     textAt(20, 364, buf, 1);
   }
 
-  drawNavBar("", "", "Main");
+  char progressBuf[48];
+  snprintf(progressBuf, sizeof(progressBuf), "Streak: %ud | Eaten: %d/%d",
+           ctx.creature.feedStreakDays, journal::totalEaten(), foraging::speciesCount());
+  textAt(20, 376, progressBuf, 1);
+
+  drawNavBar("Achievements", "", "Main");
+}
+
+// Badge progress line: "[X] Name (n/threshold)" -- a filled box once count
+// reaches threshold. No per-badge icons; matches the existing blocky-font,
+// text-only aesthetic used everywhere else.
+static int drawBadge(int y, const char* name, int count, int threshold) {
+  bool done = count >= threshold;
+  int shown = count < threshold ? count : threshold;
+  char line[48];
+  snprintf(line, sizeof(line), "[%c] %s (%d/%d)", done ? 'X' : ' ', name, shown, threshold);
+  textAt(8, y, line, 1);
+  return y + 16;
+}
+
+static void renderAchievements(const AppContext& ctx) {
+  textAt(8, 6, "Achievements", 2);
+  int y = 40;
+
+  int total = journal::totalEaten();
+  char buf[48];
+  snprintf(buf, sizeof(buf), "Species eaten: %d/%d", total, foraging::speciesCount());
+  textAt(8, y, buf, 1);
+  y += 14;
+  snprintf(buf, sizeof(buf), "Feed streak: %u days", ctx.creature.feedStreakDays);
+  textAt(8, y, buf, 1);
+  y += 22;
+
+  y = drawBadge(y, "Mushroom Hunter", foraging::countEatenOfKind("mushroom"), 15);
+  y = drawBadge(y, "Berry Picker", foraging::countEatenOfKind("berry"), 10);
+
+  int herbalist = foraging::countEatenOfKind("green") + foraging::countEatenOfKind("herb") +
+                  foraging::countEatenOfKind("flower") + foraging::countEatenOfKind("fern") +
+                  foraging::countEatenOfKind("root") + foraging::countEatenOfKind("shoot");
+  y = drawBadge(y, "Herbalist", herbalist, 15);
+
+  y = drawBadge(y, "Coastal Forager", foraging::countEatenOfBiome(Biome::Coast), 15);
+  y = drawBadge(y, "Mountain Forager", foraging::countEatenOfBiome(Biome::Mountain), 10);
+
+  int tidepool = foraging::countEatenOfKind("shellfish") + foraging::countEatenOfKind("crab") +
+                 foraging::countEatenOfKind("urchin") + foraging::countEatenOfKind("snail") +
+                 foraging::countEatenOfKind("chiton") + foraging::countEatenOfKind("shrimp");
+  y = drawBadge(y, "Tidepool Forager", tidepool, 8);
+
+  y = drawBadge(y, "Completionist", total, foraging::speciesCount());
+
+  drawNavBar("", "", "Status");
 }
 
 void begin() {
@@ -558,9 +680,75 @@ void renderView(View v, const AppContext& ctx, int speciesIdx) {
     case View::Status:
       renderStatus(ctx);
       break;
+    case View::Achievements:
+      renderAchievements(ctx);
+      break;
     default:
       break;
   }
+  epd.endFrame(true);
+}
+
+/**
+ * One-time "birth" reveal, shown only on the very first-ever boot (see
+ * main.cpp) before the normal view takes over. A short two-frame sequence
+ * using the same beginFrame()/endFrame() full-refresh pattern as every other
+ * screen -- no new animation machinery needed.
+ */
+void renderBirth() {
+  epd.beginFrame();
+  textCentered(0, SCREEN_W, SCREEN_H / 2 - 10, "...", 3);
+  epd.endFrame(true);
+  delay(1400);
+
+  epd.beginFrame();
+  const MarmotArt& baby = kBabyVariants[0];
+  int cx = SCREEN_W / 2;
+  int by = SCREEN_H / 2 + 60;
+  int bx = cx - baby.w / 2;
+  int topY = by - baby.groundY;
+  epd.drawBitmap(bx, topY, baby.bitmap, baby.w, baby.h, C_BLACK, C_WHITE);
+  textCentered(0, SCREEN_W, topY - 30, "A baby marmot is born!", 1);
+  epd.endFrame(true);
+}
+
+/**
+ * Settings overlay -- triggered by the dedicated SETTINGS button (see
+ * main.cpp), not part of the normal View cycle. selected: 0 = Power Off,
+ * 1 = Reset Game. confirmPending shows a yes/no sub-screen for Reset Game,
+ * since it's destructive.
+ */
+void renderSettings(int selected, bool confirmPending) {
+  epd.beginFrame();
+  textAt(8, 6, "Settings", 2);
+
+  if (confirmPending) {
+    textCentered(0, SCREEN_W, 160, "Really reset the game?", 1);
+    textCentered(0, SCREEN_W, 180, "This erases all progress.", 1);
+    drawNavBar("No", "", "");
+    textCentered(0, SCREEN_W, SCREEN_H - 34, "ENTER = Yes", 1);
+  } else {
+    const char* options[] = {"Power Off", "Reset Game"};
+    for (int i = 0; i < 2; i++) {
+      char line[24];
+      snprintf(line, sizeof(line), "%s %s", i == selected ? ">" : " ", options[i]);
+      textAt(20, 60 + i * 20, line, 1);
+    }
+    drawNavBar("Exit", "Select", "Next");
+  }
+
+  epd.endFrame(true);
+}
+
+/**
+ * Brief goodbye screen shown right before a Power Off deep-sleep with no
+ * wake source armed -- only the physical power switch brings the device
+ * back after this.
+ */
+void renderPowerOff() {
+  epd.beginFrame();
+  textCentered(0, SCREEN_W, SCREEN_H / 2 - 10, "Powered off", 2);
+  textCentered(0, SCREEN_W, SCREEN_H / 2 + 14, "Flip the switch to wake", 1);
   epd.endFrame(true);
 }
 

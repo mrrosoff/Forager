@@ -1,4 +1,5 @@
-// Marmot mood-variant artwork (variant3) -- hoary marmot sitting alert, sourced from Wikimedia Commons.
+// Marmot mood-variant artwork (variant3) -- hoary marmot sitting alert, sourced from Wikimedia
+// Commons.
 #pragma once
 
 #include <pgmspace.h>

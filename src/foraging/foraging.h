@@ -28,6 +28,23 @@ void rebuildBrowseOrder(int month, bool postRain);
 // (used by the random-pick ForagingFind event spawn).
 const Forageable& speciesAtRank(int rank);
 
+// The raw speciesAt()-style index backing a given rank -- lets callers
+// (e.g. journal::markEaten()) resolve "the species currently on screen" to
+// a stable index without depending on the browse-order internals directly.
+int indexAtRank(int rank);
+
+/**
+ * Counts species of the given kind (e.g. "mushroom") already marked eaten
+ * in journal::hasEaten() -- for the Achievements view's kind-based badges.
+ */
+int countEatenOfKind(const char* kind);
+
+/**
+ * Counts species of the given biome already marked eaten in
+ * journal::hasEaten() -- for the Achievements view's biome-based badges.
+ */
+int countEatenOfBiome(Biome b);
+
 // True if this species is in season for the given month (1..12).
 bool inSeason(const Forageable& f, int month);
 

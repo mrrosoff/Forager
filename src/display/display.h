@@ -16,6 +16,17 @@ void renderView(View v, const AppContext& ctx, int speciesIdx);
 // image (unpowered) until the next wake.
 void renderSleep();
 
+// One-time birth reveal, shown only on the very first-ever boot.
+void renderBirth();
+
+// Settings overlay -- selected: 0 = Power Off, 1 = Reset Game.
+// confirmPending shows a yes/no sub-screen for the destructive Reset Game.
+void renderSettings(int selected, bool confirmPending);
+
+// Brief goodbye screen shown right before a Power Off (no wake source
+// armed) deep sleep.
+void renderPowerOff();
+
 // Power the panel down before deep sleep. The image is retained with no power.
 void hibernate();
 

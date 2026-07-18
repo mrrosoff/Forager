@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstring>
 
+#include "journal.h"
+
 namespace foraging {
 
 #define MO(m) (1 << ((m) - 1))
@@ -1218,6 +1220,27 @@ const Forageable& speciesAtRank(int rank) {
   rank = std::max(rank, 0);
   if (rank >= kSpeciesCount) rank = kSpeciesCount - 1;
   return kSpecies[browseOrder[rank]];
+}
+
+int indexAtRank(int rank) {
+  if (!browseOrderBuilt) rebuildBrowseOrder(1, false);
+  rank = std::max(rank, 0);
+  if (rank >= kSpeciesCount) rank = kSpeciesCount - 1;
+  return browseOrder[rank];
+}
+
+int countEatenOfKind(const char* kind) {
+  int count = 0;
+  for (int i = 0; i < kSpeciesCount; i++)
+    if (journal::hasEaten(i) && strcmp(kSpecies[i].kind, kind) == 0) count++;
+  return count;
+}
+
+int countEatenOfBiome(Biome b) {
+  int count = 0;
+  for (int i = 0; i < kSpeciesCount; i++)
+    if (journal::hasEaten(i) && kSpecies[i].biome == b) count++;
+  return count;
 }
 
 Forageable featured(int month) {
