@@ -19,6 +19,14 @@ enum class EventType : uint8_t {
   // steps, snuggles) resolved on Main via ENTER like AnimalSighting --
   // never rolled once Foraging unlocks (Juvenile+).
   BabyCare,
+  // Always-positive: a neat non-food find on the trail (not foraging --
+  // resolved on Main like AnimalSighting). Baby-stage excludes this one
+  // (doesn't fit a baby-at-home narrative, unlike MarmotEncounter below).
+  TrailTreasure,
+  // A social encounter with another marmot -- mostly positive, occasionally
+  // a rival/territorial variant (see eventIsNegative()). Rolled at every
+  // stage, including Baby (meeting family/siblings near the burrow).
+  MarmotEncounter,
 };
 
 struct PendingEvent {

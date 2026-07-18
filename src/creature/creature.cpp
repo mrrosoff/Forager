@@ -3,6 +3,7 @@
 #include <Preferences.h>
 
 #include <algorithm>
+#include <cstring>
 
 #include "config.h"
 
@@ -16,9 +17,15 @@ void load(CreatureState& s) {
   s.hunger = p.getUChar("hunger", 30);
   s.happiness = p.getUChar("happy", 60);
   s.lastFed = (time_t)p.getULong64("lastFed", 0);
+  s.lastPlayed = (time_t)p.getULong64("lastPlayed", 0);
   s.birthDate = (time_t)p.getULong64("birthDate", 0);
   s.feedStreakDays = p.getUShort("streak", 0);
   s.lastStreakDay = (time_t)p.getULong64("streakDay", 0);
+  s.lastSeenStage = p.getUChar("lastStage", 0);
+  s.neglectSince = (time_t)p.getULong64("neglectSince", 0);
+  strncpy(s.name, "Marmot", sizeof(s.name) - 1);  // default if never named yet
+  s.name[sizeof(s.name) - 1] = '\0';
+  p.getString("name", s.name, sizeof(s.name));
   p.end();
   s.mood = Mood::Content;  // recomputed by evaluate()
 }
@@ -29,9 +36,13 @@ void save(const CreatureState& s) {
   p.putUChar("hunger", s.hunger);
   p.putUChar("happy", s.happiness);
   p.putULong64("lastFed", (uint64_t)s.lastFed);
+  p.putULong64("lastPlayed", (uint64_t)s.lastPlayed);
   p.putULong64("birthDate", (uint64_t)s.birthDate);
   p.putUShort("streak", s.feedStreakDays);
   p.putULong64("streakDay", (uint64_t)s.lastStreakDay);
+  p.putUChar("lastStage", s.lastSeenStage);
+  p.putULong64("neglectSince", (uint64_t)s.neglectSince);
+  p.putString("name", s.name);
   p.end();
 }
 
@@ -47,8 +58,26 @@ static void agingHunger(CreatureState& s, time_t now) {
   if (s.hunger > 70 && s.happiness > 25) s.happiness -= 1;
 }
 
+/**
+ * Happiness decays toward a falling ceiling the longer it's been since the
+ * marmot was last played with (fed, or had an event resolved) -- a clamp
+ * rather than a recompute, so it never undoes a *recent* boost, but a
+ * long-neglected marmot's happiness gets pulled down regardless of what it
+ * was before. Independent of hunger: staying fed doesn't prevent boredom.
+ */
+static void agingBoredom(CreatureState& s, time_t now) {
+  if (s.lastPlayed == 0 || now <= s.lastPlayed) return;
+  double hrs = (double)(now - s.lastPlayed) / 3600.0;
+  double frac = hrs / (double)PLAY_PERIOD_HOURS;
+  frac = std::max(0.0, std::min(1.0, frac));
+  uint8_t ceiling = (uint8_t)((1.0 - frac) * 100.0);
+  if (ceiling < s.happiness) s.happiness = ceiling;
+}
+
 Mood evaluate(CreatureState& s, const struct tm& now, const WeatherData& weather) {
-  agingHunger(s, mktime(const_cast<struct tm*>(&now)));
+  time_t nowEpoch = mktime(const_cast<struct tm*>(&now));
+  agingHunger(s, nowEpoch);
+  agingBoredom(s, nowEpoch);
 
   int month = now.tm_mon + 1;  // 1..12
   int hour = now.tm_hour;
@@ -85,6 +114,7 @@ void feedForaged(CreatureState& s, time_t now, bool inSeason) {
   int h = (int)s.happiness + (inSeason ? 15 : 10);
   s.happiness = (uint8_t)(h > 100 ? 100 : h);
   s.lastFed = now;
+  s.lastPlayed = now;  // eating counts as play -- resets the boredom clock too
 
   int64_t today = dayIndex(now);
   int64_t lastDay = dayIndex(s.lastStreakDay);
@@ -112,6 +142,18 @@ Stage computeStage(time_t birthDate, time_t now) {
   if (days < (double)BABY_STAGE_DAYS) return Stage::Baby;
   if (days < (double)JUVENILE_STAGE_DAYS) return Stage::Juvenile;
   return Stage::Adult;
+}
+
+bool updateNeglect(CreatureState& s, time_t now) {
+  bool neglected =
+      s.hunger >= NEGLECT_HUNGER_THRESHOLD && s.happiness <= NEGLECT_HAPPINESS_THRESHOLD;
+  if (!neglected) {
+    s.neglectSince = 0;
+    return false;
+  }
+  if (s.neglectSince == 0) s.neglectSince = now;
+  double days = (double)(now - s.neglectSince) / 86400.0;
+  return days >= (double)NEGLECT_DAYS;
 }
 
 const char* moodName(Mood m) {

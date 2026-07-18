@@ -30,6 +30,16 @@ void feedForaged(CreatureState& s, time_t now, bool inSeason);
  */
 Stage computeStage(time_t birthDate, time_t now);
 
+/**
+ * Tracks/applies the neglect consequence (see NEGLECT_* in config.h):
+ * updates s.neglectSince based on whether hunger/happiness are both
+ * currently in neglect territory, and returns true once that's been
+ * continuously true for NEGLECT_DAYS -- the marmot has wandered off for
+ * good. Callers should treat a true return as terminal (show a "ran away"
+ * screen, then reset) rather than something to recover from in place.
+ */
+bool updateNeglect(CreatureState& s, time_t now);
+
 const char* moodName(Mood m);
 
 }  // namespace creature

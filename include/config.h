@@ -12,6 +12,14 @@
 // while iterating. Flip to 0 before shipping.
 #define DEV_MODE_NO_SLEEP 0
 
+// TEMPORARY review mode: replaces the normal state machine entirely with a
+// free-running cycle through every screen and every sourced bitmap (marmot
+// poses, animal sightings, foraging species), 3s each, ignoring buttons and
+// sleep. No WiFi, no persisted state touched. Flip back to 0 and reflash for
+// normal operation -- this is a one-off visual review tool, not shipped
+// behavior.
+#define DEV_MODE_SCREEN_CYCLE 0
+
 static const int PIN_EPD_SCK = 12;
 static const int PIN_EPD_MOSI = 11;
 static const int PIN_EPD_CS = 10;
@@ -63,9 +71,28 @@ static const char* const WEATHER_URL = "https://wttr.in/Seattle?format=j1";
 static const uint32_t HUNGER_PERIOD_HOURS = 72;
 
 /**
+ * Happiness decays toward 0 the longer it's been since the marmot was last
+ * "played with" (fed, or had a wake-time event resolved) -- see
+ * creature::evaluate()'s boredom-ceiling clamp. Separate from hunger: you
+ * can keep the marmot fed and still neglect it by never resolving events.
+ */
+static const uint32_t PLAY_PERIOD_HOURS = 48;
+
+/**
  * Growth-stage thresholds (real elapsed days since birth, see
  * creature::computeStage()): Baby for the first BABY_STAGE_DAYS, Juvenile
  * through JUVENILE_STAGE_DAYS, Adult after that.
  */
 static const uint32_t BABY_STAGE_DAYS = 2;
 static const uint32_t JUVENILE_STAGE_DAYS = 7;
+
+/**
+ * Neglect consequence (see creature::updateNeglect()): if hunger stays at or
+ * above NEGLECT_HUNGER_THRESHOLD *and* happiness stays at or below
+ * NEGLECT_HAPPINESS_THRESHOLD continuously for NEGLECT_DAYS, the marmot
+ * wanders off for good -- the player has to reset to start over with a new
+ * baby. Real stakes for prolonged neglect, not just a mood change.
+ */
+static const uint8_t NEGLECT_HUNGER_THRESHOLD = 90;
+static const uint8_t NEGLECT_HAPPINESS_THRESHOLD = 10;
+static const uint32_t NEGLECT_DAYS = 3;
