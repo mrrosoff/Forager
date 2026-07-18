@@ -32,31 +32,19 @@ static const AnimalDef kAnimals[] = {
     {"Snowshoe Hare", "A snowshoe hare freezes mid-hop, ears swiveling.", false, 20},
     {"Pileated Woodpecker", "A pileated woodpecker hammers a dead snag nearby.", false, 14},
     {"Steller's Jay", "A Steller's jay scolds from a low branch, crest raised.", false, 25},
-    {"American Dipper", "An American dipper bobs on a mid-stream rock, then vanishes underwater.",
-     false, 10},
     {"Banana Slug", "A banana slug inches across the wet trail, bright yellow.", false, 22},
     {"Pacific Tree Frog", "A Pacific tree frog chirps once from the ferns and goes quiet.", false,
      20},
-    {"Roosevelt Elk", "A Roosevelt elk cow watches warily from the meadow's edge.", false, 10},
     {"Beaver", "A beaver slaps its tail on the pond and disappears below.", false, 12},
     {"Great Blue Heron", "A great blue heron stands motionless in the shallows.", false, 16},
     {"Osprey", "An osprey hovers over the river, then plunges for a fish.", false, 12},
-    {"Northern Flicker", "A northern flicker flashes salmon-colored underwings overhead.", false,
-     18},
-    {"Pacific Wren", "A tiny Pacific wren belts out a surprisingly loud song.", false, 16},
     {"Chestnut-backed Chickadee", "A chickadee flock works through the hemlock boughs.", false, 20},
-    {"Marmot", "A hoary marmot whistles a sharp alarm from its boulder.", false, 10},
-    {"Pika", "A pika bolts between talus rocks, cheeks stuffed with grass.", false, 9},
     {"Harbor Seal", "A harbor seal's head bobs up in the cove, watching.", false, 14},
     {"Red Fox", "A red fox pauses on the trail, ears forward, before slipping away.", false, 10},
     {"Barred Owl", "A barred owl calls its who-cooks-for-you from the canopy at dusk.", true, 6},
-    {"Great Horned Owl", "A great horned owl watches silently from a high branch.", true, 5},
     {"Gray Wolf", "A distant howl carries down the valley -- wolves, unmistakably.", true, 2},
     {"Bobcat", "A bobcat's tufted ears vanish into the salal before you're sure you saw it.", true,
      4},
-    {"Bald-Faced Hornet", "A bald-faced hornet nest hums a warning from a nearby branch.", true, 6},
-    {"Rattlesnake", "A Western rattlesnake buzzes a warning from the shale, then goes still.", true,
-     3},
 
 };
 static const int kAnimalCount = sizeof(kAnimals) / sizeof(kAnimals[0]);
@@ -194,12 +182,22 @@ const char* eventTitle(EventType type, bool negative) {
   }
 }
 
+// Capitalized display form of a Forageable::kind, e.g. "mushroom" -> "Mushroom".
+static const char* capitalizedKind(const char* kind) {
+  static char buf[24];
+  size_t i = 0;
+  for (; kind[i] && i < sizeof(buf) - 1; i++) buf[i] = kind[i];
+  buf[i] = '\0';
+  if (buf[0] >= 'a' && buf[0] <= 'z') buf[0] -= 32;
+  return buf;
+}
+
 const char* eventName(const PendingEvent& ev) {
   switch (ev.type) {
     case EventType::AnimalSighting:
       return kAnimals[ev.dataId % kAnimalCount].name;
     case EventType::ForagingFind:
-      return foraging::speciesAt(ev.dataId).name;
+      return capitalizedKind(foraging::speciesAt(ev.dataId).kind);
     case EventType::TrailMishap:
       return kMishaps[ev.dataId % kMishapCount].name;
     case EventType::WeatherEvent:
@@ -214,7 +212,7 @@ const char* eventNote(const PendingEvent& ev) {
     case EventType::AnimalSighting:
       return kAnimals[ev.dataId % kAnimalCount].note;
     case EventType::ForagingFind:
-      return foraging::speciesAt(ev.dataId).note;
+      return "Head to the Foraging list and find one to feed the marmot!";
     case EventType::TrailMishap:
       return kMishaps[ev.dataId % kMishapCount].note;
     case EventType::WeatherEvent:
@@ -222,6 +220,11 @@ const char* eventNote(const PendingEvent& ev) {
     default:
       return "";
   }
+}
+
+const char* eventCategory(const PendingEvent& ev) {
+  if (ev.type != EventType::ForagingFind) return "";
+  return foraging::speciesAt(ev.dataId).kind;
 }
 
 bool eventIsNegative(const PendingEvent& ev) {

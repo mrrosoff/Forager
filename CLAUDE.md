@@ -30,7 +30,7 @@ real errors — trust `pio run`, not the inline squiggles.
 - Each module is a folder under `src/` holding its own `.h` + `.cpp`. Module
   dirs are added as include paths in `platformio.ini` so a module includes its
   own header as `#include "moon.h"`.
-- Tests go in top-level `test/`, never under `src/`.
+- No automated tests -- this project doesn't have a test suite.
 - `include/secrets.h` is gitignored; `include/secrets.example.h` is the template.
 
 ## Display: official Waveshare driver, 1-bit + dithering

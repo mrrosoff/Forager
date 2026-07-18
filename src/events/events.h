@@ -29,10 +29,15 @@ PendingEvent checkForEvent(time_t now, int month);
 
 // Short header shown at the top of the encounter view, e.g. "SIGHTING".
 const char* eventTitle(EventType type, bool negative);
-// The animal/species/mishap/weather name.
+// The animal/category/mishap/weather name (ForagingFind shows the required
+// category, e.g. "Mushroom", not a specific species -- see eventCategory()).
 const char* eventName(const PendingEvent& ev);
 // One-line flavor note.
 const char* eventNote(const PendingEvent& ev);
+// For ForagingFind only: the Forageable::kind required to resolve it (e.g.
+// "mushroom") -- browse to any species of that kind on the Foraging view and
+// press ENTER there to deliver it. Empty string for other event types.
+const char* eventCategory(const PendingEvent& ev);
 // True for a predator sighting, a mishap, or bad weather -- drives a worse
 // mood/expression instead of an excited one.
 bool eventIsNegative(const PendingEvent& ev);

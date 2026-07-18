@@ -1,5 +1,8 @@
 #include <Arduino.h>
 
+#include <algorithm>
+#include <cstring>
+
 #include "config.h"
 #include "creature.h"
 #include "display.h"
@@ -58,6 +61,10 @@ static void buildContext() {
   events::PendingEvent ev = events::checkForEvent(nowUtc, month);
   ctx.eventType = (uint8_t)ev.type;
   ctx.eventDataId = ev.dataId;
+
+  // Foraging browse order is relevance-ranked (season + rain) with per-wake
+  // randomization, so it's not the same order every time either.
+  foraging::rebuildBrowseOrder(month, ctx.weather.postRain);
 }
 
 static bool pressed(Btn& b) {
@@ -86,19 +93,20 @@ static void advanceView() {
   display::renderView(currentView, ctx, forageIdx);
 }
 
-// ENTER's action depends on the current view: resolve a pending sighting on
-// Main, page forward through species on Foraging (clamped at the last
-// entry -- there's no backward paging, and forageIdx resets to 0 on the
-// next sleep/wake anyway), or nothing on Status. There's no manual "feed"
-// action anymore -- hunger and happiness are only moved by events (see
-// src/events/).
+// ENTER's action depends on the current view: resolve a pending sighting/
+// mishap/weather event on Main (ForagingFind events are NOT resolved here --
+// see below), page forward through species on Foraging (clamped at the
+// last entry, or deliver a pending ForagingFind if the species on screen
+// matches its required category), or nothing on Status. There's no manual
+// "feed" action anymore -- hunger and happiness are only moved by events
+// (see src/events/).
 static void onEnter() {
   switch (currentView) {
     case View::Main: {
       events::PendingEvent ev;
       ev.type = (events::EventType)ctx.eventType;
       ev.dataId = ctx.eventDataId;
-      if (ev.type != events::EventType::None) {
+      if (ev.type != events::EventType::None && ev.type != events::EventType::ForagingFind) {
         events::resolve(ev, ctx.creature, time(nullptr));
         creature::evaluate(ctx.creature, ctx.now, ctx.moon, ctx.weather);
         creature::save(ctx.creature);
@@ -107,15 +115,36 @@ static void onEnter() {
       }
       break;
     }
-    case View::Foraging:
-      if (forageIdx < foraging::speciesCount() - 1) {
+    case View::Foraging: {
+      events::PendingEvent ev;
+      ev.type = (events::EventType)ctx.eventType;
+      ev.dataId = ctx.eventDataId;
+      const Forageable& current = foraging::speciesAtRank(forageIdx);
+      if (ev.type == events::EventType::ForagingFind &&
+          strcmp(current.kind, events::eventCategory(ev)) == 0) {
+        events::resolve(ev, ctx.creature, time(nullptr));
+        creature::evaluate(ctx.creature, ctx.now, ctx.moon, ctx.weather);
+        creature::save(ctx.creature);
+        ctx.eventType = (uint8_t)events::EventType::None;
+        display::renderView(View::Foraging, ctx, forageIdx);
+      } else if (forageIdx < foraging::speciesCount() - 1) {
         forageIdx++;
         display::renderView(View::Foraging, ctx, forageIdx);
       }
       break;
+    }
     default:
       break;
   }
+}
+
+// On the Foraging view, RIGHT jumps 10 species ahead instead of cycling
+// views (Foraging is already the rightmost view, so that would be a no-op
+// anyway).
+static void skipTenSpecies() {
+  int maxIdx = foraging::speciesCount() - 1;
+  forageIdx = std::min(forageIdx + 10, maxIdx);
+  display::renderView(View::Foraging, ctx, forageIdx);
 }
 
 void setup() {
@@ -151,7 +180,10 @@ void loop() {
     lastActivityMs = millis();
   }
   if (pressed(bRight)) {
-    advanceView();
+    if (currentView == View::Foraging)
+      skipTenSpecies();
+    else
+      advanceView();
     lastActivityMs = millis();
   }
   if (pressed(bEnter)) {
