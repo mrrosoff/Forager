@@ -29,7 +29,6 @@
 #include "bear_s_head_tooth_bitmap.h"
 #include "bigleaf_maple_sap_bitmap.h"
 #include "birch_polypore_bitmap.h"
-#include "black_gooseberry_bitmap.h"
 #include "black_huckleberry_bitmap.h"
 #include "black_katy_chiton_bitmap.h"
 #include "black_raspberry_bitmap.h"
@@ -42,14 +41,14 @@
 #include "blue_elderberry_cluster_bitmap.h"
 #include "blue_top_snail_bitmap.h"
 #include "boletus_edulis__king_bolete_flush_bitmap.h"
-#include "bracken_fern_fiddlehead_bitmap.h"
+#include "vanilla_leaf_bitmap.h"
 #include "bull_kelp_bitmap.h"
 #include "bunchberry_bitmap.h"
 #include "butter_bolete_bitmap.h"
 #include "butter_clam_bitmap.h"
 #include "california_mussel_bitmap.h"
-#include "cascade_blueberry_bitmap.h"
-#include "cattail_pollen_bitmap.h"
+#include "highbush_cranberry_bitmap.h"
+#include "skunk_cabbage_bitmap.h"
 #include "cattail_shoots_bitmap.h"
 #include "cauliflower_coral_bitmap.h"
 #include "cauliflower_fungus_bitmap.h"
@@ -63,8 +62,8 @@
 #include "coral_tooth_fungus_bitmap.h"
 #include "cortinarius__deadly_webcap_bitmap.h"
 #include "cottonwood_buds_bitmap.h"
-#include "cow_parsnip_bitmap.h"
-#include "cow_parsnip_shoots_bitmap.h"
+#include "lupine_bitmap.h"
+#include "nootka_rose_bitmap.h"
 #include "crown_tipped_coral_bitmap.h"
 #include "curly_dock_bitmap.h"
 #include "dandelion_bitmap.h"
@@ -78,12 +77,11 @@
 #include "douglas_aster_bitmap.h"
 #include "douglas_fir_tips_bitmap.h"
 #include "dryads_saddle_bitmap.h"
-#include "dulse_bitmap.h"
+#include "ochre_sea_star_bitmap.h"
 #include "dungeness_crab_bitmap.h"
 #include "dyer_s_polypore_bitmap.h"
 #include "elderflower_bitmap.h"
-#include "elm_oyster_bitmap.h"
-#include "engelmann_spruce_tips_bitmap.h"
+#include "licorice_fern_bitmap.h"
 #include "evergreen_huckleberry_bitmap.h"
 #include "fairy_ring_mushroom_bitmap.h"
 #include "false_turkey_tail_bitmap.h"
@@ -99,7 +97,7 @@
 #include "gem_studded_puffball_bitmap.h"
 #include "geoduck_bitmap.h"
 #include "giant_kelp_bitmap.h"
-#include "giant_red_sea_cucumber_bitmap.h"
+#include "nudibranch_bitmap.h"
 #include "golden_chanterelle_bitmap.h"
 #include "gooseneck_barnacle_bitmap.h"
 #include "goosetongue_bitmap.h"
@@ -108,7 +106,7 @@
 #include "grouse_whortleberry_bitmap.h"
 #include "gumboot_chiton_bitmap.h"
 #include "hawk_s_wing_bitmap.h"
-#include "hedgehog_mushroom_bitmap.h"
+#include "dead_mans_fingers_bitmap.h"
 #include "hen_of_the_woods_bitmap.h"
 #include "honey_mushroom_bitmap.h"
 #include "horse_clam_bitmap.h"
@@ -127,6 +125,7 @@
 #include "labrador_tea_bitmap.h"
 #include "lady_fern_fiddlehead_bitmap.h"
 #include "limpet_bitmap.h"
+#include "lions_mane_bitmap.h"
 #include "lobster_mushroom_bitmap.h"
 #include "lodgepole_pine_cambium_bitmap.h"
 #include "man_on_horseback_bitmap.h"
@@ -181,7 +180,7 @@
 #include "red_huckleberry_bitmap.h"
 #include "red_rock_crab_bitmap.h"
 #include "red_sea_urchin_bitmap.h"
-#include "reishi_hemlock_varnish_shelf_bitmap.h"
+#include "chaga_bitmap.h"
 #include "rockweed_bitmap.h"
 #include "rooting_shank_bitmap.h"
 #include "saffron_milk_cap_bitmap.h"
@@ -209,6 +208,7 @@
 #include "sitka_mountain_ash_berries_bitmap.h"
 #include "slippery_jack_bitmap.h"
 #include "snow_bank_false_morel_bitmap.h"
+#include "snowberry_bitmap.h"
 #include "soapberry_bitmap.h"
 #include "softshell_clam_bitmap.h"
 #include "split_gill_bitmap.h"
@@ -267,7 +267,7 @@ struct SpeciesBitmap {
 };
 
 static const SpeciesBitmap kSpeciesBitmaps[] = {
-    {"Hedgehog Mushroom", SPECIES_HEDGEHOG_MUSHROOM_BITMAP, SPECIES_HEDGEHOG_MUSHROOM_W, SPECIES_HEDGEHOG_MUSHROOM_H},
+    {"Dead Man's Fingers", SPECIES_DEAD_MANS_FINGERS_BITMAP, SPECIES_DEAD_MANS_FINGERS_W, SPECIES_DEAD_MANS_FINGERS_H},
     {"Miner's Lettuce", SPECIES_MINER_S_LETTUCE_BITMAP, SPECIES_MINER_S_LETTUCE_W, SPECIES_MINER_S_LETTUCE_H},
     {"Stinging Nettle", SPECIES_STINGING_NETTLE_BITMAP, SPECIES_STINGING_NETTLE_W, SPECIES_STINGING_NETTLE_H},
     {"Oyster Mushroom", SPECIES_OYSTER_MUSHROOM_BITMAP, SPECIES_OYSTER_MUSHROOM_W, SPECIES_OYSTER_MUSHROOM_H},
@@ -297,7 +297,7 @@ static const SpeciesBitmap kSpeciesBitmaps[] = {
     {"Bull Kelp", SPECIES_BULL_KELP_BITMAP, SPECIES_BULL_KELP_W, SPECIES_BULL_KELP_H},
     {"Sugar Kelp", SPECIES_SUGAR_KELP_BITMAP, SPECIES_SUGAR_KELP_W, SPECIES_SUGAR_KELP_H},
     {"Sea Lettuce", SPECIES_SEA_LETTUCE_BITMAP, SPECIES_SEA_LETTUCE_W, SPECIES_SEA_LETTUCE_H},
-    {"Dulse", SPECIES_DULSE_BITMAP, SPECIES_DULSE_W, SPECIES_DULSE_H},
+    {"Ochre Sea Star", SPECIES_OCHRE_SEA_STAR_BITMAP, SPECIES_OCHRE_SEA_STAR_W, SPECIES_OCHRE_SEA_STAR_H},
     {"Sea Asparagus", SPECIES_SEA_ASPARAGUS_BITMAP, SPECIES_SEA_ASPARAGUS_W, SPECIES_SEA_ASPARAGUS_H},
     {"Goosetongue", SPECIES_GOOSETONGUE_BITMAP, SPECIES_GOOSETONGUE_W, SPECIES_GOOSETONGUE_H},
     {"Silverweed", SPECIES_SILVERWEED_BITMAP, SPECIES_SILVERWEED_W, SPECIES_SILVERWEED_H},
@@ -317,20 +317,20 @@ static const SpeciesBitmap kSpeciesBitmaps[] = {
     {"Cauliflower Coral", SPECIES_CAULIFLOWER_CORAL_BITMAP, SPECIES_CAULIFLOWER_CORAL_W, SPECIES_CAULIFLOWER_CORAL_H},
     {"Golden Chanterelle", SPECIES_GOLDEN_CHANTERELLE_BITMAP, SPECIES_GOLDEN_CHANTERELLE_W, SPECIES_GOLDEN_CHANTERELLE_H},
     {"White Chanterelle", SPECIES_WHITE_CHANTERELLE_BITMAP, SPECIES_WHITE_CHANTERELLE_W, SPECIES_WHITE_CHANTERELLE_H},
-    {"Jack-o'-Lantern Mushroom", SPECIES_JACK_O__LANTERN_MUSHROOM_BITMAP, SPECIES_JACK_O__LANTERN_MUSHROOM_W, SPECIES_JACK_O__LANTERN_MUSHROOM_H},
-    {"Cortinarius (Deadly Webcap)", SPECIES_CORTINARIUS__DEADLY_WEBCAP_BITMAP, SPECIES_CORTINARIUS__DEADLY_WEBCAP_W, SPECIES_CORTINARIUS__DEADLY_WEBCAP_H},
+    {"Jack-o'-Lantern", SPECIES_JACK_O__LANTERN_MUSHROOM_BITMAP, SPECIES_JACK_O__LANTERN_MUSHROOM_W, SPECIES_JACK_O__LANTERN_MUSHROOM_H},
+    {"Deadly Webcap", SPECIES_CORTINARIUS__DEADLY_WEBCAP_BITMAP, SPECIES_CORTINARIUS__DEADLY_WEBCAP_W, SPECIES_CORTINARIUS__DEADLY_WEBCAP_H},
     {"Angel Wings", SPECIES_ANGEL_WINGS_BITMAP, SPECIES_ANGEL_WINGS_W, SPECIES_ANGEL_WINGS_H},
     {"Puffball (Giant)", SPECIES_PUFFBALL__GIANT_BITMAP, SPECIES_PUFFBALL__GIANT_W, SPECIES_PUFFBALL__GIANT_H},
-    {"Pig's Ear (Violet Chanterelle)", SPECIES_PIG_S_EAR__VIOLET_CHANTERELLE_BITMAP, SPECIES_PIG_S_EAR__VIOLET_CHANTERELLE_W, SPECIES_PIG_S_EAR__VIOLET_CHANTERELLE_H},
+    {"Pig's Ears", SPECIES_PIG_S_EAR__VIOLET_CHANTERELLE_BITMAP, SPECIES_PIG_S_EAR__VIOLET_CHANTERELLE_W, SPECIES_PIG_S_EAR__VIOLET_CHANTERELLE_H},
     {"Black Trumpet", SPECIES_BLACK_TRUMPET_BITMAP, SPECIES_BLACK_TRUMPET_W, SPECIES_BLACK_TRUMPET_H},
     {"Admirable Bolete", SPECIES_ADMIRABLE_BOLETE_BITMAP, SPECIES_ADMIRABLE_BOLETE_W, SPECIES_ADMIRABLE_BOLETE_H},
     {"Slippery Jack", SPECIES_SLIPPERY_JACK_BITMAP, SPECIES_SLIPPERY_JACK_W, SPECIES_SLIPPERY_JACK_H},
     {"Short-Stemmed Slippery Jack", SPECIES_SHORT_STEMMED_SLIPPERY_JACK_BITMAP, SPECIES_SHORT_STEMMED_SLIPPERY_JACK_W, SPECIES_SHORT_STEMMED_SLIPPERY_JACK_H},
-    {"Boletus edulis (King Bolete flush)", SPECIES_BOLETUS_EDULIS__KING_BOLETE_FLUSH_BITMAP, SPECIES_BOLETUS_EDULIS__KING_BOLETE_FLUSH_W, SPECIES_BOLETUS_EDULIS__KING_BOLETE_FLUSH_H},
-    {"Angel's Wing Bolete (Suillus lakei)", SPECIES_ANGEL_S_WING_BOLETE__SUILLUS_LAKEI_BITMAP, SPECIES_ANGEL_S_WING_BOLETE__SUILLUS_LAKEI_W, SPECIES_ANGEL_S_WING_BOLETE__SUILLUS_LAKEI_H},
+    {"King Bolete Button", SPECIES_BOLETUS_EDULIS__KING_BOLETE_FLUSH_BITMAP, SPECIES_BOLETUS_EDULIS__KING_BOLETE_FLUSH_W, SPECIES_BOLETUS_EDULIS__KING_BOLETE_FLUSH_H},
+    {"Angel's Wing Bolete", SPECIES_ANGEL_S_WING_BOLETE__SUILLUS_LAKEI_BITMAP, SPECIES_ANGEL_S_WING_BOLETE__SUILLUS_LAKEI_W, SPECIES_ANGEL_S_WING_BOLETE__SUILLUS_LAKEI_H},
     {"Meadow Mushroom", SPECIES_MEADOW_MUSHROOM_BITMAP, SPECIES_MEADOW_MUSHROOM_W, SPECIES_MEADOW_MUSHROOM_H},
     {"Horse Mushroom", SPECIES_HORSE_MUSHROOM_BITMAP, SPECIES_HORSE_MUSHROOM_W, SPECIES_HORSE_MUSHROOM_H},
-    {"Destroying Angel's cousin (Panther Cap)", SPECIES_DESTROYING_ANGEL_S_COUSIN__PANTHER_CAP_BITMAP, SPECIES_DESTROYING_ANGEL_S_COUSIN__PANTHER_CAP_W, SPECIES_DESTROYING_ANGEL_S_COUSIN__PANTHER_CAP_H},
+    {"Panther Cap", SPECIES_DESTROYING_ANGEL_S_COUSIN__PANTHER_CAP_BITMAP, SPECIES_DESTROYING_ANGEL_S_COUSIN__PANTHER_CAP_W, SPECIES_DESTROYING_ANGEL_S_COUSIN__PANTHER_CAP_H},
     {"Wood Blewit", SPECIES_WOOD_BLEWIT_BITMAP, SPECIES_WOOD_BLEWIT_W, SPECIES_WOOD_BLEWIT_H},
     {"Fried Chicken Mushroom (Lyophyllum decastes)", SPECIES_FRIED_CHICKEN_MUSHROOM__LYOPHYLLUM_DECASTES_BITMAP, SPECIES_FRIED_CHICKEN_MUSHROOM__LYOPHYLLUM_DECASTES_W, SPECIES_FRIED_CHICKEN_MUSHROOM__LYOPHYLLUM_DECASTES_H},
     {"Man on Horseback", SPECIES_MAN_ON_HORSEBACK_BITMAP, SPECIES_MAN_ON_HORSEBACK_W, SPECIES_MAN_ON_HORSEBACK_H},
@@ -361,10 +361,10 @@ static const SpeciesBitmap kSpeciesBitmaps[] = {
     {"Watercress", SPECIES_WATERCRESS_BITMAP, SPECIES_WATERCRESS_W, SPECIES_WATERCRESS_H},
     {"Wild Mint", SPECIES_WILD_MINT_BITMAP, SPECIES_WILD_MINT_W, SPECIES_WILD_MINT_H},
     {"Self-heal", SPECIES_SELF_HEAL_BITMAP, SPECIES_SELF_HEAL_W, SPECIES_SELF_HEAL_H},
-    {"Cow Parsnip", SPECIES_COW_PARSNIP_BITMAP, SPECIES_COW_PARSNIP_W, SPECIES_COW_PARSNIP_H},
+    {"Lupine", SPECIES_LUPINE_BITMAP, SPECIES_LUPINE_W, SPECIES_LUPINE_H},
     {"Salmonberry Shoots", SPECIES_SALMONBERRY_SHOOTS_BITMAP, SPECIES_SALMONBERRY_SHOOTS_W, SPECIES_SALMONBERRY_SHOOTS_H},
-    {"Reishi (Hemlock Varnish Shelf)", SPECIES_REISHI_HEMLOCK_VARNISH_SHELF_BITMAP, SPECIES_REISHI_HEMLOCK_VARNISH_SHELF_W, SPECIES_REISHI_HEMLOCK_VARNISH_SHELF_H},
-    {"Beech Mushroom", SPECIES_BEECH_MUSHROOM_BITMAP, SPECIES_BEECH_MUSHROOM_W, SPECIES_BEECH_MUSHROOM_H},
+    {"Chaga", SPECIES_CHAGA_BITMAP, SPECIES_CHAGA_W, SPECIES_CHAGA_H},
+    {"Lion's Mane", SPECIES_LIONS_MANE_BITMAP, SPECIES_LIONS_MANE_W, SPECIES_LIONS_MANE_H},
     {"Saffron Milk Cap", SPECIES_SAFFRON_MILK_CAP_BITMAP, SPECIES_SAFFRON_MILK_CAP_W, SPECIES_SAFFRON_MILK_CAP_H},
     {"Shaggy Parasol", SPECIES_SHAGGY_PARASOL_BITMAP, SPECIES_SHAGGY_PARASOL_W, SPECIES_SHAGGY_PARASOL_H},
     {"Douglas Aster", SPECIES_DOUGLAS_ASTER_BITMAP, SPECIES_DOUGLAS_ASTER_W, SPECIES_DOUGLAS_ASTER_H},
@@ -403,21 +403,21 @@ static const SpeciesBitmap kSpeciesBitmaps[] = {
     {"Lodgepole Pine Cambium", SPECIES_LODGEPOLE_PINE_CAMBIUM_BITMAP, SPECIES_LODGEPOLE_PINE_CAMBIUM_W, SPECIES_LODGEPOLE_PINE_CAMBIUM_H},
     {"Western Hemlock Cambium", SPECIES_WESTERN_HEMLOCK_CAMBIUM_BITMAP, SPECIES_WESTERN_HEMLOCK_CAMBIUM_W, SPECIES_WESTERN_HEMLOCK_CAMBIUM_H},
     {"Western Larch Gum", SPECIES_WESTERN_LARCH_GUM_BITMAP, SPECIES_WESTERN_LARCH_GUM_W, SPECIES_WESTERN_LARCH_GUM_H},
-    {"Engelmann Spruce Tips", SPECIES_ENGELMANN_SPRUCE_TIPS_BITMAP, SPECIES_ENGELMANN_SPRUCE_TIPS_W, SPECIES_ENGELMANN_SPRUCE_TIPS_H},
+    {"Licorice Fern", SPECIES_LICORICE_FERN_BITMAP, SPECIES_LICORICE_FERN_W, SPECIES_LICORICE_FERN_H},
     {"Subalpine Fir Tips", SPECIES_SUBALPINE_FIR_TIPS_BITMAP, SPECIES_SUBALPINE_FIR_TIPS_W, SPECIES_SUBALPINE_FIR_TIPS_H},
     {"Grand Fir Tips", SPECIES_GRAND_FIR_TIPS_BITMAP, SPECIES_GRAND_FIR_TIPS_W, SPECIES_GRAND_FIR_TIPS_H},
     {"Wild Gooseberry", SPECIES_WILD_GOOSEBERRY_BITMAP, SPECIES_WILD_GOOSEBERRY_W, SPECIES_WILD_GOOSEBERRY_H},
     {"Sitka Mountain Ash Berries", SPECIES_SITKA_MOUNTAIN_ASH_BERRIES_BITMAP, SPECIES_SITKA_MOUNTAIN_ASH_BERRIES_W, SPECIES_SITKA_MOUNTAIN_ASH_BERRIES_H},
-    {"Cascade Blueberry", SPECIES_CASCADE_BLUEBERRY_BITMAP, SPECIES_CASCADE_BLUEBERRY_W, SPECIES_CASCADE_BLUEBERRY_H},
+    {"Highbush Cranberry", SPECIES_HIGHBUSH_CRANBERRY_BITMAP, SPECIES_HIGHBUSH_CRANBERRY_W, SPECIES_HIGHBUSH_CRANBERRY_H},
     {"Black Huckleberry", SPECIES_BLACK_HUCKLEBERRY_BITMAP, SPECIES_BLACK_HUCKLEBERRY_W, SPECIES_BLACK_HUCKLEBERRY_H},
     {"Mountain Sorrel Leaves", SPECIES_MOUNTAIN_SORREL_LEAVES_BITMAP, SPECIES_MOUNTAIN_SORREL_LEAVES_W, SPECIES_MOUNTAIN_SORREL_LEAVES_H},
     {"Subalpine Fireweed", SPECIES_SUBALPINE_FIREWEED_BITMAP, SPECIES_SUBALPINE_FIREWEED_W, SPECIES_SUBALPINE_FIREWEED_H},
     {"Wild Blueberry", SPECIES_WILD_BLUEBERRY_BITMAP, SPECIES_WILD_BLUEBERRY_W, SPECIES_WILD_BLUEBERRY_H},
-    {"Black Gooseberry", SPECIES_BLACK_GOOSEBERRY_BITMAP, SPECIES_BLACK_GOOSEBERRY_W, SPECIES_BLACK_GOOSEBERRY_H},
+    {"Snowberry", SPECIES_SNOWBERRY_BITMAP, SPECIES_SNOWBERRY_W, SPECIES_SNOWBERRY_H},
     {"Blue Elderberry Cluster", SPECIES_BLUE_ELDERBERRY_CLUSTER_BITMAP, SPECIES_BLUE_ELDERBERRY_CLUSTER_W, SPECIES_BLUE_ELDERBERRY_CLUSTER_H},
     {"Mountain Strawberry", SPECIES_MOUNTAIN_STRAWBERRY_BITMAP, SPECIES_MOUNTAIN_STRAWBERRY_W, SPECIES_MOUNTAIN_STRAWBERRY_H},
     {"Pearly Everlasting", SPECIES_PEARLY_EVERLASTING_BITMAP, SPECIES_PEARLY_EVERLASTING_W, SPECIES_PEARLY_EVERLASTING_H},
-    {"Cow Parsnip Shoots", SPECIES_COW_PARSNIP_SHOOTS_BITMAP, SPECIES_COW_PARSNIP_SHOOTS_W, SPECIES_COW_PARSNIP_SHOOTS_H},
+    {"Nootka Rose", SPECIES_NOOTKA_ROSE_BITMAP, SPECIES_NOOTKA_ROSE_W, SPECIES_NOOTKA_ROSE_H},
     {"Fireweed Shoots", SPECIES_FIREWEED_SHOOTS_BITMAP, SPECIES_FIREWEED_SHOOTS_W, SPECIES_FIREWEED_SHOOTS_H},
     {"Fireweed Flowers", SPECIES_FIREWEED_FLOWERS_BITMAP, SPECIES_FIREWEED_FLOWERS_W, SPECIES_FIREWEED_FLOWERS_H},
     {"Kinnikinnick Berries", SPECIES_KINNIKINNICK_BERRIES_BITMAP, SPECIES_KINNIKINNICK_BERRIES_W, SPECIES_KINNIKINNICK_BERRIES_H},
@@ -457,7 +457,7 @@ static const SpeciesBitmap kSpeciesBitmaps[] = {
     {"Limpet", SPECIES_LIMPET_BITMAP, SPECIES_LIMPET_W, SPECIES_LIMPET_H},
     {"Pacific Basket Cockle", SPECIES_PACIFIC_BASKET_COCKLE_BITMAP, SPECIES_PACIFIC_BASKET_COCKLE_W, SPECIES_PACIFIC_BASKET_COCKLE_H},
     {"Horse Clam", SPECIES_HORSE_CLAM_BITMAP, SPECIES_HORSE_CLAM_W, SPECIES_HORSE_CLAM_H},
-    {"Giant Red Sea Cucumber", SPECIES_GIANT_RED_SEA_CUCUMBER_BITMAP, SPECIES_GIANT_RED_SEA_CUCUMBER_W, SPECIES_GIANT_RED_SEA_CUCUMBER_H},
+    {"Nudibranch", SPECIES_NUDIBRANCH_BITMAP, SPECIES_NUDIBRANCH_W, SPECIES_NUDIBRANCH_H},
     {"Moon Snail", SPECIES_MOON_SNAIL_BITMAP, SPECIES_MOON_SNAIL_W, SPECIES_MOON_SNAIL_H},
     {"Purple Varnish Clam", SPECIES_PURPLE_VARNISH_CLAM_BITMAP, SPECIES_PURPLE_VARNISH_CLAM_W, SPECIES_PURPLE_VARNISH_CLAM_H},
     {"Manila Clam", SPECIES_MANILA_CLAM_BITMAP, SPECIES_MANILA_CLAM_W, SPECIES_MANILA_CLAM_H},
@@ -513,10 +513,10 @@ static const SpeciesBitmap kSpeciesBitmaps[] = {
     {"Dryad's Saddle", SPECIES_DRYADS_SADDLE_BITMAP, SPECIES_DRYADS_SADDLE_W, SPECIES_DRYADS_SADDLE_H},
     {"Sword Fern", SPECIES_SWORD_FERN_BITMAP, SPECIES_SWORD_FERN_W, SPECIES_SWORD_FERN_H},
     {"Deer Fern Fiddlehead", SPECIES_DEER_FERN_FIDDLEHEAD_BITMAP, SPECIES_DEER_FERN_FIDDLEHEAD_W, SPECIES_DEER_FERN_FIDDLEHEAD_H},
-    {"Bracken Fern Fiddlehead", SPECIES_BRACKEN_FERN_FIDDLEHEAD_BITMAP, SPECIES_BRACKEN_FERN_FIDDLEHEAD_W, SPECIES_BRACKEN_FERN_FIDDLEHEAD_H},
+    {"Vanilla Leaf", SPECIES_VANILLA_LEAF_BITMAP, SPECIES_VANILLA_LEAF_W, SPECIES_VANILLA_LEAF_H},
     {"Lady Fern Fiddlehead", SPECIES_LADY_FERN_FIDDLEHEAD_BITMAP, SPECIES_LADY_FERN_FIDDLEHEAD_W, SPECIES_LADY_FERN_FIDDLEHEAD_H},
     {"Cattail Shoots", SPECIES_CATTAIL_SHOOTS_BITMAP, SPECIES_CATTAIL_SHOOTS_W, SPECIES_CATTAIL_SHOOTS_H},
-    {"Cattail Pollen", SPECIES_CATTAIL_POLLEN_BITMAP, SPECIES_CATTAIL_POLLEN_W, SPECIES_CATTAIL_POLLEN_H},
+    {"Skunk Cabbage", SPECIES_SKUNK_CABBAGE_BITMAP, SPECIES_SKUNK_CABBAGE_W, SPECIES_SKUNK_CABBAGE_H},
 };
 static const int kSpeciesBitmapCount = sizeof(kSpeciesBitmaps) / sizeof(kSpeciesBitmaps[0]);
 

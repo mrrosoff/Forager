@@ -18,7 +18,9 @@ SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
 static AppContext ctx;
 static View currentView = View::Main;
-static int forageIdx = 0;  // Foraging view's browse position; session-only
+static int forageIdx = 0;  // Foraging view's browse position; session-only, and
+                            // reset to 0 on every transition into/out of
+                            // Foraging (see retreatView()/advanceView())
 static uint32_t lastActivityMs = 0;
 
 // Set by buildContext() when the growth stage just advanced since the last
@@ -299,10 +301,18 @@ static bool bumpScreenChangeAndMaybeSpawn() {
   return true;
 }
 
+// Foraging's browse position resets to species 1 on *any* transition into or
+// out of Foraging (not just the sleep/wake reset noted in foraging.h) --
+// leaving the browse position wherever it was last time reads as "lost my
+// place" when Foraging is only ever a step away from Main. Both
+// retreatView() (leaving Foraging for Status/Main) and advanceView()
+// (entering Foraging from Main) reset it, so a round trip through Main
+// always lands back on species 1.
 static void retreatView() {
   if ((int)currentView <= 0) return;
   View prev = (View)((int)currentView - 1);
   if (!viewReachable(prev)) return;
+  if (currentView == View::Foraging) forageIdx = 0;
   currentView = prev;
   bool spawned = bumpScreenChangeAndMaybeSpawn();
   display::renderView(currentView, ctx, forageIdx, spawned);
@@ -313,6 +323,7 @@ static void advanceView() {
   if ((int)currentView >= n - 1) return;
   View next = (View)((int)currentView + 1);
   if (!viewReachable(next)) return;
+  if (next == View::Foraging) forageIdx = 0;
   currentView = next;
   bool spawned = bumpScreenChangeAndMaybeSpawn();
   display::renderView(currentView, ctx, forageIdx, spawned);
@@ -379,11 +390,19 @@ static void onEnter() {
 }
 
 // Foraging-view species stepping, shared by a plain RIGHT tap and the
-// accelerating hold-to-scroll in loop().
+// accelerating hold-to-scroll in loop(). Every FORAGE_SCROLL_REFRESH steps
+// forces a full refresh instead of the usual partial one, since Foraging is
+// the highest-scroll-volume view (hold-to-scroll can rack up dozens of
+// partial refreshes in seconds) and ghosting accumulates with each one.
+static const int FORAGE_SCROLL_REFRESH = 25;
+static int forageScrollCount = 0;
 static void advanceForageIdx() {
   int maxIdx = std::max(foraging::browsableCount() - 1, 0);
   forageIdx = std::min(forageIdx + 1, maxIdx);
-  display::renderView(View::Foraging, ctx, forageIdx);
+  forageScrollCount++;
+  bool forceFullRefresh = forageScrollCount >= FORAGE_SCROLL_REFRESH;
+  if (forceFullRefresh) forageScrollCount = 0;
+  display::renderView(View::Foraging, ctx, forageIdx, forceFullRefresh);
 }
 
 static const char* textEntryPrompt(TextEntryPurpose p) {

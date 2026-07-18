@@ -5,7 +5,7 @@
 #pragma once
 
 static const char* const kThoughtsBaby[] = {
-    "Mrrp?", "Blorp!", "Squeak squeak", "Gnaa?", "Brrrble", "???", "Wobble wobble", "Mlem",
+    "Mrrp?", "Blorp!", "Squeak squeak", "Gnaa?", "Brrrble", "Hii?", "Wobble wobble", "Mlem",
 };
 static const int kThoughtsBabyCount = sizeof(kThoughtsBaby) / sizeof(kThoughtsBaby[0]);
 

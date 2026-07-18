@@ -101,7 +101,7 @@ wake:
 a Baby has to be able to do it. A species only shows up in the Foraging
 browse list once "discovered" via a Discovery encounter (a common wake-time
 event type, resolved on Main via ENTER like a sighting) — the full
-250-species reference isn't handed over on day one. While Baby, wake-time
+200-species reference isn't handed over on day one. While Baby, wake-time
 events lean toward always-positive care moments (naps, first steps,
 snuggles) instead of trail mishaps, since those don't fit a baby-at-home
 story, but Discovery still rolls at every stage. Juvenile and Adult have
@@ -141,7 +141,7 @@ screen). Order: **Achievements ← Status ← Main → Foraging**.
    picked), a weather glyph, and an occasional thought bubble. When a
    wake-time event is pending (see below), this view is taken over by the
    encounter screen instead; ENTER resolves it there.
-2. **Foraging** — pages through the *discovered* subset of the 250-species
+2. **Foraging** — pages through the *discovered* subset of the 200-species
    PNW reference: a real photo (where sourced), name, biome tag, season
    note, safety caution when relevant, and a harvest tip. **ENTER eats the
    species on screen**, feeding the marmot directly (and resolving a
@@ -207,7 +207,7 @@ Settings, which exits back to the previous view):
 - **Time** — NTP (no RTC module); Pacific time with US DST rules.
 - **Weather** — [wttr.in](https://wttr.in) JSON for Seattle; recent rainfall
   and temperature. Recent rain ⇒ good foraging, feeds the Curiosity stat.
-- **Foraging reference** — 250 PNW species spanning forest, mountain, and
+- **Foraging reference** — 200 PNW species spanning forest, mountain, and
   coastal biomes, hardcoded with season, safety notes, and harvest tips (see
   `src/foraging/foraging_species.h`), 248 of them paired with a real sourced
   photo.

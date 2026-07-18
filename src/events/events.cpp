@@ -59,7 +59,7 @@ static uint8_t weightedPick(const T* items, int count) {
 }
 
 // Rejection-samples a not-yet-discovered species index. A handful of misses
-// near full completion (250/250) is fine -- the caller only calls this when
+// near full completion (200/200) is fine -- the caller only calls this when
 // journal::totalDiscovered() < foraging::speciesCount(), so an undiscovered
 // one always exists; this just avoids a full linear scan on every roll.
 static uint8_t pickUndiscoveredSpecies() {
@@ -78,7 +78,7 @@ static uint8_t pickUndiscoveredSpecies() {
 // once-per-wake spawn and spawnNow()'s deterministic mid-session trigger --
 // both just need "give me an event appropriate for this stage".
 // Baby's non-Discovery fallback, used once every species is discovered
-// (250/250) -- Baby excludes ForagingFind/TrailMishap/TrailTreasure (none
+// (200/200) -- Baby excludes ForagingFind/TrailMishap/TrailTreasure (none
 // fit a baby-at-home narrative), so BabyCare/AnimalSighting/WeatherEvent/
 // MarmotEncounter share the whole 100%.
 static void pickBabyFallback(PendingEvent& ev, int roll) {
@@ -133,7 +133,7 @@ static PendingEvent pickEvent(Stage stage) {
   if (stage == Stage::Baby) {
     // Always Discovery while any species remains unfound -- a Baby's whole
     // job is filling in the Foraging list. Falls back to baby-care/social
-    // flavor once all 250 are discovered.
+    // flavor once all 200 are discovered.
     if (hasUndiscovered) {
       ev.type = EventType::Discovery;
       ev.dataId = pickUndiscoveredSpecies();
