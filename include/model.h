@@ -53,6 +53,14 @@ struct CreatureState {
   uint8_t happiness;  // 0..100
   time_t lastFed;     // epoch, 0 = never
 
+  /**
+   * Epoch of the last "play" interaction -- feeding or resolving a wake-time
+   * event -- distinct from lastFed. Drives a happiness decay independent of
+   * hunger (see creature::evaluate()): you can keep the marmot fed and
+   * still neglect it by never resolving events.
+   */
+  time_t lastPlayed;
+
   time_t birthDate;  // epoch, 0 = never born yet (first-ever boot sentinel)
 
   /**
@@ -61,6 +69,26 @@ struct CreatureState {
    */
   uint16_t feedStreakDays;
   time_t lastStreakDay;
+
+  /**
+   * Mirrors Stage -- the last growth stage the player has acknowledged (see
+   * main.cpp's transition-screen check). Lets a new wake detect "the marmot
+   * just grew up" by comparing this against the freshly computed stage,
+   * without needing a separate persisted flag.
+   */
+  uint8_t lastSeenStage;
+
+  /**
+   * Epoch when hunger/happiness first both crossed into neglect territory
+   * (see creature::updateNeglect()), 0 = not currently neglected. Persists
+   * across wakes so neglect has to be *continuous* for NEGLECT_DAYS, not
+   * just true at any single wake -- feeding or playing resets it to 0.
+   */
+  time_t neglectSince;
+
+  // Chosen at birth via the on-screen text entry (see textentry.h);
+  // defaults to "Marmot" if the player leaves it blank.
+  char name[16];
 };
 
 /**

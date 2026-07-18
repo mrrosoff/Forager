@@ -135,6 +135,62 @@ static const BabyCareDef kBabyCare[] = {
 };
 static const int kBabyCareCount = sizeof(kBabyCare) / sizeof(kBabyCare[0]);
 
+struct TreasureDef {
+  const char* name;
+  const char* note;
+  uint8_t weight;
+};
+
+// Always-positive non-food trail finds -- happiness only, no hunger change
+// (see resolve()'s default branch), distinct from ForagingFind.
+static const TreasureDef kTreasures[] = {
+    {"Shiny Quartz", "A piece of quartz glints in a crack in the rock.", 20},
+    {"Old Trail Marker", "A weathered wooden trail marker, half-swallowed by moss.", 14},
+    {"Lost Compass", "Someone's compass, tucked in a patch of moss.", 12},
+    {"Perfect Feather", "A hawk feather, unbroken and perfectly barbed.", 18},
+    {"Fern Fossil", "A fern's imprint, pressed into a flat stone.", 10},
+    {"Beach Agate", "A polished agate, tumbled smooth by the tide.", 16},
+    {"Old Coin", "A coin, greened with age, half-buried at the trailhead.", 10},
+    {"Abandoned Nest", "An empty nest, woven tighter than it has any right to be.", 14},
+    {"Shed Antler", "A deer antler, shed and half-buried in the leaf litter.", 12},
+    {"Cracked Geode", "A plain rock, cracked open to reveal sparkling crystal inside.", 10},
+    {"Message in a Bottle", "A sealed bottle, washed up on the tideline.", 6},
+    {"Petrified Wood", "A chunk of ancient wood, turned entirely to stone.", 8},
+    {"Owl Pellet", "An owl pellet, packed with tiny, delicate bones.", 12},
+    {"Sea Glass", "A smooth piece of glass, sanded soft by the surf.", 16},
+    {"Carved Walking Stick", "Someone left a hand-carved stick leaning against a tree.", 10},
+    {"Old Arrowhead", "A stone arrowhead, half-buried at the trail's edge.", 8},
+    {"Empty Honeycomb", "An abandoned honeycomb, empty but beautiful.", 12},
+};
+static const int kTreasureCount = sizeof(kTreasures) / sizeof(kTreasures[0]);
+
+struct EncounterDef {
+  const char* name;
+  const char* note;
+  bool rival;  // territorial/unfriendly variant -- rarer, drives a worse mood
+  uint8_t weight;
+};
+
+// Social encounters with other marmots -- mostly friendly, occasionally a
+// rival shows up and drives the same worse-mood path as a predator sighting.
+static const EncounterDef kEncounters[] = {
+    {"Whistle Exchange", "Trades warning whistles with a marmot on the next ridge.", false, 18},
+    {"Sunbathing Together", "Suns itself on the rocks alongside a neighbor.", false, 18},
+    {"Grooming Session", "Two marmots groom each other in the afternoon sun.", false, 16},
+    {"Wrestling Match", "Play-wrestles with a younger marmot from the colony.", false, 14},
+    {"Shared Burrow", "Shelters in a neighbor's burrow through a rain shower.", false, 14},
+    {"New Neighbor", "A new marmot moves into the talus slope nearby.", false, 12},
+    {"Group Sunning", "Joins the whole colony basking on the warm rocks.", false, 16},
+    {"Alarm Call Chain", "Passes an alarm whistle down the valley, marmot to marmot.", false, 14},
+    {"Friendly Nuzzle", "A familiar marmot greets it with a nuzzle.", false, 16},
+    {"Long-Distance Whistles", "Familiar whistles echo back from across the valley.", false, 12},
+    {"Territorial Squabble", "A rival marmot chases it off its favorite sunning rock.", true, 8},
+    {"Old Rival Returns", "The same grumpy marmot from last summer is back.", true, 6},
+    {"Chase Through the Talus", "A bigger marmot chases it through the rockpile.", true, 6},
+    {"Burrow Dispute", "Fusses with a neighbor over a contested burrow entrance.", true, 8},
+};
+static const int kEncounterCount = sizeof(kEncounters) / sizeof(kEncounters[0]);
+
 // Don't roll for a new event more than once every ~6h of wall-clock time,
 // and even then only a 1-in-3 chance -- interactions should feel occasional,
 // not constant.
@@ -169,39 +225,49 @@ PendingEvent checkForEvent(time_t now, int month, Stage stage) {
         lastAt == 0 || (uint64_t)now - lastAt >= (uint64_t)EVENT_COOLDOWN_HOURS * 3600ULL;
     if (cooldownOver && random(EVENT_CHANCE_DENOM) == 0) {
       if (stage == Stage::Baby) {
-        // No ForagingFind (Foraging is hidden, unresolvable) and no
-        // TrailMishap (doesn't fit a baby-at-home narrative) -- baby care
-        // moments dominate, with a little ambient animal/weather flavor.
+        // No ForagingFind (Foraging is hidden, unresolvable), no
+        // TrailMishap, and no TrailTreasure (neither fits a baby-at-home
+        // narrative) -- baby care moments dominate, with ambient
+        // animal/weather flavor and family encounters mixed in.
         int roll = random(100);
-        if (roll < 50) {
+        if (roll < 45) {
           ev.type = EventType::BabyCare;
           ev.dataId = weightedPick(kBabyCare, kBabyCareCount);
-        } else if (roll < 80) {
+        } else if (roll < 70) {
           ev.type = EventType::AnimalSighting;
           ev.dataId = weightedPick(kAnimals, kAnimalCount);
-        } else {
+        } else if (roll < 85) {
           ev.type = EventType::WeatherEvent;
           ev.dataId = weightedPick(kWeatherEvents, kWeatherCount);
+        } else {
+          ev.type = EventType::MarmotEncounter;
+          ev.dataId = weightedPick(kEncounters, kEncounterCount);
         }
       } else {
-        // Category mix: sightings and foraging finds most common, mishaps
-        // and weather events rarer.
+        // Category mix: sightings and foraging finds most common, everything
+        // else rarer.
         int roll = random(100);
-        if (roll < 40) {
+        if (roll < 28) {
           ev.type = EventType::AnimalSighting;
           ev.dataId = weightedPick(kAnimals, kAnimalCount);
-        } else if (roll < 70) {
+        } else if (roll < 52) {
           ev.type = EventType::ForagingFind;
           ev.dataId = (uint8_t)random(foraging::speciesCount());
           // A minority of finds pin to one exact species instead of any
           // species of its kind -- rarer and harder, for variety.
           ev.exact = random(100) < 30;
-        } else if (roll < 85) {
+        } else if (roll < 64) {
           ev.type = EventType::TrailMishap;
           ev.dataId = weightedPick(kMishaps, kMishapCount);
-        } else {
+        } else if (roll < 77) {
           ev.type = EventType::WeatherEvent;
           ev.dataId = weightedPick(kWeatherEvents, kWeatherCount);
+        } else if (roll < 90) {
+          ev.type = EventType::TrailTreasure;
+          ev.dataId = weightedPick(kTreasures, kTreasureCount);
+        } else {
+          ev.type = EventType::MarmotEncounter;
+          ev.dataId = weightedPick(kEncounters, kEncounterCount);
         }
       }
       p.putUChar("evType", (uint8_t)ev.type);
@@ -226,6 +292,10 @@ const char* eventTitle(EventType type, bool negative) {
       return negative ? "ROUGH WEATHER" : "NICE WEATHER";
     case EventType::BabyCare:
       return "BABY MARMOT";
+    case EventType::TrailTreasure:
+      return "TRAIL TREASURE!";
+    case EventType::MarmotEncounter:
+      return negative ? "TERRITORIAL SPAT" : "MARMOT ENCOUNTER";
     default:
       return "";
   }
@@ -254,6 +324,10 @@ const char* eventName(const PendingEvent& ev) {
       return kWeatherEvents[ev.dataId % kWeatherCount].name;
     case EventType::BabyCare:
       return kBabyCare[ev.dataId % kBabyCareCount].name;
+    case EventType::TrailTreasure:
+      return kTreasures[ev.dataId % kTreasureCount].name;
+    case EventType::MarmotEncounter:
+      return kEncounters[ev.dataId % kEncounterCount].name;
     default:
       return "";
   }
@@ -272,6 +346,10 @@ const char* eventNote(const PendingEvent& ev) {
       return kWeatherEvents[ev.dataId % kWeatherCount].note;
     case EventType::BabyCare:
       return kBabyCare[ev.dataId % kBabyCareCount].note;
+    case EventType::TrailTreasure:
+      return kTreasures[ev.dataId % kTreasureCount].note;
+    case EventType::MarmotEncounter:
+      return kEncounters[ev.dataId % kEncounterCount].note;
     default:
       return "";
   }
@@ -298,12 +376,16 @@ bool eventIsNegative(const PendingEvent& ev) {
       return true;
     case EventType::WeatherEvent:
       return !kWeatherEvents[ev.dataId % kWeatherCount].positive;
+    case EventType::MarmotEncounter:
+      return kEncounters[ev.dataId % kEncounterCount].rival;
     default:
-      return false;  // a foraging find is always good news
+      return false;  // a foraging find/trail treasure is always good news
   }
 }
 
 void resolve(const PendingEvent& ev, CreatureState& creature, time_t now) {
+  creature.lastPlayed = now;  // any acknowledged event counts as play, good or bad
+
   switch (ev.type) {
     case EventType::ForagingFind: {
       int h = (int)creature.happiness + 15;

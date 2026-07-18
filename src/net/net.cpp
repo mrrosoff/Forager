@@ -6,11 +6,12 @@
 #include <time.h>
 
 #include "config.h"
-#include "secrets.h"
+#include "wifistore.h"
 
 namespace net {
 
-// Strongest known network in range, or -1 if none. Returns index into WIFI_NETWORKS.
+// Strongest known network in range, or -1 if none. Returns an index into
+// wifistore, not the raw scan results.
 static int pickStrongestKnown() {
   int n = WiFi.scanNetworks(/*async=*/false, /*show_hidden=*/false);
   if (n <= 0) return -1;
@@ -21,10 +22,10 @@ static int pickStrongestKnown() {
   for (int i = 0; i < n; i++) {
     String foundSsid = WiFi.SSID(i);
     int32_t rssi = WiFi.RSSI(i);
-    for (size_t c = 0; c < WIFI_NETWORK_COUNT; c++) {
-      if (foundSsid == WIFI_NETWORKS[c].ssid && rssi > bestRssi) {
+    for (int c = 0; c < wifistore::count(); c++) {
+      if (foundSsid == wifistore::at(c).ssid && rssi > bestRssi) {
         bestRssi = rssi;
-        bestCred = (int)c;
+        bestCred = c;
       }
     }
   }
@@ -34,6 +35,7 @@ static int pickStrongestKnown() {
 }
 
 bool connectStrongest() {
+  wifistore::load();
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
 
@@ -43,8 +45,9 @@ bool connectStrongest() {
     return false;
   }
 
-  log_i("Connecting to '%s' (strongest known)", WIFI_NETWORKS[idx].ssid);
-  WiFi.begin(WIFI_NETWORKS[idx].ssid, WIFI_NETWORKS[idx].password);
+  const wifistore::Network& net = wifistore::at(idx);
+  log_i("Connecting to '%s' (strongest known)", net.ssid);
+  WiFi.begin(net.ssid, net.password);
 
   uint32_t start = millis();
   while (WiFi.status() != WL_CONNECTED) {

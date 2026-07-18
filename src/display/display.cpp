@@ -34,7 +34,6 @@
 #include "bitmaps/marmot/marmot_baby3_bitmap.h"
 #include "bitmaps/marmot/marmot_baby_bitmap.h"
 #include "bitmaps/marmot/marmot_bitmap.h"
-#include "bitmaps/marmot/marmot_hungry_bitmap.h"
 #include "bitmaps/marmot/marmot_juvenile2_bitmap.h"
 #include "bitmaps/marmot/marmot_juvenile_bitmap.h"
 #include "bitmaps/marmot/marmot_variant10_bitmap.h"
@@ -56,6 +55,8 @@
 #include "events.h"
 #include "foraging.h"
 #include "journal.h"
+#include "textentry.h"
+#include "wifistore.h"
 
 namespace display {
 
@@ -307,13 +308,9 @@ static void drawCreature(int cx, int groundY, Mood mood, Stage stage) {
     return;
   }
 
-  if (mood == Mood::Hungry) {
-    int bx = cx - MARMOT_HUNGRY_W / 2;
-    int by = groundY - MARMOT_HUNGRY_GROUND_Y;
-    epd.drawBitmap(bx, by, MARMOT_HUNGRY_BITMAP, MARMOT_HUNGRY_W, MARMOT_HUNGRY_H, C_BLACK,
-                   C_WHITE);
-    return;
-  }
+  // No dedicated hungry-mood art -- reuses the same adult pose pool as every
+  // other non-baby/juvenile mood. Hunger is communicated through the Status
+  // view's meter, not a distinct sprite.
   static int8_t variant = -1;
   const MarmotArt& art = kMarmotVariants[pickVariant(variant, kMarmotVariantCount)];
   int bx = cx - art.w / 2;
@@ -423,10 +420,12 @@ static void renderMain(const AppContext& ctx) {
     return;
   }
 
-  char buf[48];
-  strftime(buf, sizeof(buf), "%a %b %d", &ctx.now);
-  textAt(8, 6, buf, 2);
+  textAt(8, 6, ctx.creature.name, 2);
   drawWeatherGlyph(SCREEN_W - 40, 4, ctx.weather);
+
+  char buf[24];
+  strftime(buf, sizeof(buf), "%a %b %d", &ctx.now);
+  textAt(8, 30, buf, 1);
 
   // No separate ground/habitat drawing -- the marmot bitmap already has its
   // own rock ledge baked in, and a second ground line under it just clashed.
@@ -575,8 +574,8 @@ static const char* stageName(Stage s) {
 }
 
 static void renderStatus(const AppContext& ctx) {
-  char titleBuf[24];
-  snprintf(titleBuf, sizeof(titleBuf), "Status - %s", stageName((Stage)ctx.stage));
+  char titleBuf[40];
+  snprintf(titleBuf, sizeof(titleBuf), "%s - %s", ctx.creature.name, stageName((Stage)ctx.stage));
   textAt(8, 6, titleBuf, 2);
 
   // No mood-name text or "Foraged X days ago" line anymore -- the mascot
@@ -624,6 +623,18 @@ static int drawBadge(int y, const char* name, int count, int threshold) {
 
 static void renderAchievements(const AppContext& ctx) {
   textAt(8, 6, "Achievements", 2);
+
+  // Locked until full-grown -- badges/streak tracking still runs underneath
+  // the whole time (see journal.cpp/creature.cpp), this just gates the
+  // reveal so there's something to look forward to at Adult.
+  if ((Stage)ctx.stage != Stage::Adult) {
+    textCentered(0, SCREEN_W, 160, "Locked", 2);
+    textCentered(0, SCREEN_W, 190, "Come back once your marmot", 1);
+    textCentered(0, SCREEN_W, 204, "is fully grown.", 1);
+    drawNavBar("", "", "Status");
+    return;
+  }
+
   int y = 40;
 
   int total = journal::totalEaten();
@@ -712,6 +723,50 @@ void renderBirth() {
   epd.endFrame(true);
 }
 
+void renderTransition(Stage newStage) {
+  // A couple of deliberate full-refresh flashes -- normally something this
+  // codebase avoids (see the dithering/no-partial-refresh notes elsewhere),
+  // but here the flicker itself sells the "leveling up" moment.
+  for (int i = 0; i < 2; i++) {
+    epd.beginFrame();
+    epd.fillScreen(C_BLACK);
+    epd.endFrame(true);
+    delay(180);
+    epd.beginFrame();
+    epd.fillScreen(C_WHITE);
+    epd.endFrame(true);
+    delay(180);
+  }
+
+  epd.beginFrame();
+  const MarmotArt& art = (newStage == Stage::Juvenile) ? kJuvenileVariants[0] : kMarmotVariants[0];
+  int cx = SCREEN_W / 2;
+  int by = SCREEN_H / 2 + 60;
+  int bx = cx - art.w / 2;
+  int topY = by - art.groundY;
+  epd.drawBitmap(bx, topY, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
+  const char* label = (newStage == Stage::Juvenile) ? "Now a Juvenile!" : "Now an Adult!";
+  textCentered(0, SCREEN_W, topY - 42, "Your marmot grew up!", 1);
+  textCentered(0, SCREEN_W, topY - 26, label, 2);
+  textCentered(0, SCREEN_W, SCREEN_H - 30, "Press ENTER", 1);
+  epd.endFrame(true);
+}
+
+void renderRanAway() {
+  epd.beginFrame();
+  const MarmotArt& art = kMarmotVariants[0];
+  int cx = SCREEN_W / 2;
+  int by = SCREEN_H / 2 + 40;
+  int bx = cx - art.w / 2;
+  int topY = by - art.groundY;
+  epd.drawBitmap(bx, topY, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
+  textCentered(0, SCREEN_W, topY - 56, "Your marmot wandered off...", 1);
+  textCentered(0, SCREEN_W, topY - 40, "Neglected for too long.", 1);
+  textCentered(0, SCREEN_W, SCREEN_H - 44, "Press ENTER to start over", 1);
+  textCentered(0, SCREEN_W, SCREEN_H - 30, "with a new baby marmot.", 1);
+  epd.endFrame(true);
+}
+
 /**
  * Settings overlay -- triggered by the dedicated SETTINGS button (see
  * main.cpp), not part of the normal View cycle. selected: 0 = Power Off,
@@ -728,8 +783,8 @@ void renderSettings(int selected, bool confirmPending) {
     drawNavBar("No", "", "");
     textCentered(0, SCREEN_W, SCREEN_H - 34, "ENTER = Yes", 1);
   } else {
-    const char* options[] = {"Power Off", "Reset Game"};
-    for (int i = 0; i < 2; i++) {
+    const char* options[] = {"Power Off", "Reset Game", "WiFi Networks"};
+    for (int i = 0; i < 3; i++) {
       char line[24];
       snprintf(line, sizeof(line), "%s %s", i == selected ? ">" : " ", options[i]);
       textAt(20, 60 + i * 20, line, 1);
@@ -737,6 +792,62 @@ void renderSettings(int selected, bool confirmPending) {
     drawNavBar("Exit", "Select", "Next");
   }
 
+  epd.endFrame(true);
+}
+
+void renderTextEntry(const char* prompt, const char* buffer, char currentPick) {
+  epd.beginFrame();
+  textAt(8, 6, prompt, 1);
+  textAt(8, 40, buffer, 2);
+
+  char label[8];
+  if (currentPick == textentry::BACKSPACE) {
+    snprintf(label, sizeof(label), "DEL");
+  } else if (currentPick == textentry::DONE) {
+    snprintf(label, sizeof(label), "OK");
+  } else if (currentPick == ' ') {
+    snprintf(label, sizeof(label), "_");
+  } else {
+    snprintf(label, sizeof(label), "%c", currentPick);
+  }
+  textCentered(0, SCREEN_W, SCREEN_H / 2, label, 4);
+
+  drawNavBar("Prev", "Pick", "Next");
+  epd.endFrame(true);
+}
+
+void renderWifiMenu(int selected, bool confirmRemove) {
+  epd.beginFrame();
+  textAt(8, 6, "WiFi Networks", 2);
+
+  int count = wifistore::count();
+  if (confirmRemove && selected >= 0 && selected < count) {
+    char msg[48];
+    snprintf(msg, sizeof(msg), "Remove '%s'?", wifistore::at(selected).ssid);
+    textCentered(0, SCREEN_W, 160, msg, 1);
+    drawNavBar("No", "", "");
+    textCentered(0, SCREEN_W, SCREEN_H - 34, "ENTER = Yes", 1);
+    epd.endFrame(true);
+    return;
+  }
+
+  int y = 40;
+  if (count == 0) {
+    textAt(20, y, "(no saved networks)", 1);
+    y += 20;
+  } else {
+    for (int i = 0; i < count; i++) {
+      char line[40];
+      snprintf(line, sizeof(line), "%s %s", i == selected ? ">" : " ", wifistore::at(i).ssid);
+      textAt(20, y, line, 1);
+      y += 18;
+    }
+  }
+  char addLine[20];
+  snprintf(addLine, sizeof(addLine), "%s Add Network", selected == count ? ">" : " ");
+  textAt(20, y, addLine, 1);
+
+  drawNavBar("Exit", "Select", "Next");
   epd.endFrame(true);
 }
 
@@ -769,6 +880,266 @@ void renderSleep() {
   textAt(headX + 38, headY - 44, "Z", 1);
 
   epd.endFrame(true);
+}
+
+// --- TEMPORARY review helpers (see DEV_MODE_SCREEN_CYCLE in config.h) -----
+
+// Encounter/Main/Status/Foraging/Achievements variety shown by the misc
+// section below, past the bitmap galleries. Not meant to be exhaustive over
+// every event content entry -- just one example per event type/outcome so
+// every distinct screen layout gets reviewed once.
+static const int kDebugMiscCount = 18;
+
+static void renderDebugMisc(int i) {
+  AppContext dummy{};
+  time_t now = 1700000000;  // arbitrary fixed epoch, deterministic for review
+  localtime_r(&now, &dummy.now);
+  dummy.weather.valid = true;
+  dummy.weather.tempC = 15.0f;
+  dummy.weather.postRain = true;
+  snprintf(dummy.weather.condition, sizeof(dummy.weather.condition), "Partly Cloudy");
+  dummy.creature.mood = Mood::Content;
+  dummy.creature.hunger = 30;
+  dummy.creature.happiness = 70;
+  dummy.creature.feedStreakDays = 5;
+  strncpy(dummy.creature.name, "Marmot", sizeof(dummy.creature.name) - 1);
+  dummy.featured = foraging::featured(6);
+
+  auto ev = [](events::EventType t, uint8_t dataId, bool exact = false) {
+    events::PendingEvent e;
+    e.type = t;
+    e.dataId = dataId;
+    e.exact = exact;
+    return e;
+  };
+
+  switch (i) {
+    case 0:
+      dummy.stage = (uint8_t)Stage::Baby;
+      epd.beginFrame();
+      renderMain(dummy);
+      epd.endFrame(true);
+      return;
+    case 1:
+      dummy.stage = (uint8_t)Stage::Juvenile;
+      epd.beginFrame();
+      renderMain(dummy);
+      epd.endFrame(true);
+      return;
+    case 2:
+      dummy.stage = (uint8_t)Stage::Adult;
+      epd.beginFrame();
+      renderMain(dummy);
+      epd.endFrame(true);
+      return;
+    case 3:
+      dummy.stage = (uint8_t)Stage::Adult;
+      epd.beginFrame();
+      renderStatus(dummy);
+      epd.endFrame(true);
+      return;
+    case 4:
+      dummy.stage = (uint8_t)Stage::Juvenile;
+      epd.beginFrame();
+      renderForaging(dummy, 0);
+      epd.endFrame(true);
+      return;
+    case 5:
+      dummy.stage = (uint8_t)Stage::Baby;
+      epd.beginFrame();
+      renderAchievements(dummy);  // locked
+      epd.endFrame(true);
+      return;
+    case 6:
+      dummy.stage = (uint8_t)Stage::Adult;
+      epd.beginFrame();
+      renderAchievements(dummy);  // unlocked
+      epd.endFrame(true);
+      return;
+    case 7:
+      epd.beginFrame();
+      renderEncounter(dummy, ev(events::EventType::AnimalSighting, 0));
+      epd.endFrame(true);
+      return;
+    case 8:
+      epd.beginFrame();
+      renderEncounter(dummy, ev(events::EventType::AnimalSighting, 6));  // Black Bear: predator
+      epd.endFrame(true);
+      return;
+    case 9:
+      epd.beginFrame();
+      renderEncounter(dummy, ev(events::EventType::ForagingFind, 0, false));
+      epd.endFrame(true);
+      return;
+    case 10:
+      epd.beginFrame();
+      renderEncounter(dummy, ev(events::EventType::ForagingFind, 0, true));
+      epd.endFrame(true);
+      return;
+    case 11:
+      epd.beginFrame();
+      renderEncounter(dummy, ev(events::EventType::TrailMishap, 0));
+      epd.endFrame(true);
+      return;
+    case 12:
+      epd.beginFrame();
+      renderEncounter(dummy, ev(events::EventType::WeatherEvent, 0));  // Rainbow: positive
+      epd.endFrame(true);
+      return;
+    case 13:
+      epd.beginFrame();
+      renderEncounter(dummy, ev(events::EventType::WeatherEvent, 3));  // Sudden Downpour: negative
+      epd.endFrame(true);
+      return;
+    case 14:
+      epd.beginFrame();
+      renderEncounter(dummy, ev(events::EventType::BabyCare, 0));
+      epd.endFrame(true);
+      return;
+    case 15:
+      epd.beginFrame();
+      renderEncounter(dummy, ev(events::EventType::TrailTreasure, 0));
+      epd.endFrame(true);
+      return;
+    case 16:
+      epd.beginFrame();
+      renderEncounter(dummy, ev(events::EventType::MarmotEncounter, 0));  // friendly
+      epd.endFrame(true);
+      return;
+    case 17:
+      epd.beginFrame();
+      renderEncounter(dummy, ev(events::EventType::MarmotEncounter, 10));  // rival
+      epd.endFrame(true);
+      return;
+    default:
+      return;
+  }
+}
+
+int debugScreenCount() {
+  return kMarmotVariantCount + kBabyVariantCount + kJuvenileVariantCount + kAnimalArtCount +
+         species_bitmaps::kSpeciesBitmapCount + kDebugMiscCount +
+         9 /* birth, transitions, ran away, power off, sleep, settings x3 */;
+}
+
+void renderDebugScreen(int index) {
+  int i = index;
+
+  if (i < kMarmotVariantCount) {
+    const MarmotArt& art = kMarmotVariants[i];
+    epd.beginFrame();
+    int cx = SCREEN_W / 2, by = SCREEN_H / 2 + 40;
+    epd.drawBitmap(cx - art.w / 2, by - art.groundY, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "Adult pose %d/%d", i + 1, kMarmotVariantCount);
+    textCentered(0, SCREEN_W, 16, buf, 1);
+    epd.endFrame(true);
+    return;
+  }
+  i -= kMarmotVariantCount;
+
+  if (i < kBabyVariantCount) {
+    const MarmotArt& art = kBabyVariants[i];
+    epd.beginFrame();
+    int cx = SCREEN_W / 2, by = SCREEN_H / 2 + 40;
+    epd.drawBitmap(cx - art.w / 2, by - art.groundY, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "Baby pose %d/%d", i + 1, kBabyVariantCount);
+    textCentered(0, SCREEN_W, 16, buf, 1);
+    epd.endFrame(true);
+    return;
+  }
+  i -= kBabyVariantCount;
+
+  if (i < kJuvenileVariantCount) {
+    const MarmotArt& art = kJuvenileVariants[i];
+    epd.beginFrame();
+    int cx = SCREEN_W / 2, by = SCREEN_H / 2 + 40;
+    epd.drawBitmap(cx - art.w / 2, by - art.groundY, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "Juvenile pose %d/%d", i + 1, kJuvenileVariantCount);
+    textCentered(0, SCREEN_W, 16, buf, 1);
+    epd.endFrame(true);
+    return;
+  }
+  i -= kJuvenileVariantCount;
+
+  if (i < kAnimalArtCount) {
+    events::PendingEvent ev;
+    ev.type = events::EventType::AnimalSighting;
+    ev.dataId = (uint8_t)i;
+    const AnimalArt& art = kAnimalArt[i];
+    epd.beginFrame();
+    char buf[48];
+    snprintf(buf, sizeof(buf), "Animal %d/%d: %s", i + 1, kAnimalArtCount, events::eventName(ev));
+    textCentered(0, SCREEN_W, 16, buf, 1);
+    if (art.bitmap) {
+      epd.drawBitmap((SCREEN_W - art.w) / 2, 60, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
+    } else {
+      textCentered(0, SCREEN_W, 160, "(no sourced photo)", 1);
+    }
+    epd.endFrame(true);
+    return;
+  }
+  i -= kAnimalArtCount;
+
+  if (i < species_bitmaps::kSpeciesBitmapCount) {
+    // Deterministic shuffle (not a real per-boot random -- just a fixed
+    // coprime-multiplier permutation) so this review cycle doesn't walk the
+    // list in the same alphabetical order every time. 131 is coprime with
+    // every kSpeciesBitmapCount this project is realistically going to have
+    // (no shared factor of 2 or 5), so every index gets hit exactly once.
+    int shuffled = (i * 131) % species_bitmaps::kSpeciesBitmapCount;
+    const species_bitmaps::SpeciesBitmap& sb = species_bitmaps::kSpeciesBitmaps[shuffled];
+    epd.beginFrame();
+    char buf[48];
+    snprintf(buf, sizeof(buf), "Species %d/%d", i + 1, species_bitmaps::kSpeciesBitmapCount);
+    textCentered(0, SCREEN_W, 16, buf, 1);
+    textCentered(0, SCREEN_W, 36, sb.name, 1);
+    epd.drawBitmap((SCREEN_W - sb.w) / 2, 66, sb.bitmap, sb.w, sb.h, C_BLACK, C_WHITE);
+    epd.endFrame(true);
+    return;
+  }
+  i -= species_bitmaps::kSpeciesBitmapCount;
+
+  if (i < kDebugMiscCount) {
+    renderDebugMisc(i);
+    return;
+  }
+  i -= kDebugMiscCount;
+
+  // These all manage their own beginFrame()/endFrame() already.
+  switch (i) {
+    case 0:
+      renderBirth();
+      return;
+    case 1:
+      renderTransition(Stage::Juvenile);
+      return;
+    case 2:
+      renderTransition(Stage::Adult);
+      return;
+    case 3:
+      renderRanAway();
+      return;
+    case 4:
+      renderPowerOff();
+      return;
+    case 5:
+      renderSleep();
+      return;
+    case 6:
+      renderSettings(0, false);
+      return;
+    case 7:
+      renderSettings(1, false);
+      return;
+    case 8:
+      renderSettings(1, true);
+      return;
+    default:
+      return;
+  }
 }
 
 void hibernate() { epd.sleep(); }
