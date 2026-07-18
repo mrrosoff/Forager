@@ -1,87 +1,200 @@
 #include "display.h"
-#include "config.h"
-#include "sprites.h"
-#include "creature.h"
-#include "foraging.h"
 
 #include <SPI.h>
-#include <GxEPD2_BW.h>
-#include <Fonts/FreeSans9pt7b.h>
-#include <Fonts/FreeSansBold9pt7b.h>
-#include <Fonts/FreeSansBold12pt7b.h>
-#include <Fonts/FreeSerifItalic9pt7b.h>
 #include <math.h>
 
-#if EPD_PANEL_GDEY042T81
-  using EpdDriver = GxEPD2_420_GDEY042T81;
-#else
-  using EpdDriver = GxEPD2_420;
-#endif
+#include "config.h"
+#include "creature.h"
+#include "epd_adapter.h"
+#include "foraging.h"
+#include "marmot_bitmap.h"
+#include "sprites.h"
 
 namespace display {
 
-static GxEPD2_BW<EpdDriver, EpdDriver::HEIGHT> epd(
-    EpdDriver(PIN_EPD_CS, PIN_EPD_DC, PIN_EPD_RST, PIN_EPD_BUSY));
+// Logical portrait canvas after rotation (see epd.setRotation(3) in
+// begin()). The panel is physically 400x300 landscape; EpdGFX's
+// rotation-aware drawPixel() remaps these logical coordinates onto that
+// fixed physical buffer, so all layout code below targets 300x400.
+static const int SCREEN_W = 300, SCREEN_H = 400;
 
-static const int CR_X = 30, CR_Y = 60, CR_W = 170, CR_H = 170;
+// Waveshare's official epd4in2_V2 driver, wrapped in an Adafruit_GFX
+// adapter (see epd_adapter.h). Plain 1-bit black/white: 4-grey mode forces
+// a multi-pass flicker on every full refresh and can't be safely mixed with
+// fast partial refresh on this hardware, so grayscale is approximated with
+// dithering instead of using the panel's true grey levels.
+static EpdGFX epd;
 
-// 1-bit panel; "greys" are Bayer-dithered. shade 0=white .. 16=black.
-static const uint8_t SH_LIGHT = 5, SH_MID = 9, SH_DARK = 13;
-static const uint8_t kBayer[4][4] = {
-  { 0, 8, 2, 10}, {12, 4, 14, 6}, { 3, 11, 1, 9}, {15, 7, 13, 5}};
+static const uint16_t C_BLACK = EPD_GFX_BLACK;
+static const uint16_t C_WHITE = EPD_GFX_WHITE;
 
-static inline bool ditherOn(int x, int y, uint8_t shade) {
-  return kBayer[y & 3][x & 3] < shade;
+enum Shade : uint8_t { SHADE_BLACK, SHADE_DARK, SHADE_LIGHT, SHADE_WHITE };
+
+static const uint8_t BAYER4[4][4] = {
+    {0, 8, 2, 10},
+    {12, 4, 14, 6},
+    {3, 11, 1, 9},
+    {15, 7, 13, 5},
+};
+
+static inline bool ditherBlack(int x, int y, Shade shade) {
+  uint8_t t = BAYER4[y & 3][x & 3];
+  return shade == SHADE_DARK ? t < 11 : t < 5;
 }
 
-static void shadeHLine(int x, int y, int w, uint8_t shade) {
-  if (shade >= 16) { epd.drawFastHLine(x, y, w, GxEPD_BLACK); return; }
-  if (shade == 0) return;
-  for (int i = 0; i < w; i++)
-    if (ditherOn(x + i, y, shade)) epd.drawPixel(x + i, y, GxEPD_BLACK);
+static void dFillRect(int x, int y, int w, int h, Shade shade) {
+  if (shade == SHADE_BLACK) {
+    epd.fillRect(x, y, w, h, C_BLACK);
+    return;
+  }
+  if (shade == SHADE_WHITE) return;
+  for (int yy = y; yy < y + h; yy++)
+    for (int xx = x; xx < x + w; xx++)
+      if (ditherBlack(xx, yy, shade)) epd.drawPixel(xx, yy, C_BLACK);
 }
 
-static void shadeRect(int x, int y, int w, int h, uint8_t shade) {
-  for (int j = 0; j < h; j++) shadeHLine(x, y + j, w, shade);
+static void dFillVLine(int x, int y, int h, Shade shade) {
+  if (shade == SHADE_BLACK) {
+    epd.drawFastVLine(x, y, h, C_BLACK);
+    return;
+  }
+  if (shade == SHADE_WHITE) return;
+  for (int yy = y; yy < y + h; yy++)
+    if (ditherBlack(x, yy, shade)) epd.drawPixel(x, yy, C_BLACK);
 }
 
-static void shadeDisc(int cx, int cy, int r, uint8_t shade) {
-  for (int y = -r; y <= r; y++) {
-    int xw = (int)lroundf(sqrtf((float)(r * r - y * y)));
-    shadeHLine(cx - xw, cy + y, 2 * xw + 1, shade);
+static void dFillHLine(int x, int y, int w, Shade shade) {
+  if (shade == SHADE_BLACK) {
+    epd.drawFastHLine(x, y, w, C_BLACK);
+    return;
+  }
+  if (shade == SHADE_WHITE) return;
+  for (int xx = x; xx < x + w; xx++)
+    if (ditherBlack(xx, y, shade)) epd.drawPixel(xx, y, C_BLACK);
+}
+
+static void dFillCircle(int cx, int cy, int r, Shade shade) {
+  if (shade == SHADE_BLACK) {
+    epd.fillCircle(cx, cy, r, C_BLACK);
+    return;
+  }
+  if (shade == SHADE_WHITE) return;
+  for (int yy = -r; yy <= r; yy++) {
+    int dx = (int)sqrtf((float)(r * r - yy * yy));
+    for (int xx = -dx; xx <= dx; xx++)
+      if (ditherBlack(cx + xx, cy + yy, shade)) epd.drawPixel(cx + xx, cy + yy, C_BLACK);
   }
 }
 
-// A dome: filled lower-shade cap with darker rim, for mushroom tops.
-static void shadeDome(int cx, int baseY, int halfW, int height, uint8_t shade) {
+static void dFillRoundRect(int x, int y, int w, int h, int r, Shade shade) {
+  if (shade == SHADE_BLACK) {
+    epd.fillRoundRect(x, y, w, h, r, C_BLACK);
+    return;
+  }
+  if (shade == SHADE_WHITE) return;
+  for (int yy = y; yy < y + h; yy++) {
+    for (int xx = x; xx < x + w; xx++) {
+      int ccx = -1, ccy = -1;
+      if (xx < x + r && yy < y + r) {
+        ccx = x + r;
+        ccy = y + r;
+      } else if (xx >= x + w - r && yy < y + r) {
+        ccx = x + w - r - 1;
+        ccy = y + r;
+      } else if (xx < x + r && yy >= y + h - r) {
+        ccx = x + r;
+        ccy = y + h - r - 1;
+      } else if (xx >= x + w - r && yy >= y + h - r) {
+        ccx = x + w - r - 1;
+        ccy = y + h - r - 1;
+      }
+      if (ccx >= 0) {
+        int dx = xx - ccx, dy = yy - ccy;
+        if (dx * dx + dy * dy > r * r) continue;
+      }
+      if (ditherBlack(xx, yy, shade)) epd.drawPixel(xx, yy, C_BLACK);
+    }
+  }
+}
+
+static void dFillTriangle(int x0, int y0, int x1, int y1, int x2, int y2, Shade shade) {
+  if (shade == SHADE_BLACK) {
+    epd.fillTriangle(x0, y0, x1, y1, x2, y2, C_BLACK);
+    return;
+  }
+  if (shade == SHADE_WHITE) return;
+  int minX = min(x0, min(x1, x2)), maxX = max(x0, max(x1, x2));
+  int minY = min(y0, min(y1, y2)), maxY = max(y0, max(y1, y2));
+  auto sign = [](int px, int py, int ax, int ay, int bx, int by) {
+    return (px - bx) * (ay - by) - (ax - bx) * (py - by);
+  };
+  for (int yy = minY; yy <= maxY; yy++) {
+    for (int xx = minX; xx <= maxX; xx++) {
+      int d1 = sign(xx, yy, x0, y0, x1, y1);
+      int d2 = sign(xx, yy, x1, y1, x2, y2);
+      int d3 = sign(xx, yy, x2, y2, x0, y0);
+      bool hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+      bool hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+      if (!(hasNeg && hasPos) && ditherBlack(xx, yy, shade)) epd.drawPixel(xx, yy, C_BLACK);
+    }
+  }
+}
+
+static void fillDome(int cx, int baseY, int halfW, int height, Shade shade) {
   for (int i = -halfW; i <= halfW; i++) {
     int h = (int)(height * sqrtf(1.0f - (float)(i * i) / (float)(halfW * halfW)));
-    shadeHLine(cx + i, baseY - h, 1, shade);
-    for (int yy = baseY - h; yy <= baseY; yy++)
-      if (ditherOn(cx + i, yy, shade)) epd.drawPixel(cx + i, yy, GxEPD_BLACK);
-  }
-  for (int i = -halfW; i <= halfW; i++) {  // crisp rim
-    int h = (int)(height * sqrtf(1.0f - (float)(i * i) / (float)(halfW * halfW)));
-    epd.drawPixel(cx + i, baseY - h, GxEPD_BLACK);
+    dFillVLine(cx + i, baseY - h, h + 1, shade);
+    epd.drawPixel(cx + i, baseY - h, C_BLACK);
   }
 }
 
-static void textAt(int x, int y, const char* s, const GFXfont* f) {
-  epd.setFont(f);
-  epd.setTextColor(GxEPD_BLACK);
+// Blocky built-in 5x7 font scaled by `size`, for a chunky pixel-art look.
+static void textAt(int x, int y, const char* s, uint8_t size = 1) {
+  epd.setFont(nullptr);
+  epd.setTextSize(size);
+  epd.setTextColor(C_BLACK);
   epd.setCursor(x, y);
   epd.print(s);
 }
 
-static void textCentered(int x0, int w, int y, const char* s, const GFXfont* f) {
-  epd.setFont(f);
-  int16_t bx, by; uint16_t bw, bh;
+static void textCentered(int x0, int w, int y, const char* s, uint8_t size = 1) {
+  epd.setFont(nullptr);
+  epd.setTextSize(size);
+  int16_t bx, by;
+  uint16_t bw, bh;
   epd.getTextBounds(s, 0, y, &bx, &by, &bw, &bh);
-  textAt(x0 + (w - (int)bw) / 2 - bx, y, s, f);
+  textAt(x0 + (w - (int)bw) / 2 - bx, y, s, size);
+}
+
+// Word-wraps `s` into lines of at most `maxChars` characters (breaking on
+// spaces), drawing each line `size`*8+2 px apart starting at (x,y). Returns
+// the y coordinate just past the last line, for stacking content below it.
+static int textWrapped(int x, int y, int maxChars, const char* s, uint8_t size = 1) {
+  char line[64];
+  int lineH = size * 8 + 2;
+  const char* p = s;
+  while (*p) {
+    int n = 0;
+    int lastSpace = -1;
+    while (p[n] && n < maxChars) {
+      if (p[n] == ' ') lastSpace = n;
+      n++;
+    }
+    if (p[n] && lastSpace >= 0) n = lastSpace;  // break at last space in range
+    int copyLen = n < (int)sizeof(line) - 1 ? n : (int)sizeof(line) - 1;
+    memcpy(line, p, copyLen);
+    line[copyLen] = '\0';
+    textAt(x, y, line, size);
+    y += lineH;
+    p += n;
+    while (*p == ' ') p++;
+  }
+  return y;
 }
 
 static void drawMoon(int cx, int cy, int r, float phase, bool craters) {
-  epd.drawCircle(cx, cy, r, GxEPD_BLACK);
+  epd.fillCircle(cx, cy, r, C_WHITE);
+  epd.drawCircle(cx, cy, r, C_BLACK);
   float f = cosf(2.0f * (float)M_PI * phase);
   bool waxing = phase <= 0.5f;
   for (int y = -r; y <= r; y++) {
@@ -89,337 +202,528 @@ static void drawMoon(int cx, int cy, int r, float phase, bool craters) {
     int xt = (int)lroundf(f * xw);
     int x0 = waxing ? -xw : -xt;
     int x1 = waxing ? xt : xw;
-    if (x1 > x0) shadeHLine(cx + x0, cy + y, x1 - x0 + 1, SH_DARK);
+    if (x1 > x0) dFillHLine(cx + x0, cy + y, x1 - x0 + 1, SHADE_DARK);
   }
   if (craters) {
     const int8_t cr[][3] = {{-10, -14, 5}, {12, 6, 7}, {-4, 16, 4}, {18, -10, 3}};
     for (auto& c : cr) {
       int px = cx + (waxing ? c[0] : -c[0]), py = cy + c[1];
-      epd.fillCircle(px, py, c[2], GxEPD_WHITE);
-      shadeDisc(px, py, c[2], SH_LIGHT);
-      epd.drawCircle(px, py, c[2], GxEPD_BLACK);
+      dFillCircle(px, py, c[2], SHADE_LIGHT);
+      epd.drawCircle(px, py, c[2], C_BLACK);
     }
   }
 }
 
-// --- sprites: ~64x64, drawn from top-left (x,y) --------------------------
-static void sprMushroomCap(int x, int y) {
-  shadeDome(x + 32, y + 30, 24, 20, SH_MID);
-  epd.fillRect(x + 8, y + 30, 49, 3, GxEPD_BLACK);
-  shadeRect(x + 26, y + 33, 12, 24, SH_LIGHT);
-  epd.drawRect(x + 26, y + 33, 12, 24, GxEPD_BLACK);
-  epd.fillCircle(x + 22, y + 16, 3, GxEPD_WHITE);   // spots
-  epd.fillCircle(x + 40, y + 20, 2, GxEPD_WHITE);
+// --- sprites: native 64x64 at scale 1.0, drawn from top-left (x,y) -------
+// Every sprite takes a `scale` multiplier so the Foraging view can render a
+// much larger icon without a second copy of the artwork.
+static void sprMushroomCap(int x, int y, float s = 1.0f) {
+  auto S = [s](float v) { return (int)(v * s); };
+  fillDome(x + S(32), y + S(30), S(24), S(20), SHADE_DARK);
+  epd.fillRect(x + S(8), y + S(30), S(49), S(3) + 1, C_BLACK);
+  dFillRect(x + S(26), y + S(33), S(12), S(24), SHADE_LIGHT);
+  epd.drawRect(x + S(26), y + S(33), S(12), S(24), C_BLACK);
+  dFillCircle(x + S(22), y + S(16), S(3), SHADE_LIGHT);
+  dFillCircle(x + S(40), y + S(20), S(2), SHADE_LIGHT);
 }
 
-static void sprMushroomTooth(int x, int y) {
-  shadeDome(x + 32, y + 28, 22, 18, SH_DARK);
+static void sprMushroomTooth(int x, int y, float s = 1.0f) {
+  auto S = [s](float v) { return (int)(v * s); };
+  fillDome(x + S(32), y + S(28), S(22), S(18), SHADE_DARK);
   for (int i = 0; i < 9; i++)
-    epd.drawLine(x + 14 + i * 5, y + 28, x + 14 + i * 5, y + 28 + 4 + (i % 3) * 3, GxEPD_BLACK);
-  shadeRect(x + 28, y + 30, 9, 24, SH_LIGHT);
-  epd.drawRect(x + 28, y + 30, 9, 24, GxEPD_BLACK);
+    epd.drawLine(x + S(14 + i * 5), y + S(28), x + S(14 + i * 5),
+                 y + S(28 + 4 + (i % 3) * 3), C_BLACK);
+  dFillRect(x + S(28), y + S(30), S(9), S(24), SHADE_LIGHT);
+  epd.drawRect(x + S(28), y + S(30), S(9), S(24), C_BLACK);
 }
 
-static void sprMorel(int x, int y) {
-  epd.drawLine(x + 32, y + 4, x + 18, y + 42, GxEPD_BLACK);
-  epd.drawLine(x + 32, y + 4, x + 46, y + 42, GxEPD_BLACK);
+static void sprMorel(int x, int y, float s = 1.0f) {
+  auto S = [s](float v) { return (int)(v * s); };
+  epd.drawLine(x + S(32), y + S(4), x + S(18), y + S(42), C_BLACK);
+  epd.drawLine(x + S(32), y + S(4), x + S(46), y + S(42), C_BLACK);
   for (int r = 0; r < 5; r++)
     for (int cc = 0; cc <= 2 + r; cc++) {
-      int bx = x + 24 + cc * 6 - r * 3, by = y + 10 + r * 6;
-      shadeRect(bx, by, 5, 5, SH_MID);
-      epd.drawRect(bx, by, 5, 5, GxEPD_BLACK);
+      int bx = x + S(24 + cc * 6 - r * 3), by = y + S(10 + r * 6);
+      dFillRect(bx, by, S(5), S(5), SHADE_DARK);
+      epd.drawRect(bx, by, S(5), S(5), C_BLACK);
     }
-  shadeRect(x + 28, y + 42, 8, 13, SH_LIGHT);
-  epd.drawRect(x + 28, y + 42, 8, 13, GxEPD_BLACK);
+  dFillRect(x + S(28), y + S(42), S(8), S(13), SHADE_LIGHT);
+  epd.drawRect(x + S(28), y + S(42), S(8), S(13), C_BLACK);
 }
 
-static void sprMatsutake(int x, int y) {
-  shadeDome(x + 32, y + 24, 20, 14, SH_DARK);
-  epd.fillRect(x + 12, y + 24, 41, 3, GxEPD_BLACK);
-  shadeRect(x + 25, y + 27, 15, 29, SH_MID);
-  epd.drawRect(x + 25, y + 27, 15, 29, GxEPD_BLACK);
+static void sprMatsutake(int x, int y, float s = 1.0f) {
+  auto S = [s](float v) { return (int)(v * s); };
+  fillDome(x + S(32), y + S(24), S(20), S(14), SHADE_DARK);
+  epd.fillRect(x + S(12), y + S(24), S(41), S(3) + 1, C_BLACK);
+  dFillRect(x + S(25), y + S(27), S(15), S(29), SHADE_DARK);
+  epd.drawRect(x + S(25), y + S(27), S(15), S(29), C_BLACK);
 }
 
-static void sprPorcini(int x, int y) {
-  shadeDome(x + 32, y + 26, 24, 16, SH_DARK);
-  epd.fillRect(x + 8, y + 26, 49, 2, GxEPD_BLACK);
-  shadeRect(x + 23, y + 28, 18, 28, SH_LIGHT);
-  for (int i = 0; i < 18; i += 3) epd.drawFastVLine(x + 23 + i, y + 28, 28, GxEPD_BLACK);
-  epd.drawRect(x + 23, y + 28, 18, 28, GxEPD_BLACK);
+static void sprPorcini(int x, int y, float s = 1.0f) {
+  auto S = [s](float v) { return (int)(v * s); };
+  fillDome(x + S(32), y + S(26), S(24), S(16), SHADE_DARK);
+  epd.fillRect(x + S(8), y + S(26), S(49), S(2) + 1, C_BLACK);
+  dFillRect(x + S(23), y + S(28), S(18), S(28), SHADE_LIGHT);
+  epd.drawRect(x + S(23), y + S(28), S(18), S(28), C_BLACK);
 }
 
-static void sprCoral(int x, int y) {
+static void sprCoral(int x, int y, float s = 1.0f) {
+  auto S = [s](float v) { return (int)(v * s); };
   for (int i = 0; i < 7; i++) {
-    int bx = x + 12 + i * 6;
-    epd.drawLine(x + 32, y + 52, bx, y + 14 + (i % 2) * 5, GxEPD_BLACK);
-    shadeDisc(bx, y + 13 + (i % 2) * 5, 4, SH_LIGHT);
-    epd.drawCircle(bx, y + 13 + (i % 2) * 5, 4, GxEPD_BLACK);
+    int bx = x + S(12 + i * 6);
+    epd.drawLine(x + S(32), y + S(52), bx, y + S(14 + (i % 2) * 5), C_BLACK);
+    dFillCircle(bx, y + S(13 + (i % 2) * 5), S(4), SHADE_LIGHT);
+    epd.drawCircle(bx, y + S(13 + (i % 2) * 5), S(4), C_BLACK);
   }
 }
 
-static void sprLeafyGreen(int x, int y) {
-  shadeDisc(x + 32, y + 26, 18, SH_LIGHT);
-  epd.drawCircle(x + 32, y + 26, 18, GxEPD_BLACK);
-  epd.drawLine(x + 32, y + 26, x + 32, y + 56, GxEPD_BLACK);
+static void sprLeafyGreen(int x, int y, float s = 1.0f) {
+  auto S = [s](float v) { return (int)(v * s); };
+  dFillCircle(x + S(32), y + S(26), S(18), SHADE_LIGHT);
+  epd.drawCircle(x + S(32), y + S(26), S(18), C_BLACK);
+  epd.drawLine(x + S(32), y + S(26), x + S(32), y + S(56), C_BLACK);
   for (int i = -1; i <= 1; i += 2) {
-    epd.drawLine(x + 32, y + 22, x + 32 + i * 11, y + 18, GxEPD_BLACK);
-    epd.drawLine(x + 32, y + 30, x + 32 + i * 12, y + 30, GxEPD_BLACK);
+    epd.drawLine(x + S(32), y + S(22), x + S(32) + S(i * 11), y + S(18), C_BLACK);
+    epd.drawLine(x + S(32), y + S(30), x + S(32) + S(i * 12), y + S(30), C_BLACK);
   }
 }
 
-static void sprNettle(int x, int y) {
-  epd.drawLine(x + 32, y + 4, x + 32, y + 56, GxEPD_BLACK);
+static void sprNettle(int x, int y, float s = 1.0f) {
+  auto S = [s](float v) { return (int)(v * s); };
+  epd.drawLine(x + S(32), y + S(4), x + S(32), y + S(56), C_BLACK);
   for (int i = 0; i < 5; i++) {
-    int yy = y + 12 + i * 8, sp = 17 - i * 2;
-    epd.drawLine(x + 32, yy, x + 32 - sp, yy + 7, GxEPD_BLACK);
-    epd.drawLine(x + 32, yy, x + 32 + sp, yy + 7, GxEPD_BLACK);
-    epd.drawLine(x + 32 - sp, yy + 7, x + 32, yy + 9, GxEPD_BLACK);
-    epd.drawLine(x + 32 + sp, yy + 7, x + 32, yy + 9, GxEPD_BLACK);
+    int yy = y + S(12 + i * 8), sp = S(17 - i * 2);
+    epd.drawLine(x + S(32), yy, x + S(32) - sp, yy + S(7), C_BLACK);
+    epd.drawLine(x + S(32), yy, x + S(32) + sp, yy + S(7), C_BLACK);
+    epd.drawLine(x + S(32) - sp, yy + S(7), x + S(32), yy + S(9), C_BLACK);
+    epd.drawLine(x + S(32) + sp, yy + S(7), x + S(32), yy + S(9), C_BLACK);
   }
 }
 
-static void sprFiddlehead(int x, int y) {
+static void sprFiddlehead(int x, int y, float s = 1.0f) {
   for (float a = 0; a < 6.28f * 2.4f; a += 0.18f) {
-    float rr = 3 + a * 2.1f;
-    epd.drawPixel(x + 30 + (int)(rr * cosf(a)), y + 28 + (int)(rr * sinf(a)), GxEPD_BLACK);
-    epd.drawPixel(x + 31 + (int)(rr * cosf(a)), y + 28 + (int)(rr * sinf(a)), GxEPD_BLACK);
+    float rr = (3 + a * 2.1f) * s;
+    epd.drawPixel(x + (int)(30 * s + rr * cosf(a)), y + (int)(28 * s + rr * sinf(a)), C_BLACK);
+    epd.drawPixel(x + (int)(31 * s + rr * cosf(a)), y + (int)(28 * s + rr * sinf(a)), C_BLACK);
   }
-  epd.drawLine(x + 30, y + 48, x + 33, y + 60, GxEPD_BLACK);
+  auto S = [s](float v) { return (int)(v * s); };
+  epd.drawLine(x + S(30), y + S(48), x + S(33), y + S(60), C_BLACK);
 }
 
-static void sprRamp(int x, int y) {
-  epd.fillTriangle(x + 30, y + 50, x + 20, y + 8, x + 28, y + 12, GxEPD_BLACK);
-  shadeDisc(x + 36, y + 30, 6, SH_MID);
-  epd.drawLine(x + 34, y + 50, x + 46, y + 12, GxEPD_BLACK);
-  epd.drawLine(x + 34, y + 50, x + 40, y + 14, GxEPD_BLACK);
-  shadeDisc(x + 32, y + 53, 6, SH_LIGHT);
-  epd.drawCircle(x + 32, y + 53, 6, GxEPD_BLACK);
+static void sprRamp(int x, int y, float s = 1.0f) {
+  auto S = [s](float v) { return (int)(v * s); };
+  dFillTriangle(x + S(30), y + S(50), x + S(20), y + S(8), x + S(28), y + S(12), SHADE_DARK);
+  epd.drawLine(x + S(34), y + S(50), x + S(46), y + S(12), C_BLACK);
+  epd.drawLine(x + S(34), y + S(50), x + S(40), y + S(14), C_BLACK);
+  dFillCircle(x + S(32), y + S(53), S(6), SHADE_LIGHT);
+  epd.drawCircle(x + S(32), y + S(53), S(6), C_BLACK);
 }
 
-static void sprFlowerCluster(int x, int y) {
+static void sprFlowerCluster(int x, int y, float s = 1.0f) {
+  auto S = [s](float v) { return (int)(v * s); };
   for (int i = 0; i < 7; i++) {
-    int px = x + 14 + (i % 4) * 11, py = y + 10 + (i / 4) * 12;
+    int px = x + S(14 + (i % 4) * 11), py = y + S(10 + (i / 4) * 12);
     for (int k = 0; k < 5; k++) {
       float a = k * 1.256f;
-      epd.fillCircle(px + (int)(3 * cosf(a)), py + (int)(3 * sinf(a)), 2, GxEPD_BLACK);
+      dFillCircle(px + (int)(S(3) * cosf(a)), py + (int)(S(3) * sinf(a)), S(2), SHADE_DARK);
     }
-    epd.drawPixel(px, py, GxEPD_WHITE);
-    epd.drawLine(px, py, x + 32, y + 56, GxEPD_BLACK);
+    dFillCircle(px, py, S(1), SHADE_LIGHT);
+    epd.drawLine(px, py, x + S(32), y + S(56), C_BLACK);
   }
 }
 
-static void sprBerryCluster(int x, int y) {
+static void sprBerryCluster(int x, int y, float s = 1.0f) {
+  auto S = [s](float v) { return (int)(v * s); };
   const int8_t b[][2] = {{26, 22}, {38, 24}, {32, 32}, {24, 38}, {40, 40}, {32, 46}};
   for (auto& p : b) {
-    shadeDisc(x + p[0], y + p[1], 6, SH_DARK);
-    epd.drawCircle(x + p[0], y + p[1], 6, GxEPD_BLACK);
-    epd.fillCircle(x + p[0] - 2, y + p[1] - 2, 1, GxEPD_WHITE);
+    int bx = x + S(p[0]), by = y + S(p[1]);
+    dFillCircle(bx, by, S(6), SHADE_DARK);
+    epd.drawCircle(bx, by, S(6), C_BLACK);
+    epd.fillCircle(bx - S(2), by - S(2), max(1, S(1)), C_WHITE);
   }
-  epd.drawLine(x + 32, y + 6, x + 32, y + 22, GxEPD_BLACK);
+  epd.drawLine(x + S(32), y + S(6), x + S(32), y + S(22), C_BLACK);
 }
 
-static void drawSprite(uint8_t id, int x, int y) {
+static void drawSprite(uint8_t id, int x, int y, float scale = 1.0f) {
   switch (id) {
-    case SPR_MUSHROOM_CAP:   sprMushroomCap(x, y);   break;
-    case SPR_MUSHROOM_TOOTH: sprMushroomTooth(x, y); break;
-    case SPR_MOREL:          sprMorel(x, y);         break;
-    case SPR_MATSUTAKE:      sprMatsutake(x, y);     break;
-    case SPR_PORCINI:        sprPorcini(x, y);       break;
-    case SPR_CORAL:          sprCoral(x, y);         break;
-    case SPR_LEAFY_GREEN:    sprLeafyGreen(x, y);    break;
-    case SPR_NETTLE:         sprNettle(x, y);        break;
-    case SPR_FIDDLEHEAD:     sprFiddlehead(x, y);    break;
-    case SPR_RAMP:           sprRamp(x, y);          break;
-    case SPR_FLOWER_CLUSTER: sprFlowerCluster(x, y); break;
-    case SPR_BERRY_CLUSTER:  sprBerryCluster(x, y);  break;
-    default:                 sprMushroomCap(x, y);   break;
+    case SPR_MUSHROOM_CAP:
+      sprMushroomCap(x, y, scale);
+      break;
+    case SPR_MUSHROOM_TOOTH:
+      sprMushroomTooth(x, y, scale);
+      break;
+    case SPR_MOREL:
+      sprMorel(x, y, scale);
+      break;
+    case SPR_MATSUTAKE:
+      sprMatsutake(x, y, scale);
+      break;
+    case SPR_PORCINI:
+      sprPorcini(x, y, scale);
+      break;
+    case SPR_CORAL:
+      sprCoral(x, y, scale);
+      break;
+    case SPR_LEAFY_GREEN:
+      sprLeafyGreen(x, y, scale);
+      break;
+    case SPR_NETTLE:
+      sprNettle(x, y, scale);
+      break;
+    case SPR_FIDDLEHEAD:
+      sprFiddlehead(x, y, scale);
+      break;
+    case SPR_RAMP:
+      sprRamp(x, y, scale);
+      break;
+    case SPR_FLOWER_CLUSTER:
+      sprFlowerCluster(x, y, scale);
+      break;
+    case SPR_BERRY_CLUSTER:
+      sprBerryCluster(x, y, scale);
+      break;
+    default:
+      sprMushroomCap(x, y, scale);
+      break;
   }
 }
 
-static void drawCreature(Mood mood, uint8_t frame) {
-  int cx = CR_X + CR_W / 2;
-  int cy = CR_Y + CR_H / 2 + (int)lroundf(3.0f * sinf(frame * 0.6f));
-  int bodyR = 46;
+// Full-screen creature stage: ground band the creature stands on, spanning
+// most of the panel width so Main can use the full display area.
+static const int STAGE_X = 10, STAGE_Y = 34, STAGE_W = 280, STAGE_H = 330;
 
-  if (mood == Mood::Glowing) {
-    for (int ring = bodyR + 8; ring <= bodyR + 16; ring += 8)
-      for (int a = 0; a < 360; a += 12) {
-        float ra = a * (float)M_PI / 180.0f;
-        epd.drawPixel(cx + (int)(ring * cosf(ra)), cy + (int)(ring * sinf(ra)), GxEPD_BLACK);
-      }
+static void drawHabitat() {
+  int gy = STAGE_Y + STAGE_H - 24;
+  dFillRect(STAGE_X, gy, STAGE_W, STAGE_H - (gy - STAGE_Y), SHADE_LIGHT);
+  epd.drawFastHLine(STAGE_X, gy, STAGE_W, C_BLACK);
+  for (int i = 0; i < 10; i++) {
+    int gx = STAGE_X + 12 + i * 27;
+    epd.drawFastVLine(gx, gy - 7, 7, C_BLACK);
+    epd.drawFastVLine(gx - 3, gy - 5, 5, C_BLACK);
+    epd.drawFastVLine(gx + 3, gy - 5, 5, C_BLACK);
   }
+}
 
-  shadeDisc(cx, cy, bodyR, SH_DARK);
-  shadeRect(cx - bodyR, cy, bodyR * 2 + 1, bodyR, SH_DARK);
-  epd.drawCircle(cx, cy, bodyR, GxEPD_BLACK);
-  epd.drawFastHLine(cx - bodyR, cy + bodyR, bodyR * 2 + 1, GxEPD_BLACK);
+// Small weather glyph (sun / rain / cloud) so the creature's world reflects
+// current conditions, independent of mood.
+static void drawWeatherGlyph(int x, int y, const WeatherData& w) {
+  if (!w.valid) return;
+  if (w.postRain) {
+    dFillCircle(x + 12, y + 8, 9, SHADE_LIGHT);
+    epd.drawCircle(x + 12, y + 8, 9, C_BLACK);
+    for (int i = 0; i < 3; i++) epd.drawLine(x + 4 + i * 8, y + 16, x + 2 + i * 8, y + 24, C_BLACK);
+  } else if (w.tempC >= 18.0f) {
+    epd.drawCircle(x + 12, y + 10, 7, C_BLACK);
+    for (int a = 0; a < 360; a += 45) {
+      float ra = a * (float)M_PI / 180.0f;
+      epd.drawLine(x + 12 + (int)(9 * cosf(ra)), y + 10 + (int)(9 * sinf(ra)),
+                   x + 12 + (int)(14 * cosf(ra)), y + 10 + (int)(14 * sinf(ra)), C_BLACK);
+    }
+  } else {
+    dFillCircle(x + 8, y + 12, 8, SHADE_LIGHT);
+    dFillCircle(x + 18, y + 10, 10, SHADE_LIGHT);
+    epd.drawCircle(x + 8, y + 12, 8, C_BLACK);
+    epd.drawCircle(x + 18, y + 10, 10, C_BLACK);
+  }
+}
 
-  int fx = cx, fy = cy + 6;
-  epd.fillRoundRect(fx - 32, fy - 16, 64, 32, 12, GxEPD_WHITE);
-  epd.drawRoundRect(fx - 32, fy - 16, 64, 32, 12, GxEPD_BLACK);
+// A hoary marmot sitting upright on a rock ledge -- a hardcoded, dithered
+// pen-and-ink-style bitmap (see include/marmot_bitmap.h, generated from
+// artwork in the scratch dir) rather than live procedural shapes, for real
+// fur texture and a recognizable silhouette. Eyes and a small brow/mouth
+// accent are drawn on top at runtime so the same base art works for every
+// mood. `frame` gives pose variety (blink, sparkle drift); each render is a
+// static full-panel draw, not a live animation.
+static void drawCreature(int cx, int groundY, Mood mood, uint8_t frame) {
+  int bx = cx - MARMOT_W / 2;
+  int by = groundY - MARMOT_GROUND_Y;
+  epd.drawBitmap(bx, by, MARMOT_BITMAP, MARMOT_W, MARMOT_H, C_BLACK, C_WHITE);
+
+  int eyeX = bx + MARMOT_EYE_X, eyeY = by + MARMOT_EYE_Y;
+  int noseX = bx + MARMOT_NOSE_X, noseY = by + MARMOT_NOSE_Y;
+
+  epd.fillCircle(eyeX, eyeY, 6, C_WHITE);
 
   bool blink = (frame % 7) == 6;
-  auto eye = [&](int ex, int ey) {
-    switch (mood) {
-      case Mood::Sleepy:
-      case Mood::Dormant:
-        epd.drawFastHLine(ex - 6, ey, 12, GxEPD_BLACK);
-        break;
-      case Mood::Hungry:
-        epd.drawCircle(ex, ey, 4, GxEPD_BLACK);
-        break;
-      case Mood::Excited:
-      case Mood::Glowing:
-        if (blink) epd.drawFastHLine(ex - 6, ey, 12, GxEPD_BLACK);
-        else { epd.fillCircle(ex, ey, 6, GxEPD_BLACK);
-               epd.fillCircle(ex + 2, ey - 2, 2, GxEPD_WHITE); }
-        break;
-      default:
-        if (blink) epd.drawFastHLine(ex - 5, ey, 10, GxEPD_BLACK);
-        else epd.fillCircle(ex, ey, 5, GxEPD_BLACK);
-    }
-  };
-  eye(fx - 14, fy);
-  eye(fx + 14, fy);
+  switch (mood) {
+    case Mood::Sleepy:
+    case Mood::Dormant:
+      epd.drawFastHLine(eyeX - 5, eyeY, 10, C_BLACK);
+      break;
+    case Mood::Hungry:
+      epd.drawCircle(eyeX, eyeY, 4, C_BLACK);
+      break;
+    case Mood::Annoyed:
+      // furrowed brow: angled lines instead of round eyes
+      epd.drawLine(eyeX - 6, eyeY - 3, eyeX - 1, eyeY + 1, C_BLACK);
+      epd.drawLine(eyeX + 1, eyeY + 1, eyeX + 6, eyeY - 3, C_BLACK);
+      break;
+    case Mood::Excited:
+    case Mood::Glowing:
+      if (blink)
+        epd.drawFastHLine(eyeX - 5, eyeY, 10, C_BLACK);
+      else {
+        epd.fillCircle(eyeX, eyeY, 5, C_BLACK);
+        epd.fillCircle(eyeX + 1, eyeY - 1, 2, C_WHITE);
+      }
+      break;
+    default:
+      if (blink)
+        epd.drawFastHLine(eyeX - 4, eyeY, 8, C_BLACK);
+      else
+        epd.fillCircle(eyeX, eyeY, 4, C_BLACK);
+  }
 
-  if (mood == Mood::Hungry) epd.drawCircle(fx, fy + 11, 3, GxEPD_BLACK);
+  epd.fillCircle(noseX - 2, noseY - 10, 7, C_WHITE);
+  if (mood == Mood::Hungry)
+    epd.drawCircle(noseX - 2, noseY - 10, 3, C_BLACK);
+  else if (mood == Mood::Annoyed)
+    epd.drawFastHLine(noseX - 6, noseY - 12, 8, C_BLACK);
   else if (mood == Mood::Excited || mood == Mood::Glowing)
-    epd.drawLine(fx - 6, fy + 11, fx + 6, fy + 11, GxEPD_BLACK);
+    epd.drawLine(noseX - 6, noseY - 13, noseX + 2, noseY - 13, C_BLACK);
+
+  // The baked nose is faint fine stipple in the source photo -- redraw it
+  // bold so it reads clearly at this resolution.
+  epd.fillCircle(noseX, noseY, 3, C_BLACK);
+
+  if (mood == Mood::Glowing)
+    for (int ring = 34; ring <= 46; ring += 6)
+      for (int a = 0; a < 360; a += 20) {
+        float ra = a * (float)M_PI / 180.0f;
+        epd.drawPixel(cx + (int)(ring * cosf(ra)), by + MARMOT_H / 2 + (int)(ring * sinf(ra)),
+                      C_BLACK);
+      }
 
   if (mood != Mood::Dormant)
-    for (int i = 0; i < 5; i++) {
-      int sx = cx - 30 + (i * 17 + frame * 3) % 70;
-      int sy = cy - bodyR - 6 - ((frame * 2 + i * 9) % 24);
-      epd.fillCircle(sx, sy, 1, GxEPD_BLACK);
+    for (int i = 0; i < 4; i++) {
+      int sx = bx - 10 + (i * 17 + frame * 3) % (MARMOT_W + 20);
+      int sy = by - 10 - ((frame * 2 + i * 9) % 20);
+      epd.fillCircle(sx, sy, 1, C_BLACK);
     }
+}
+
+// Occasional visiting banana slug in the habitat, purely decorative.
+static void sprBananaSlugCameo(int x, int y) {
+  int w = 34, h = 11;
+  dFillRoundRect(x, y, w, h, h / 2, SHADE_LIGHT);
+  epd.drawRoundRect(x, y, w, h, h / 2, C_BLACK);
+  epd.fillCircle(x + 9, y + 5, 1, C_BLACK);
+  epd.fillCircle(x + 18, y + 7, 1, C_BLACK);
+  epd.fillCircle(x + 25, y + 4, 1, C_BLACK);
+  epd.drawLine(x + 4, y + 1, x + 2, y - 7, C_BLACK);
+  epd.drawLine(x + 9, y + 1, x + 10, y - 7, C_BLACK);
+  epd.fillCircle(x + 2, y - 8, 2, C_BLACK);
+  epd.fillCircle(x + 10, y - 8, 2, C_BLACK);
+}
+
+// Bottom nav bar shown on every view: what LEFT/RIGHT/ENTER do from here.
+static const int NAV_Y = SCREEN_H - 14;
+
+static void drawNavBar(const char* leftLbl, const char* enterLbl, const char* rightLbl) {
+  epd.drawFastHLine(4, NAV_Y - 4, SCREEN_W - 8, C_BLACK);
+  char buf[24];
+  snprintf(buf, sizeof(buf), "<%s", leftLbl);
+  textAt(4, NAV_Y, buf, 1);
+  textCentered(0, SCREEN_W, NAV_Y, enterLbl, 1);
+  snprintf(buf, sizeof(buf), "%s>", rightLbl);
+  int16_t bx, by;
+  uint16_t bw, bh;
+  epd.setFont(nullptr);
+  epd.setTextSize(1);
+  epd.getTextBounds(buf, 0, NAV_Y, &bx, &by, &bw, &bh);
+  textAt(SCREEN_W - 4 - (int)bw, NAV_Y, buf, 1);
 }
 
 static void renderMain(const AppContext& ctx) {
   char buf[48];
-  strftime(buf, sizeof(buf), "%a %b %-d", &ctx.now);
-  textAt(14, 26, buf, &FreeSans9pt7b);
+  strftime(buf, sizeof(buf), "%a %b %d", &ctx.now);
+  textAt(8, 6, buf, 2);
+  drawWeatherGlyph(SCREEN_W - 40, 4, ctx.weather);
 
-  drawMoon(EPD_WIDTH - 50, 44, 26, ctx.moon.phase, false);
-  drawCreature(ctx.creature.mood, 0);
-  textCentered(CR_X - 10, CR_W + 20, CR_Y + CR_H + 6,
-               creature::moodName(ctx.creature.mood), &FreeSansBold12pt7b);
+  drawHabitat();
+  if (random(5) == 0) sprBananaSlugCameo(STAGE_X + STAGE_W - 50, STAGE_Y + STAGE_H - 30);
+  int stageCx = STAGE_X + STAGE_W / 2 - 20;
+  int stageGroundY = STAGE_Y + STAGE_H - 24;
+  drawCreature(stageCx, stageGroundY, ctx.creature.mood, 0);
 
-  drawSprite(ctx.featured.spriteId, 16, EPD_HEIGHT - 78);
-  textAt(86, EPD_HEIGHT - 46, "Forage now:", &FreeSans9pt7b);
-  textAt(86, EPD_HEIGHT - 22, ctx.featured.name, &FreeSansBold12pt7b);
+  drawNavBar("", "", "Foraging");
 }
 
-static void renderMoonView(const AppContext& ctx) {
-  drawMoon(150, 150, 96, ctx.moon.phase, true);
-  char buf[40];
-  textAt(270, 70, "Moon", &FreeSans9pt7b);
-  textAt(270, 104, ctx.moon.name, &FreeSansBold12pt7b);
-  snprintf(buf, sizeof(buf), "%d%% lit", ctx.moon.illumPct);
-  textAt(270, 140, buf, &FreeSans9pt7b);
-  if (ctx.moon.isFull) {
-    textAt(270, 184, "Full tonight", &FreeSansBold9pt7b);
-  } else {
-    snprintf(buf, sizeof(buf), "Full in %dd", ctx.moon.daysToFull);
-    textAt(270, 184, buf, &FreeSans9pt7b);
+static const char* const MONTH_ABBR[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+// Renders a species' active months as compact ranges (e.g. "Jun-Aug, Oct")
+// instead of an unlabeled dot calendar.
+static void seasonText(const Forageable& f, char* buf, size_t bufSize) {
+  size_t written = 0;
+  bool first = true;
+  int m = 1;
+  while (m <= 12) {
+    if (!foraging::inSeason(f, m)) {
+      m++;
+      continue;
+    }
+    int start = m;
+    while (m <= 12 && foraging::inSeason(f, m)) m++;
+    int end = m - 1;
+    if (!first && written < bufSize) written += snprintf(buf + written, bufSize - written, ", ");
+    if (written < bufSize) {
+      if (start == end)
+        written += snprintf(buf + written, bufSize - written, "%s", MONTH_ABBR[start - 1]);
+      else
+        written += snprintf(buf + written, bufSize - written, "%s-%s", MONTH_ABBR[start - 1],
+                             MONTH_ABBR[end - 1]);
+    }
+    first = false;
   }
-  snprintf(buf, sizeof(buf), "New in %dd", ctx.moon.daysToNew);
-  textAt(270, 214, buf, &FreeSans9pt7b);
 }
 
-static void renderForaging(const AppContext& ctx) {
+static void renderForaging(const AppContext& ctx, int speciesIdx) {
+  const Forageable& f = foraging::speciesAt(speciesIdx);
   int month = ctx.now.tm_mon + 1;
-  textAt(16, 30, "Foraging - Seattle", &FreeSansBold12pt7b);
+  bool active = foraging::inSeason(f, month);
 
-  drawSprite(ctx.featured.spriteId, 20, 50);
-  textAt(96, 74, ctx.featured.name, &FreeSansBold12pt7b);
-  textAt(96, 98, ctx.featured.note, &FreeSerifItalic9pt7b);
+  char posBuf[16];
+  snprintf(posBuf, sizeof(posBuf), "%d/%d", speciesIdx + 1, foraging::speciesCount());
+  int16_t pbx, pby;
+  uint16_t pbw, pbh;
+  epd.setFont(nullptr);
+  epd.setTextSize(1);
+  epd.getTextBounds(posBuf, 0, 6, &pbx, &pby, &pbw, &pbh);
+  textAt(SCREEN_W - 8 - (int)pbw, 6, posBuf, 1);
 
-  drawSprite(ctx.secondary.spriteId, 20, 122);
-  textAt(96, 146, ctx.secondary.name, &FreeSansBold9pt7b);
-  textAt(96, 168, ctx.secondary.note, &FreeSerifItalic9pt7b);
+  // Large centered icon -- the species art is the focal point of the view.
+  const float iconScale = 2.25f;
+  int iconSize = (int)(64 * iconScale);
+  int iconX = (SCREEN_W - iconSize) / 2, iconY = 6;
+  drawSprite(f.spriteId, iconX, iconY, iconScale);
 
-  epd.drawFastHLine(16, 198, EPD_WIDTH - 32, GxEPD_BLACK);
-  textAt(16, 222, foraging::seasonNote(month), &FreeSans9pt7b);
+  int y = iconY + iconSize + 8;
+  textCentered(0, SCREEN_W, y, f.name, 2);
+  y += 22;
 
-  char buf[64];
-  if (ctx.weather.valid)
-    snprintf(buf, sizeof(buf), "%s, %.0fC  %s", ctx.weather.condition,
-             ctx.weather.tempC, ctx.weather.postRain ? "- good after rain!" : "- dry");
-  else
-    snprintf(buf, sizeof(buf), "Conditions unavailable");
-  textAt(16, 250, buf, &FreeSans9pt7b);
+  char kindLine[40];
+  snprintf(kindLine, sizeof(kindLine), "%s - %s", f.kind, foraging::biomeName(f.biome));
+  textCentered(0, SCREEN_W, y, kindLine, 1);
+  y += 16;
+
+  if (active) {
+    textCentered(0, SCREEN_W, y, "IN SEASON", 1);
+    y += 16;
+  }
+
+  epd.drawFastHLine(8, y, SCREEN_W - 16, C_BLACK);
+  y += 10;
+
+  textAt(8, y, "NOTE:", 1);
+  y = textWrapped(8, y + 12, 46, f.note, 1) + 8;
+
+  if (f.caution[0]) {
+    textAt(8, y, "CAUTION:", 1);
+    y = textWrapped(8, y + 12, 46, f.caution, 1) + 8;
+  }
+
+  textAt(8, y, "TIP:", 1);
+  y = textWrapped(8, y + 12, 46, f.harvestTip, 1) + 8;
+
+  char seasonBuf[48];
+  seasonText(f, seasonBuf, sizeof(seasonBuf));
+  char seasonLine[64];
+  snprintf(seasonLine, sizeof(seasonLine), "SEASON: %s", seasonBuf);
+  textAt(8, y, seasonLine, 1);
+
+  drawNavBar("", "Next", "Status");
+}
+
+// Energy: derived from time of day, not persisted -- low overnight, ramps
+// up through the morning, peaks midday, tapers into the evening.
+static uint8_t computeEnergy(const struct tm& now) {
+  int hour = now.tm_hour;
+  if (hour < 6 || hour >= 22) return 15;
+  if (hour < 9) return 55;
+  if (hour < 18) return 95;
+  return 50;
+}
+
+// Curiosity: derived from current weather, not persisted -- fresh rain (good
+// foraging conditions) makes for a curious creature; stale/offline data is
+// neutral.
+static uint8_t computeCuriosity(const WeatherData& w) {
+  if (!w.valid) return 50;
+  if (w.postRain) return 90;
+  if (w.tempC >= 8.0f && w.tempC <= 22.0f) return 65;
+  return 35;
 }
 
 static void renderStatus(const AppContext& ctx) {
-  drawCreature(ctx.creature.mood, 0);
-  textAt(230, 40, "Status", &FreeSansBold12pt7b);
+  textAt(8, 6, "Status", 2);
+
+  int stageCx = SCREEN_W / 2, stageGroundY = 190;
+  drawCreature(stageCx, stageGroundY, ctx.creature.mood, 0);
+  textCentered(0, SCREEN_W, stageGroundY + 18, creature::moodName(ctx.creature.mood), 1);
 
   auto bar = [&](int y, const char* label, uint8_t pct) {
-    textAt(230, y, label, &FreeSans9pt7b);
-    int bx = 230, bw = 150, by = y + 8;
-    epd.drawRect(bx, by, bw, 14, GxEPD_BLACK);
-    epd.fillRect(bx + 2, by + 2, (bw - 4) * pct / 100, 10, GxEPD_BLACK);
+    textAt(20, y, label, 1);
+    int bx = 20, bw = SCREEN_W - 40, by = y + 12;
+    dFillRect(bx, by, bw, 14, SHADE_LIGHT);
+    epd.drawRect(bx, by, bw, 14, C_BLACK);
+    epd.fillRect(bx + 2, by + 2, (bw - 4) * pct / 100, 10, C_BLACK);
   };
-  bar(78, "Fullness", 100 - ctx.creature.hunger);
-  bar(128, "Happiness", ctx.creature.happiness);
+  bar(220, "Fullness", 100 - ctx.creature.hunger);
+  bar(250, "Happiness", ctx.creature.happiness);
+  bar(280, "Energy", computeEnergy(ctx.now));
+  bar(310, "Curiosity", computeCuriosity(ctx.weather));
 
   char buf[48];
   if (ctx.creature.lastFed == 0) {
     snprintf(buf, sizeof(buf), "Never foraged");
   } else {
     long days = (mktime(const_cast<struct tm*>(&ctx.now)) - ctx.creature.lastFed) / 86400;
-    if (days <= 0) snprintf(buf, sizeof(buf), "Foraged today");
-    else snprintf(buf, sizeof(buf), "Foraged %ld day%s ago", days, days == 1 ? "" : "s");
+    if (days <= 0)
+      snprintf(buf, sizeof(buf), "Foraged today");
+    else
+      snprintf(buf, sizeof(buf), "Foraged %ld day%s ago", days, days == 1 ? "" : "s");
   }
-  textAt(230, 184, buf, &FreeSans9pt7b);
-  textAt(230, 228, "Press ENTER when", &FreeSerifItalic9pt7b);
-  textAt(230, 250, "you go foraging", &FreeSerifItalic9pt7b);
+  textAt(20, 344, buf, 1);
+
+  if (ctx.weather.valid) {
+    snprintf(buf, sizeof(buf), "%s, %.0fC", ctx.weather.condition, ctx.weather.tempC);
+    textAt(20, 362, buf, 1);
+  }
+
+  drawNavBar("", "Forage!", "");
 }
 
 void begin() {
-  SPI.begin(PIN_EPD_SCK, -1, PIN_EPD_MOSI, PIN_EPD_CS);
-  epd.init(115200, true, 2, false);
-  epd.setRotation(0);
+  // epd.begin() owns SPI setup internally (custom SCK/MOSI pins are
+  // configured in epd_official/epdif.cpp's IfInit()).
+  epd.begin();
+  epd.setRotation(3);
   epd.setTextWrap(false);
 }
 
-void renderView(View v, const AppContext& ctx) {
-  epd.setFullWindow();
-  epd.firstPage();
-  do {
-    epd.fillScreen(GxEPD_WHITE);
-    switch (v) {
-      case View::Main:     renderMain(ctx);     break;
-      case View::Moon:     renderMoonView(ctx); break;
-      case View::Foraging: renderForaging(ctx); break;
-      case View::Status:   renderStatus(ctx);   break;
-      default: break;
-    }
-  } while (epd.nextPage());
+void renderView(View v, const AppContext& ctx, int speciesIdx) {
+  // Requesting partial refresh here, not full: EpdGFX::endFrame() forces a
+  // full (flashy) refresh on the first frame after epd.begin() regardless
+  // of what's requested (see epd_adapter.h), so every subsequent view
+  // change in the same wake session gets the fast, flicker-free path.
+  epd.beginFrame();
+  switch (v) {
+    case View::Main:
+      renderMain(ctx);
+      break;
+    case View::Foraging:
+      renderForaging(ctx, speciesIdx);
+      break;
+    case View::Status:
+      renderStatus(ctx);
+      break;
+    default:
+      break;
+  }
+  epd.endFrame(true);
 }
 
-void animateCreature(View v, const AppContext& ctx, uint8_t frame) {
-  if (v != View::Main && v != View::Status) return;
-  epd.setPartialWindow(CR_X, CR_Y, CR_W, CR_H);
-  epd.firstPage();
-  do {
-    epd.fillScreen(GxEPD_WHITE);
-    drawCreature(ctx.creature.mood, frame);
-  } while (epd.nextPage());
-}
-
-void flashFed(const AppContext& ctx) {
-  epd.setPartialWindow(CR_X, CR_Y, CR_W, CR_H);
-  epd.firstPage();
-  do {
-    epd.fillScreen(GxEPD_WHITE);
-    drawCreature(Mood::Excited, 2);
-    textCentered(CR_X, CR_W, CR_Y + CR_H - 8, "fed!", &FreeSansBold12pt7b);
-  } while (epd.nextPage());
-}
-
-void hibernate() {
-  epd.hibernate();
-}
+void hibernate() { epd.sleep(); }
 
 }  // namespace display
