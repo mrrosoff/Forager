@@ -1,0 +1,43 @@
+---
+# clang-tidy configuration for the Forager ESP32-S3 Arduino firmware.
+#
+# Goal: useful signal on real bugs (bugprone-*, clear correctness issues)
+# without drowning in style noise that fights this codebase's established
+# conventions:
+#   - Arduino/ESP32 API idioms: short/PascalCase names, magic numbers for
+#     pin/register values, calling static members through global instances
+#     (WiFi.mode(...)), global static peripheral objects (BH1750, display
+#     driver, ...) constructed at startup.
+#   - Dense single-statement "if (cond) return;" guard clauses and compact
+#     integer-pixel-math one-liners throughout the sprite/rendering code;
+#     brace and operator-precedence-parenthesization checks would flag
+#     essentially every line of that without finding real bugs.
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  readability-*,
+  modernize-use-nullptr,
+  modernize-use-override,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-throwing-static-initialization,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-identifier-naming,
+  -readability-implicit-bool-conversion,
+  -readability-function-cognitive-complexity,
+  -readability-isolate-declaration,
+  -readability-uppercase-literal-suffix,
+  -readability-else-after-return,
+  -readability-convert-member-functions-to-static,
+  -readability-braces-around-statements,
+  -readability-math-missing-parentheses,
+  -readability-static-accessed-through-instance,
+  -performance-avoid-endl
+
+WarningsAsErrors: ''
+
+HeaderFilterRegex: '.*/Forager/(src|include)/(?!epd_official/).*'
+
+FormatStyle: none

@@ -1,46 +1,42 @@
 #include <Arduino.h>
-#include <Wire.h>
-#include <BH1750.h>
 
 #include "config.h"
+#include "creature.h"
+#include "display.h"
+#include "foraging.h"
 #include "model.h"
 #include "moon.h"
 #include "net.h"
-#include "foraging.h"
-#include "creature.h"
-#include "display.h"
 
-static BH1750 lightMeter;
+SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
 static AppContext ctx;
 static View currentView = View::Main;
+static int forageIdx = 0;  // Foraging view's browse position; session-only
 static uint32_t lastActivityMs = 0;
-static uint8_t animFrame = 0;
-static uint32_t lastAnimMs = 0;
 
 struct Btn {
   int pin;
   bool prev;
   uint32_t lastEdge;
 };
-static Btn bLeft{PIN_BTN_LEFT, false, 0};
 static Btn bRight{PIN_BTN_RIGHT, false, 0};
 static Btn bEnter{PIN_BTN_ENTER, false, 0};
 
 static void goToSleep() {
+#if DEV_MODE_NO_SLEEP
+  return;
+#else
+  // Always return to Main before sleeping, so the bistable e-ink panel
+  // shows the home screen (not whatever view was last open) until next
+  // woken, and the next wake starts from Main too.
+  currentView = View::Main;
+  display::renderView(currentView, ctx, forageIdx);
   display::hibernate();
-  esp_sleep_enable_ext0_wakeup(PIN_PIR, 1);
+  esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BTN_ENTER, 1);
+  esp_sleep_enable_timer_wakeup(FORCE_REFRESH_INTERVAL_US);
   esp_deep_sleep_start();
-}
-
-static float readLux() {
-  Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
-  if (!lightMeter.begin(BH1750::ONE_TIME_HIGH_RES_MODE)) {
-    log_w("BH1750 not found; assuming lit");
-    return 9999.0f;  // sensor failed: don't trap the device asleep
-  }
-  delay(180);
-  return lightMeter.readLightLevel();
+#endif
 }
 
 static void buildContext() {
@@ -50,7 +46,6 @@ static void buildContext() {
 
   ctx.moon = moon::compute(nowUtc);
   ctx.featured = foraging::featured(month);
-  ctx.secondary = foraging::secondary(month);
 
   creature::load(ctx.creature);
   creature::evaluate(ctx.creature, ctx.now, ctx.moon, ctx.weather);
@@ -68,37 +63,43 @@ static bool pressed(Btn& b) {
   return fired;
 }
 
-static void cycleView(int dir) {
+// RIGHT moves forward through Main -> Foraging -> Status with no wrapping;
+// there is no LEFT/back -- pressing RIGHT on the last view does nothing.
+static void advanceView() {
   int n = (int)View::COUNT;
-  currentView = (View)(((int)currentView + dir + n) % n);
-  display::renderView(currentView, ctx);
+  if ((int)currentView >= n - 1) return;
+  currentView = (View)((int)currentView + 1);
+  display::renderView(currentView, ctx, forageIdx);
 }
 
+// ENTER's action depends on the current view: feed on Status, page through
+// species on Foraging (does not wrap -- there's no LEFT to page back, and
+// forageIdx resets to 0 on the next sleep/wake anyway), or nothing on Main.
 static void onEnter() {
-  if (currentView == View::Status) {
-    creature::feed(ctx.creature, time(nullptr));
-    creature::evaluate(ctx.creature, ctx.now, ctx.moon, ctx.weather);
-    creature::save(ctx.creature);
-    display::flashFed(ctx);
-    delay(900);
-    display::renderView(View::Status, ctx);
+  switch (currentView) {
+    case View::Status:
+      creature::feed(ctx.creature, time(nullptr));
+      creature::evaluate(ctx.creature, ctx.now, ctx.moon, ctx.weather);
+      creature::save(ctx.creature);
+      display::renderView(View::Status, ctx, forageIdx);
+      break;
+    case View::Foraging:
+      if (forageIdx < foraging::speciesCount() - 1) {
+        forageIdx++;
+        display::renderView(View::Foraging, ctx, forageIdx);
+      }
+      break;
+    default:
+      break;
   }
 }
 
 void setup() {
   Serial.begin(115200);
 
-  pinMode(PIN_BTN_LEFT, INPUT_PULLDOWN);
   pinMode(PIN_BTN_RIGHT, INPUT_PULLDOWN);
   pinMode(PIN_BTN_ENTER, INPUT_PULLDOWN);
-  pinMode(PIN_PIR, INPUT);
-
-  float lux = readLux();
-  if (lux < DARK_LUX_THRESHOLD) {
-    log_i("Dark (%.0f lux); back to sleep", lux);
-    goToSleep();
-  }
-  log_i("Woke, %.0f lux", lux);
+  log_i("Woke");
 
   ctx.netOk = net::connectStrongest();
   if (ctx.netOk) {
@@ -113,27 +114,45 @@ void setup() {
   buildContext();
 
   display::begin();
-  display::renderView(currentView, ctx);
+  display::renderView(currentView, ctx, forageIdx);
   log_i("Mood: %s", creature::moodName(ctx.creature.mood));
 
   lastActivityMs = millis();
-  lastAnimMs = millis();
 }
 
 void loop() {
-  if (pressed(bLeft))  { cycleView(-1); lastActivityMs = millis(); }
-  if (pressed(bRight)) { cycleView(+1); lastActivityMs = millis(); }
-  if (pressed(bEnter)) { onEnter();     lastActivityMs = millis(); }
-
-  if (millis() - lastAnimMs > ANIM_TICK_MS) {
-    animFrame++;
-    display::animateCreature(currentView, ctx, animFrame);
-    lastAnimMs = millis();
+  if (pressed(bRight)) {
+    advanceView();
+    lastActivityMs = millis();
+  }
+  if (pressed(bEnter)) {
+    onEnter();
+    lastActivityMs = millis();
   }
 
+#if DEV_MODE_NO_SLEEP
+  static int lastRight = -1, lastEnter = -1;
+  int right = digitalRead(PIN_BTN_RIGHT);
+  int enter = digitalRead(PIN_BTN_ENTER);
+  if (right != lastRight) {
+    log_i("RIGHT (GPIO%d) = %d", PIN_BTN_RIGHT, right);
+    lastRight = right;
+  }
+  if (enter != lastEnter) {
+    log_i("ENTER (GPIO%d) = %d", PIN_BTN_ENTER, enter);
+    lastEnter = enter;
+  }
+#endif
+
+  static bool loggedIdle = false;
   if (millis() - lastActivityMs > INACTIVITY_SLEEP_MS) {
-    log_i("Idle; sleeping");
+    if (!loggedIdle) {
+      log_i("Idle; sleeping");
+      loggedIdle = true;
+    }
     goToSleep();
+  } else {
+    loggedIdle = false;
   }
 
   delay(15);
