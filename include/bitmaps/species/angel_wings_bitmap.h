@@ -1,4 +1,4 @@
-// Angel Wings -- v5 fix
+// Angel Wings -- v7 fix
 #pragma once
 
 #include <pgmspace.h>

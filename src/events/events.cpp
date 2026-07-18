@@ -2,200 +2,49 @@
 
 #include <Preferences.h>
 
+#include <algorithm>
 #include <cstring>
 
 #include "foraging.h"
+#include "journal.h"
 
 namespace events {
 
 static const char* NVS_NS = "forager";
+#include "events_data.h"
 
-struct AnimalDef {
-  const char* name;
-  const char* note;
-  bool predator;
-  uint8_t weight;  // relative spawn weight; predators are rare
-};
-
-// PNW wildlife the marmot might spot from its perch. Weighted so common,
-// harmless animals show up far more often than rare predators.
-static const AnimalDef kAnimals[] = {
-    {"Deer", "A deer wanders through, nibbling at ferns.", false, 30},
-    {"Mountain Goat", "A mountain goat picks its way across the rocky slope.", false, 15},
-    {"Bald Eagle", "A bald eagle circles overhead, scanning the water.", false, 20},
-    {"River Otter", "A river otter slips by, playful and quick.", false, 15},
-    {"Raccoon", "A raccoon rummages through the underbrush at dusk.", false, 18},
-    {"Elk", "A bull elk grazes in a nearby clearing.", false, 12},
-    {"Black Bear", "A black bear ambles past, in no particular hurry.", true, 8},
-    {"Orca", "A pod of orcas surfaces offshore, hunting together.", true, 4},
-    {"Cougar", "A cougar's eyes catch the light from the treeline.", true, 3},
-    {"Coyote", "A coyote trots along the treeline at dusk, unbothered.", false, 18},
-    {"Douglas Squirrel", "A Douglas squirrel scolds loudly from a Douglas-fir branch.", false, 25},
-    {"Snowshoe Hare", "A snowshoe hare freezes mid-hop, ears swiveling.", false, 20},
-    {"Pileated Woodpecker", "A pileated woodpecker hammers a dead snag nearby.", false, 14},
-    {"Steller's Jay", "A Steller's jay scolds from a low branch, crest raised.", false, 25},
-    {"Banana Slug", "A banana slug inches across the wet trail, bright yellow.", false, 22},
-    {"Pacific Tree Frog", "A Pacific tree frog chirps once from the ferns and goes quiet.", false,
-     20},
-    {"Beaver", "A beaver slaps its tail on the pond and disappears below.", false, 12},
-    {"Great Blue Heron", "A great blue heron stands motionless in the shallows.", false, 16},
-    {"Osprey", "An osprey hovers over the river, then plunges for a fish.", false, 12},
-    {"Chestnut-backed Chickadee", "A chickadee flock works through the hemlock boughs.", false, 20},
-    {"Harbor Seal", "A harbor seal's head bobs up in the cove, watching.", false, 14},
-    {"Red Fox", "A red fox pauses on the trail, ears forward, before slipping away.", false, 10},
-    {"Barred Owl", "A barred owl calls its who-cooks-for-you from the canopy at dusk.", true, 6},
-    {"Gray Wolf", "A distant howl carries down the valley -- wolves, unmistakably.", true, 2},
-    {"Bobcat", "A bobcat's tufted ears vanish into the salal before you're sure you saw it.", true,
-     4},
-
-};
-static const int kAnimalCount = sizeof(kAnimals) / sizeof(kAnimals[0]);
-
-struct MishapDef {
-  const char* name;
-  const char* note;
-  uint8_t weight;
-};
-
-static const MishapDef kMishaps[] = {
-    {"Blackberry Thorns", "Tangled in a blackberry thicket -- a few scratches.", 30},
-    {"Lost the Trail", "Lost the trail in the fog for a while.", 20},
-    {"Soaked Boots", "Stepped straight into a hidden puddle.", 25},
-    {"Twisted Ankle", "Rolled an ankle on a loose root.", 15},
-    {"Swarmed by Gnats", "A cloud of gnats followed the whole way back.", 10},
-    {"Blister o'clock", "A hot spot on the heel turns into a full blister by the trailhead.", 20},
-    {"Backpack Buckle Snapped", "A worn buckle finally gave out mid-hike.", 10},
-    {"Dropped the Trowel", "The trowel slipped into a patch of ferns, never to be found.", 12},
-    {"Slug on the Sandwich", "A banana slug beat everyone to lunch.", 15},
-    {"Tick Check", "Found a tick riding along on a pant leg -- pulled it off in time.", 10},
-    {"Devil's Club Encounter", "Brushed a stand of devil's club -- tiny spines for days.", 18},
-    {"Stinging Nettle Sting", "Bare ankle met a patch of stinging nettle.", 22},
-    {"Map Blew Away", "A gust snatched the paper map right out of hand.", 8},
-    {"Bonked on a Low Branch", "Ducked a second too late for a low-hanging branch.", 14},
-    {"Camera Battery Died", "The battery died right as the light got good.", 16},
-    {"Sunburned Neck", "Forgot sunscreen on the back of the neck -- lesson learned.", 14},
-    {"Mud to the Knees", "A shortcut through the bog wasn't much of a shortcut.", 18},
-    {"Mosquito Cloud at the Pond", "Stopped by a still pond and paid for it in bites.", 20},
-    {"Bear Bell Fell Off", "The bear bell rattled loose somewhere on the switchbacks.", 9},
-    {"Overloaded Basket",
-     "Packed in too heavy on the way out -- shoulders felt it on the way back.", 13},
-
-};
-static const int kMishapCount = sizeof(kMishaps) / sizeof(kMishaps[0]);
-
-struct WeatherDef {
-  const char* name;
-  const char* note;
-  bool positive;
-  uint8_t weight;
-};
-
-static const WeatherDef kWeatherEvents[] = {
-    {"Rainbow", "A rainbow arcs over the ridge after the rain.", true, 25},
-    {"Golden Hour", "The evening light turns everything gold.", true, 20},
-    {"Clear Skies", "Not a cloud in sight -- a perfect day out.", true, 20},
-    {"Sudden Downpour", "A downpour rolled in with no warning.", false, 20},
-    {"Cold Snap", "An unexpected cold snap settled in overnight.", false, 15},
-    {"Morning Fog", "A thick fog softens every edge of the forest.", true, 22},
-    {"First Frost", "Frost rimes every leaf and blade of grass.", true, 15},
-    {"Marine Layer", "A cool marine layer rolls in off the Sound.", true, 18},
-    {"Sun Break", "A rare sun break splits the clouds for an hour.", true, 22},
-    {"Fresh Snowfall", "Fresh snow blankets the ridge overnight.", true, 12},
-    {"King Tide", "An unusually high king tide floods the low trail.", false, 10},
-    {"Windstorm", "A windstorm rattles branches loose all night.", false, 15},
-    {"Heat Wave", "An unseasonable heat wave dries out the underbrush.", false, 12},
-    {"Atmospheric River", "Days of steady rain -- an atmospheric river moved in.", false, 18},
-    {"Hailstorm", "A brief hailstorm rattles off every leaf.", false, 12},
-    {"Smoky Haze", "Wildfire smoke drifts in, hazing the whole valley.", false, 10},
-    {"Double Rainbow", "A double rainbow spans the whole valley.", true, 8},
-    {"Lightning Show", "A distant lightning show lights up the night sky.", false, 10},
-};
-static const int kWeatherCount = sizeof(kWeatherEvents) / sizeof(kWeatherEvents[0]);
-
-struct BabyCareDef {
-  const char* name;
-  const char* note;
-  uint8_t weight;
-};
-
-// Simple, wholesome, always-positive baby-stage moments -- no mishaps or
-// foraging finds, since the marmot is too young for the trail and Foraging
-// is still hidden.
-static const BabyCareDef kBabyCare[] = {
-    {"Nap Time", "The baby marmot curls up for an afternoon nap.", 20},
-    {"Wobbly First Steps", "Takes a few wobbly steps before flopping over.", 15},
-    {"Curious Sniffing", "Investigates every rock within reach.", 15},
-    {"Peekaboo", "Pokes its head out, then ducks back down giggling.", 12},
-    {"Tiny Yawn", "Lets out a surprisingly big yawn for such a small marmot.", 10},
-    {"Snuggle Time", "Wants to be held and snuggled for a while.", 15},
-    {"Copying Mom", "Watches and copies an older marmot's grooming.", 10},
-    {"Chasing a Butterfly", "Chases a butterfly in wobbly circles.", 10},
-    {"Burrow Peekaboo", "Peeks out of the burrow entrance, unsure about the big world.", 10},
-    {"Milk Time", "Nurses contentedly in the warm burrow.", 15},
-};
-static const int kBabyCareCount = sizeof(kBabyCare) / sizeof(kBabyCare[0]);
-
-struct TreasureDef {
-  const char* name;
-  const char* note;
-  uint8_t weight;
-};
-
-// Always-positive non-food trail finds -- happiness only, no hunger change
-// (see resolve()'s default branch), distinct from ForagingFind.
-static const TreasureDef kTreasures[] = {
-    {"Shiny Quartz", "A piece of quartz glints in a crack in the rock.", 20},
-    {"Old Trail Marker", "A weathered wooden trail marker, half-swallowed by moss.", 14},
-    {"Lost Compass", "Someone's compass, tucked in a patch of moss.", 12},
-    {"Perfect Feather", "A hawk feather, unbroken and perfectly barbed.", 18},
-    {"Fern Fossil", "A fern's imprint, pressed into a flat stone.", 10},
-    {"Beach Agate", "A polished agate, tumbled smooth by the tide.", 16},
-    {"Old Coin", "A coin, greened with age, half-buried at the trailhead.", 10},
-    {"Abandoned Nest", "An empty nest, woven tighter than it has any right to be.", 14},
-    {"Shed Antler", "A deer antler, shed and half-buried in the leaf litter.", 12},
-    {"Cracked Geode", "A plain rock, cracked open to reveal sparkling crystal inside.", 10},
-    {"Message in a Bottle", "A sealed bottle, washed up on the tideline.", 6},
-    {"Petrified Wood", "A chunk of ancient wood, turned entirely to stone.", 8},
-    {"Owl Pellet", "An owl pellet, packed with tiny, delicate bones.", 12},
-    {"Sea Glass", "A smooth piece of glass, sanded soft by the surf.", 16},
-    {"Carved Walking Stick", "Someone left a hand-carved stick leaning against a tree.", 10},
-    {"Old Arrowhead", "A stone arrowhead, half-buried at the trail's edge.", 8},
-    {"Empty Honeycomb", "An abandoned honeycomb, empty but beautiful.", 12},
-};
-static const int kTreasureCount = sizeof(kTreasures) / sizeof(kTreasures[0]);
-
-struct EncounterDef {
-  const char* name;
-  const char* note;
-  bool rival;  // territorial/unfriendly variant -- rarer, drives a worse mood
-  uint8_t weight;
-};
-
-// Social encounters with other marmots -- mostly friendly, occasionally a
-// rival shows up and drives the same worse-mood path as a predator sighting.
-static const EncounterDef kEncounters[] = {
-    {"Whistle Exchange", "Trades warning whistles with a marmot on the next ridge.", false, 18},
-    {"Sunbathing Together", "Suns itself on the rocks alongside a neighbor.", false, 18},
-    {"Grooming Session", "Two marmots groom each other in the afternoon sun.", false, 16},
-    {"Wrestling Match", "Play-wrestles with a younger marmot from the colony.", false, 14},
-    {"Shared Burrow", "Shelters in a neighbor's burrow through a rain shower.", false, 14},
-    {"New Neighbor", "A new marmot moves into the talus slope nearby.", false, 12},
-    {"Group Sunning", "Joins the whole colony basking on the warm rocks.", false, 16},
-    {"Alarm Call Chain", "Passes an alarm whistle down the valley, marmot to marmot.", false, 14},
-    {"Friendly Nuzzle", "A familiar marmot greets it with a nuzzle.", false, 16},
-    {"Long-Distance Whistles", "Familiar whistles echo back from across the valley.", false, 12},
-    {"Territorial Squabble", "A rival marmot chases it off its favorite sunning rock.", true, 8},
-    {"Old Rival Returns", "The same grumpy marmot from last summer is back.", true, 6},
-    {"Chase Through the Talus", "A bigger marmot chases it through the rockpile.", true, 6},
-    {"Burrow Dispute", "Fusses with a neighbor over a contested burrow entrance.", true, 8},
-};
-static const int kEncounterCount = sizeof(kEncounters) / sizeof(kEncounters[0]);
 
 // Don't roll for a new event more than once every ~6h of wall-clock time,
 // and even then only a 1-in-3 chance -- interactions should feel occasional,
 // not constant.
 static const uint32_t EVENT_COOLDOWN_HOURS = 6;
 static const int EVENT_CHANCE_DENOM = 3;
+
+/**
+ * Engagement: a small persisted streak counter that goes up while the
+ * device is being woken repeatedly in quick succession (an active session)
+ * and drops back to 0 the moment a wake follows a longer idle gap -- see
+ * bumpEngagement() below. checkForEvent() shortens the cooldown and shrinks
+ * the roll denominator by the current streak, so a session of back-to-back
+ * wakes sees noticeably more events, while a single occasional check-in (or
+ * the first wake after the device has been sitting untouched) sees the
+ * same occasional-feeling baseline as before.
+ */
+static const uint32_t ENGAGEMENT_WINDOW_MINUTES = 10;
+static const uint8_t ENGAGEMENT_MAX = 3;
+
+static uint8_t bumpEngagement(Preferences& p, time_t now) {
+  uint64_t lastWake = p.getULong64("lastWake", 0);
+  uint8_t engagement = p.getUChar("engage", 0);
+  if (lastWake != 0 && (uint64_t)now - lastWake <= (uint64_t)ENGAGEMENT_WINDOW_MINUTES * 60ULL) {
+    engagement = (uint8_t)std::min((int)engagement + 1, (int)ENGAGEMENT_MAX);
+  } else {
+    engagement = 0;
+  }
+  p.putULong64("lastWake", (uint64_t)now);
+  p.putUChar("engage", engagement);
+  return engagement;
+}
 
 template <typename T>
 static uint8_t weightedPick(const T* items, int count) {
@@ -209,6 +58,116 @@ static uint8_t weightedPick(const T* items, int count) {
   return 0;
 }
 
+// Rejection-samples a not-yet-discovered species index. A handful of misses
+// near full completion (250/250) is fine -- the caller only calls this when
+// journal::totalDiscovered() < foraging::speciesCount(), so an undiscovered
+// one always exists; this just avoids a full linear scan on every roll.
+static uint8_t pickUndiscoveredSpecies() {
+  int count = foraging::speciesCount();
+  for (int tries = 0; tries < 40; tries++) {
+    int idx = random(count);
+    if (!journal::isDiscovered(idx)) return (uint8_t)idx;
+  }
+  for (int idx = 0; idx < count; idx++) {
+    if (!journal::isDiscovered(idx)) return (uint8_t)idx;
+  }
+  return 0;
+}
+
+// The actual type/dataId roll, shared by checkForEvent()'s probabilistic
+// once-per-wake spawn and spawnNow()'s deterministic mid-session trigger --
+// both just need "give me an event appropriate for this stage".
+// Baby's non-Discovery fallback, used once every species is discovered
+// (250/250) -- Baby excludes ForagingFind/TrailMishap/TrailTreasure (none
+// fit a baby-at-home narrative), so BabyCare/AnimalSighting/WeatherEvent/
+// MarmotEncounter share the whole 100%.
+static void pickBabyFallback(PendingEvent& ev, int roll) {
+  if (roll < 40) {
+    ev.type = EventType::BabyCare;
+    ev.dataId = weightedPick(kBabyCare, kBabyCareCount);
+  } else if (roll < 65) {
+    ev.type = EventType::AnimalSighting;
+    ev.dataId = weightedPick(kAnimals, kAnimalCount);
+  } else if (roll < 85) {
+    ev.type = EventType::WeatherEvent;
+    ev.dataId = weightedPick(kWeatherEvents, kWeatherCount);
+  } else {
+    ev.type = EventType::MarmotEncounter;
+    ev.dataId = weightedPick(kEncounters, kEncounterCount);
+  }
+}
+
+// Juvenile/Adult's non-Discovery mix -- `share` is the total percentage
+// (out of 100) this mix should consume; `roll` is 0..share-1. Used as the
+// whole 100% once every species is discovered, or as Adult's remaining 40%
+// while species are still undiscovered (Discovery takes the other 60%).
+static void pickAdultMix(PendingEvent& ev, int roll, int share) {
+  if (roll < share * 20 / 100) {
+    ev.type = EventType::AnimalSighting;
+    ev.dataId = weightedPick(kAnimals, kAnimalCount);
+  } else if (roll < share * 40 / 100) {
+    ev.type = EventType::ForagingFind;
+    ev.dataId = (uint8_t)random(foraging::speciesCount());
+    // A minority of finds pin to one exact species instead of any
+    // species of its kind -- rarer and harder, for variety.
+    ev.exact = random(100) < 30;
+  } else if (roll < share * 60 / 100) {
+    ev.type = EventType::TrailMishap;
+    ev.dataId = weightedPick(kMishaps, kMishapCount);
+  } else if (roll < share * 78 / 100) {
+    ev.type = EventType::WeatherEvent;
+    ev.dataId = weightedPick(kWeatherEvents, kWeatherCount);
+  } else if (roll < share * 90 / 100) {
+    ev.type = EventType::TrailTreasure;
+    ev.dataId = weightedPick(kTreasures, kTreasureCount);
+  } else {
+    ev.type = EventType::MarmotEncounter;
+    ev.dataId = weightedPick(kEncounters, kEncounterCount);
+  }
+}
+
+static PendingEvent pickEvent(Stage stage) {
+  PendingEvent ev;
+  bool hasUndiscovered = journal::totalDiscovered() < foraging::speciesCount();
+  int roll = random(100);
+  if (stage == Stage::Baby) {
+    // Always Discovery while any species remains unfound -- a Baby's whole
+    // job is filling in the Foraging list. Falls back to baby-care/social
+    // flavor once all 250 are discovered.
+    if (hasUndiscovered) {
+      ev.type = EventType::Discovery;
+      ev.dataId = pickUndiscoveredSpecies();
+    } else {
+      pickBabyFallback(ev, roll);
+    }
+  } else if (stage == Stage::Juvenile) {
+    // Same "always Discovery first" rule as Baby -- Juvenile falls back to
+    // the full Adult-style mix (ForagingFind etc. all reachable) once
+    // every species is discovered, rather than the Baby-only flavor pool.
+    if (hasUndiscovered) {
+      ev.type = EventType::Discovery;
+      ev.dataId = pickUndiscoveredSpecies();
+    } else {
+      pickAdultMix(ev, roll, 100);
+    }
+  } else {
+    // Adult: Discovery drops to 60% (still the single biggest category,
+    // but no longer guaranteed) so the full event mix -- ForagingFind,
+    // TrailMishap, TrailTreasure, etc. -- gets real airtime once grown up.
+    // Once every species is discovered, the remaining categories take the
+    // full 100% in their usual proportions.
+    if (hasUndiscovered && roll < 60) {
+      ev.type = EventType::Discovery;
+      ev.dataId = pickUndiscoveredSpecies();
+    } else if (hasUndiscovered) {
+      pickAdultMix(ev, roll - 60, 40);
+    } else {
+      pickAdultMix(ev, roll, 100);
+    }
+  }
+  return ev;
+}
+
 PendingEvent checkForEvent(time_t now, int month, Stage stage) {
   (void)month;  // reserved for future seasonal weighting
   Preferences p;
@@ -219,57 +178,16 @@ PendingEvent checkForEvent(time_t now, int month, Stage stage) {
   ev.dataId = p.getUChar("evData", 0);
   ev.exact = p.getUChar("evExact", 0) != 0;
 
+  uint8_t engagement = bumpEngagement(p, now);
+
   if (ev.type == EventType::None) {
     uint64_t lastAt = p.getULong64("evLastAt", 0);
-    bool cooldownOver =
-        lastAt == 0 || (uint64_t)now - lastAt >= (uint64_t)EVENT_COOLDOWN_HOURS * 3600ULL;
-    if (cooldownOver && random(EVENT_CHANCE_DENOM) == 0) {
-      if (stage == Stage::Baby) {
-        // No ForagingFind (Foraging is hidden, unresolvable), no
-        // TrailMishap, and no TrailTreasure (neither fits a baby-at-home
-        // narrative) -- baby care moments dominate, with ambient
-        // animal/weather flavor and family encounters mixed in.
-        int roll = random(100);
-        if (roll < 45) {
-          ev.type = EventType::BabyCare;
-          ev.dataId = weightedPick(kBabyCare, kBabyCareCount);
-        } else if (roll < 70) {
-          ev.type = EventType::AnimalSighting;
-          ev.dataId = weightedPick(kAnimals, kAnimalCount);
-        } else if (roll < 85) {
-          ev.type = EventType::WeatherEvent;
-          ev.dataId = weightedPick(kWeatherEvents, kWeatherCount);
-        } else {
-          ev.type = EventType::MarmotEncounter;
-          ev.dataId = weightedPick(kEncounters, kEncounterCount);
-        }
-      } else {
-        // Category mix: sightings and foraging finds most common, everything
-        // else rarer.
-        int roll = random(100);
-        if (roll < 28) {
-          ev.type = EventType::AnimalSighting;
-          ev.dataId = weightedPick(kAnimals, kAnimalCount);
-        } else if (roll < 52) {
-          ev.type = EventType::ForagingFind;
-          ev.dataId = (uint8_t)random(foraging::speciesCount());
-          // A minority of finds pin to one exact species instead of any
-          // species of its kind -- rarer and harder, for variety.
-          ev.exact = random(100) < 30;
-        } else if (roll < 64) {
-          ev.type = EventType::TrailMishap;
-          ev.dataId = weightedPick(kMishaps, kMishapCount);
-        } else if (roll < 77) {
-          ev.type = EventType::WeatherEvent;
-          ev.dataId = weightedPick(kWeatherEvents, kWeatherCount);
-        } else if (roll < 90) {
-          ev.type = EventType::TrailTreasure;
-          ev.dataId = weightedPick(kTreasures, kTreasureCount);
-        } else {
-          ev.type = EventType::MarmotEncounter;
-          ev.dataId = weightedPick(kEncounters, kEncounterCount);
-        }
-      }
+    uint32_t cooldownHours =
+        (uint32_t)std::max(1, (int)EVENT_COOLDOWN_HOURS - (int)engagement);
+    bool cooldownOver = lastAt == 0 || (uint64_t)now - lastAt >= (uint64_t)cooldownHours * 3600ULL;
+    int chanceDenom = std::max(1, EVENT_CHANCE_DENOM - (int)engagement);
+    if (cooldownOver && random(chanceDenom) == 0) {
+      ev = pickEvent(stage);
       p.putUChar("evType", (uint8_t)ev.type);
       p.putUChar("evData", ev.dataId);
       p.putUChar("evExact", ev.exact ? 1 : 0);
@@ -278,6 +196,33 @@ PendingEvent checkForEvent(time_t now, int month, Stage stage) {
 
   p.end();
   return ev;
+}
+
+// Deterministic mid-session trigger (see main.cpp's screen-change-count
+// hook) -- unlike checkForEvent(), this ignores the hourly cooldown/roll
+// entirely and always produces an event; callers are expected to gate it
+// with their own condition (e.g. recentlyResolved()) instead. Persists to
+// the same NVS keys checkForEvent() reads, so it behaves exactly like a
+// normal spawned event from here on (survives sleep, blocks a second
+// spawn until resolved).
+PendingEvent spawnNow(Stage stage) {
+  PendingEvent ev = pickEvent(stage);
+  Preferences p;
+  p.begin(NVS_NS, /*readOnly=*/false);
+  p.putUChar("evType", (uint8_t)ev.type);
+  p.putUChar("evData", ev.dataId);
+  p.putUChar("evExact", ev.exact ? 1 : 0);
+  p.end();
+  return ev;
+}
+
+bool recentlyResolved(time_t now, uint32_t withinSeconds) {
+  Preferences p;
+  p.begin(NVS_NS, /*readOnly=*/true);
+  uint64_t lastAt = p.getULong64("evLastAt", 0);
+  p.end();
+  if (lastAt == 0) return false;
+  return (uint64_t)now - lastAt < (uint64_t)withinSeconds;
 }
 
 const char* eventTitle(EventType type, bool negative) {
@@ -296,6 +241,8 @@ const char* eventTitle(EventType type, bool negative) {
       return "TRAIL TREASURE!";
     case EventType::MarmotEncounter:
       return negative ? "TERRITORIAL SPAT" : "MARMOT ENCOUNTER";
+    case EventType::Discovery:
+      return "DISCOVERY!";
     default:
       return "";
   }
@@ -328,6 +275,8 @@ const char* eventName(const PendingEvent& ev) {
       return kTreasures[ev.dataId % kTreasureCount].name;
     case EventType::MarmotEncounter:
       return kEncounters[ev.dataId % kEncounterCount].name;
+    case EventType::Discovery:
+      return foraging::speciesAt(ev.dataId).name;
     default:
       return "";
   }
@@ -350,6 +299,8 @@ const char* eventNote(const PendingEvent& ev) {
       return kTreasures[ev.dataId % kTreasureCount].note;
     case EventType::MarmotEncounter:
       return kEncounters[ev.dataId % kEncounterCount].note;
+    case EventType::Discovery:
+      return foraging::speciesAt(ev.dataId).note;
     default:
       return "";
   }
@@ -380,6 +331,17 @@ bool eventIsNegative(const PendingEvent& ev) {
       return kEncounters[ev.dataId % kEncounterCount].rival;
     default:
       return false;  // a foraging find/trail treasure is always good news
+  }
+}
+
+const char* eventEffectPreview(const PendingEvent& ev) {
+  switch (ev.type) {
+    case EventType::ForagingFind:
+      return "Happiness +15, Hunger -20";
+    case EventType::TrailMishap:
+      return "Happiness -10, Hunger +15";
+    default:
+      return eventIsNegative(ev) ? "Happiness -15" : "Happiness +10";
   }
 }
 
@@ -414,5 +376,11 @@ void resolve(const PendingEvent& ev, CreatureState& creature, time_t now) {
   p.putULong64("evLastAt", (uint64_t)now);
   p.end();
 }
+
+int mishapCount() { return kMishapCount; }
+int weatherCount() { return kWeatherCount; }
+int babyCareCount() { return kBabyCareCount; }
+int treasureCount() { return kTreasureCount; }
+int encounterCount() { return kEncounterCount; }
 
 }  // namespace events

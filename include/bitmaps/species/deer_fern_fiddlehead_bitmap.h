@@ -1,4 +1,4 @@
-// Deer Fern Fiddlehead -- v5, 130x130
+// deer_fern_fiddlehead -- v2 fix
 #pragma once
 
 #include <pgmspace.h>

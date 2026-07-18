@@ -1,4 +1,4 @@
-// Bull Kelp -- v5, 130x130
+// Bull Kelp -- v7 fix
 #pragma once
 
 #include <pgmspace.h>

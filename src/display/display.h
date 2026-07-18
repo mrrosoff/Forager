@@ -2,19 +2,25 @@
 #pragma once
 
 #include "model.h"
+#include "textentry.h"
 
 namespace display {
 
 // Initialize SPI (custom pins) and the e-ink panel. Call once after wake.
 void begin();
 
-// speciesIdx selects which entry the Foraging view shows.
-void renderView(View v, const AppContext& ctx, int speciesIdx);
+// speciesIdx selects which entry the Foraging view shows. forceFullRefresh
+// overrides the normal "only the first frame after wake is a full refresh,
+// everything else is partial" behavior (see epd_adapter.h) -- used for a
+// mid-session event trigger (see main.cpp), where the new photo art
+// deserves a clean full draw instead of a partial-refresh update.
+void renderView(View v, const AppContext& ctx, int speciesIdx, bool forceFullRefresh = false);
 
 // Full-screen sleeping marmot with a few drifting Zzz's -- shown right
 // before deep sleep, no text or nav bar, since the panel stays on this
-// image (unpowered) until the next wake.
-void renderSleep();
+// image (unpowered) until the next wake. Picks stage-appropriate art (a
+// Baby/Juvenile marmot shouldn't fall asleep as an Adult).
+void renderSleep(Stage stage);
 
 // One-time birth reveal, shown only on the very first-ever boot.
 void renderBirth();
@@ -26,32 +32,36 @@ void renderBirth();
  * something to avoid). Caller blocks on an ENTER press to acknowledge
  * before continuing to the normal view.
  */
-void renderTransition(Stage newStage);
+void renderTransition(Stage newStage, const char* name);
 
 /**
- * Shown when the marmot has wandered off for good after prolonged neglect
- * (see creature::updateNeglect()). Caller blocks on an ENTER press, then
- * resets the whole game -- this is a terminal state, not something to
- * recover from in place.
+ * Shown when a bar has bottomed out from sustained neglect (see
+ * creature::checkDeath()) -- cause picks which flavor-text pool the reason
+ * line is drawn from. Caller blocks on an ENTER press, then resets the
+ * whole game -- this is a terminal state, not something to recover from in
+ * place.
  */
-void renderRanAway();
+void renderDeath(DeathCause cause);
 
 // Settings overlay -- selected: 0 = Power Off, 1 = Reset Game, 2 = WiFi
 // Networks. confirmPending shows a yes/no sub-screen for the destructive
 // Reset Game.
 void renderSettings(int selected, bool confirmPending);
 
-// Brief goodbye screen shown right before a Power Off (no wake source
-// armed) deep sleep.
+// Blank white screen shown right before a Power Off (no wake source armed)
+// deep sleep -- the device is genuinely off until the physical switch
+// power-cycles it, so a blank panel (not a lingering message) is the
+// correct resting state.
 void renderPowerOff();
 
 /**
- * On-screen character picker -- prompt at top, what's typed so far below
- * it, and the currently-highlighted character/action large in the middle
- * (see textentry.h: LEFT/RIGHT scroll it, ENTER commits it). Shared by
- * marmot naming and WiFi SSID/password entry.
+ * On-screen QWERTY keyboard grid -- prompt at top, what's typed so far
+ * below it, then the keyboard (see textentry.h: LEFT/RIGHT scroll the
+ * highlighted key, ENTER commits it, including the SHIFT/SYMBOLS page
+ * toggles and BACKSPACE/DONE). Shared by marmot naming and WiFi SSID/
+ * password entry.
  */
-void renderTextEntry(const char* prompt, const char* buffer, char currentPick);
+void renderTextEntry(const char* prompt, const textentry::State& s);
 
 /**
  * WiFi networks sub-screen (under Settings) -- lists saved networks by SSID
@@ -63,11 +73,5 @@ void renderWifiMenu(int selected, bool confirmRemove);
 
 // Power the panel down before deep sleep. The image is retained with no power.
 void hibernate();
-
-// TEMPORARY review helpers (see DEV_MODE_SCREEN_CYCLE in config.h): total
-// number of distinct screens/bitmaps the cycle covers, and rendering one by
-// index (0..debugScreenCount()-1).
-int debugScreenCount();
-void renderDebugScreen(int index);
 
 }  // namespace display

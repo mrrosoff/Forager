@@ -1,4 +1,4 @@
-// Cow Parsnip Shoots -- v5, 130x130
+// Cow Parsnip Shoots -- v3 fix, actual young shoots not mature flowers/landscape
 #pragma once
 
 #include <pgmspace.h>
