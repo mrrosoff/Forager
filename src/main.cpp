@@ -3,6 +3,7 @@
 #include "config.h"
 #include "creature.h"
 #include "display.h"
+#include "events.h"
 #include "foraging.h"
 #include "model.h"
 #include "moon.h"
@@ -50,6 +51,12 @@ static void buildContext() {
   creature::load(ctx.creature);
   creature::evaluate(ctx.creature, ctx.now, ctx.moon, ctx.weather);
   creature::save(ctx.creature);
+
+  // Spawn-check runs exactly once per wake, here -- there's no live
+  // background timer since the device is asleep the rest of the time.
+  events::PendingEvent ev = events::checkForEvent(nowUtc, month);
+  ctx.eventType = (uint8_t)ev.type;
+  ctx.eventDataId = ev.dataId;
 }
 
 static bool pressed(Btn& b) {
@@ -72,11 +79,25 @@ static void advanceView() {
   display::renderView(currentView, ctx, forageIdx);
 }
 
-// ENTER's action depends on the current view: feed on Status, page through
-// species on Foraging (does not wrap -- there's no LEFT to page back, and
-// forageIdx resets to 0 on the next sleep/wake anyway), or nothing on Main.
+// ENTER's action depends on the current view: resolve a pending sighting or
+// (failing that) do nothing on Main, feed on Status, page through species on
+// Foraging (does not wrap -- there's no LEFT to page back, and forageIdx
+// resets to 0 on the next sleep/wake anyway).
 static void onEnter() {
   switch (currentView) {
+    case View::Main: {
+      events::PendingEvent ev;
+      ev.type = (events::EventType)ctx.eventType;
+      ev.dataId = ctx.eventDataId;
+      if (ev.type != events::EventType::None) {
+        events::resolve(ev, ctx.creature, time(nullptr));
+        creature::evaluate(ctx.creature, ctx.now, ctx.moon, ctx.weather);
+        creature::save(ctx.creature);
+        ctx.eventType = (uint8_t)events::EventType::None;
+        display::renderView(View::Main, ctx, forageIdx);
+      }
+      break;
+    }
     case View::Status:
       creature::feed(ctx.creature, time(nullptr));
       creature::evaluate(ctx.creature, ctx.now, ctx.moon, ctx.weather);
