@@ -120,9 +120,15 @@ btn_row_gap   = 8.0;  // gap from window bottom edge to button hole centers
 // cavity there already, below the pocket — see front_bezel()'s front face
 // comment). Only KEY1 gets a case cutout (see rear_tray()'s disp_btn_z) --
 // KEY0 doesn't need physical access. disp_btn_x2/KEY0's position is kept
-// below only as hardware reference. disp_btn_d is still a PLACEHOLDER (no
-// switch spec given).
-disp_btn_d  = 2.2;   // PLACEHOLDER: switch body/cap diameter not measured
+// below only as hardware reference.
+disp_btn_d  = 6.0;    // Finger-press access hole -- was 2.2 (a bare
+                       // switch-actuator placeholder, far too small to
+                       // press with an actual fingertip). 6mm leaves 5.2mm
+                       // clearance to the nearest corner screw boss at
+                       // disp_btn_x1's real position; a larger 8mm hole was
+                       // tried first but doesn't fit the tray wall's ~11.5mm
+                       // height at any Z without breaching the open top
+                       // edge -- see rear_tray()'s disp_btn_z comment.
 disp_btn_x1 = 16.03; // KEY1 — nearer the case's top-left corner, has a cutout
 disp_btn_x2 = 33.70; // KEY0 — reference only, no cutout
 
@@ -163,7 +169,6 @@ button_area_h = 20.0;                             // room below window for butto
 outer_h = pocket_h + wall + button_area_h + top_rim; // 122.3
 
 bezel_front_t = 2.4;   // front face thickness (button cap holes live here)
-bezel_lip     = 1.5;   // inward lip that catches the display's front edge
 bezel_pocket_depth = disp_t + clearance + disp_wire_clearance; // 15.3 — board
                                                                 // + FPC bump
                                                                 // + wire-route
@@ -219,37 +224,30 @@ module front_bezel() {
     btn_start_x = outer_w / 2 - btn_pitch;
 
     difference() {
-        union() {
-            // Front face slab (this is the only material over the button
-            // strip — no back layer there, so switch bodies have clearance
-            // to sit behind it in the tray cavity). Rounded exterior corners.
-            linear_extrude(height = bezel_front_t)
-                rounded_rect(outer_w, outer_h, corner_r);
-            // Raised lip + walls forming the pocket for the display board,
-            // confined to the display area only (not the full footprint).
-            // 0.01mm overlap into the front slab avoids a flush coincident
-            // face there, which was producing degenerate zero-volume shells.
-            translate([pocket_x, pocket_y, bezel_front_t - 0.01])
-                difference() {
-                    cube([pocket_w, pocket_h, bezel_pocket_depth + 0.01]);
-                    translate([bezel_lip, bezel_lip, -0.1])
-                        cube([
-                            pocket_w - 2 * bezel_lip,
-                            pocket_h - 2 * bezel_lip,
-                            bezel_pocket_depth + 0.2
-                        ]);
-                }
-            // No raised bosses here — the bezel just needs clean clearance
-            // holes (cut below). Threaded bosses live on the tray side only,
-            // otherwise the bottom two corners (outside the pocket-wall
-            // footprint) would poke proud through the front face.
-        }
+        // Front face slab (this is the only material over the button strip
+        // — no back layer there, so switch bodies have clearance to sit
+        // behind it in the tray cavity). Rounded exterior corners. No
+        // separate raised pocket lip/tube here (there used to be one, plus
+        // a redundant full-footprint pocket-recess cut that fought it via a
+        // coincident-face boolean — CGAL resolved that pair into an
+        // unintentional near-zero-thickness sliver around the window
+        // instead of cleanly canceling, which read as a fragile paper-thin
+        // wall on the print). The slab alone already does the retaining
+        // job: since win_w/win_h are smaller than pocket_w/pocket_h, the
+        // slab's own material between the window cut and the pocket cut
+        // (both below) forms the display's catch — no extra add-on needed.
+        linear_extrude(height = bezel_front_t)
+            rounded_rect(outer_w, outer_h, corner_r);
+        // No raised bosses here — the bezel just needs clean clearance
+        // holes (cut below). Threaded bosses live on the tray side only,
+        // otherwise the bottom two corners (outside the pocket-wall
+        // footprint) would poke proud through the front face.
 
         // Display window (full depth)
         translate([win_x, win_y, -0.1])
             cube([win_w, win_h, bezel_front_t + bezel_pocket_depth + 0.2]);
 
-        // Display pocket recess behind the lip (board sits here)
+        // Display pocket recess (board sits here)
         translate([pocket_x, pocket_y, bezel_front_t - 0.01])
             cube([pocket_w, pocket_h, bezel_pocket_depth + 0.2]);
 
@@ -324,8 +322,11 @@ module rear_tray() {
         // backward, so the real switch ends up close to this wall rather
         // than the bezel. Bored through the top wall near its bezel-facing
         // edge, at KEY1's real X position (disp_btn_x1, offset by `wall` to
-        // match pocket_x).
-        disp_btn_z = tray_floor_t + tray_interior_depth - 3;
+        // match pocket_x). Centered in the wall's ~11.5mm height (rather
+        // than pinned near the top edge as before) so the enlarged
+        // disp_btn_d hole has real margin on both sides instead of
+        // breaching the open top edge.
+        disp_btn_z = tray_wall_h / 2 + 0.75;
         translate([wall + disp_btn_x1, outer_h + 0.1, disp_btn_z])
             rotate([90, 0, 0])
                 cylinder(d = disp_btn_d, h = wall + 0.2);
