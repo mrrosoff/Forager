@@ -9,16 +9,13 @@ namespace creature {
 // Survives power loss via the inline switch; defaults to a fresh creature.
 void load(CreatureState& s);
 
-// Persist state to NVS.
 void save(const CreatureState& s);
 
 // Recompute hunger from elapsed time and derive the current mood from the
-// full context (moon + season + weather + hunger). Updates s in place and
-// returns the chosen mood.
-Mood evaluate(CreatureState& s, const struct tm& now, const MoonInfo& moon,
-              const WeatherData& weather);
+// full context (season + weather + hunger). Updates s in place and returns
+// the chosen mood.
+Mood evaluate(CreatureState& s, const struct tm& now, const WeatherData& weather);
 
-// Human-readable mood label, e.g. "glowing".
 const char* moodName(Mood m);
 
 }  // namespace creature

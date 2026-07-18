@@ -8,8 +8,7 @@
 #include "wifi_creds.h"
 
 static const WifiCred WIFI_NETWORKS[] = {
-    {"your-home-network",  "home-password"},
+    {"your-home-network", "home-password"},
     {"your-phone-hotspot", "hotspot-password"},
 };
-static const size_t WIFI_NETWORK_COUNT =
-    sizeof(WIFI_NETWORKS) / sizeof(WIFI_NETWORKS[0]);
+static const size_t WIFI_NETWORK_COUNT = sizeof(WIFI_NETWORKS) / sizeof(WIFI_NETWORKS[0]);

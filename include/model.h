@@ -4,16 +4,6 @@
 #include <Arduino.h>
 #include <time.h>
 
-struct MoonInfo {
-  float phase;  // 0..1 (0/1 = new, 0.5 = full)
-  uint8_t illumPct;
-  const char* name;
-  int daysToFull;
-  int daysToNew;
-  bool isFull;
-  bool isNew;
-};
-
 struct WeatherData {
   bool valid;  // false if fetch/parse failed
   float tempC;
@@ -38,7 +28,6 @@ struct Forageable {
   const char* caution;     // edibility/safety warning; "" if none
   const char* harvestTip;  // practical how-to-find/pick note
   uint16_t monthMask;      // bit (1 << (month-1)) set for each active month
-  uint8_t spriteId;
   Biome biome;
 };
 
@@ -48,7 +37,6 @@ enum class Mood : uint8_t {
   Sleepy,
   Hungry,
   Annoyed,
-  Glowing,  // full moon
   Dormant,  // deep winter
 };
 
@@ -65,7 +53,6 @@ enum class View : uint8_t { Status = 0, Main, Foraging, COUNT };
 
 struct AppContext {
   struct tm now;  // local time
-  MoonInfo moon;
   WeatherData weather;
   Forageable featured;
   CreatureState creature;

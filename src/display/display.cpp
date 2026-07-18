@@ -5,14 +5,44 @@
 
 #include <cstring>
 
+#include "bitmaps/animals/bald_eagle_bitmap.h"
+#include "bitmaps/animals/banana_slug_bitmap.h"
+#include "bitmaps/animals/barred_owl_bitmap.h"
+#include "bitmaps/animals/beaver_bitmap.h"
+#include "bitmaps/animals/black_bear_bitmap.h"
+#include "bitmaps/animals/bobcat_bitmap.h"
+#include "bitmaps/animals/chickadee_bitmap.h"
+#include "bitmaps/animals/cougar_bitmap.h"
+#include "bitmaps/animals/coyote_bitmap.h"
+#include "bitmaps/animals/deer_bitmap.h"
+#include "bitmaps/animals/douglas_squirrel_bitmap.h"
+#include "bitmaps/animals/elk_bitmap.h"
+#include "bitmaps/animals/gray_wolf_bitmap.h"
+#include "bitmaps/animals/great_blue_heron_bitmap.h"
+#include "bitmaps/animals/harbor_seal_bitmap.h"
+#include "bitmaps/animals/mountain_goat_bitmap.h"
+#include "bitmaps/animals/orca_bitmap.h"
+#include "bitmaps/animals/osprey_bitmap.h"
+#include "bitmaps/animals/pacific_tree_frog_bitmap.h"
+#include "bitmaps/animals/pileated_woodpecker_bitmap.h"
+#include "bitmaps/animals/raccoon_bitmap.h"
+#include "bitmaps/animals/red_fox_bitmap.h"
+#include "bitmaps/animals/river_otter_bitmap.h"
+#include "bitmaps/animals/snowshoe_hare_bitmap.h"
+#include "bitmaps/animals/stellers_jay_bitmap.h"
+#include "bitmaps/marmot/marmot_bitmap.h"
+#include "bitmaps/marmot/marmot_hungry_bitmap.h"
+#include "bitmaps/marmot/marmot_variant1_bitmap.h"
+#include "bitmaps/marmot/marmot_variant2_bitmap.h"
+#include "bitmaps/marmot/marmot_variant3_bitmap.h"
+#include "bitmaps/marmot/marmot_variant4_bitmap.h"
+#include "bitmaps/marmot/marmot_variant5_bitmap.h"
+#include "bitmaps/species/species_index.h"
 #include "config.h"
 #include "creature.h"
 #include "epd_adapter.h"
 #include "events.h"
 #include "foraging.h"
-#include "marmot_bitmap.h"
-#include "marmot_hungry_bitmap.h"
-#include "sprites.h"
 
 namespace display {
 
@@ -121,37 +151,6 @@ static void dFillRoundRect(int x, int y, int w, int h, int r, Shade shade) {
   }
 }
 
-static void dFillTriangle(int x0, int y0, int x1, int y1, int x2, int y2, Shade shade) {
-  if (shade == SHADE_BLACK) {
-    epd.fillTriangle(x0, y0, x1, y1, x2, y2, C_BLACK);
-    return;
-  }
-  if (shade == SHADE_WHITE) return;
-  int minX = min(x0, min(x1, x2)), maxX = max(x0, max(x1, x2));
-  int minY = min(y0, min(y1, y2)), maxY = max(y0, max(y1, y2));
-  auto sign = [](int px, int py, int ax, int ay, int bx, int by) {
-    return (px - bx) * (ay - by) - (ax - bx) * (py - by);
-  };
-  for (int yy = minY; yy <= maxY; yy++) {
-    for (int xx = minX; xx <= maxX; xx++) {
-      int d1 = sign(xx, yy, x0, y0, x1, y1);
-      int d2 = sign(xx, yy, x1, y1, x2, y2);
-      int d3 = sign(xx, yy, x2, y2, x0, y0);
-      bool hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-      bool hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-      if (!(hasNeg && hasPos) && ditherBlack(xx, yy, shade)) epd.drawPixel(xx, yy, C_BLACK);
-    }
-  }
-}
-
-static void fillDome(int cx, int baseY, int halfW, int height, Shade shade) {
-  for (int i = -halfW; i <= halfW; i++) {
-    int h = (int)(height * sqrtf(1.0f - (float)(i * i) / (float)(halfW * halfW)));
-    dFillVLine(cx + i, baseY - h, h + 1, shade);
-    epd.drawPixel(cx + i, baseY - h, C_BLACK);
-  }
-}
-
 // Blocky built-in 5x7 font scaled by `size`, for a chunky pixel-art look.
 static void textAt(int x, int y, const char* s, uint8_t size = 1) {
   epd.setFont(nullptr);
@@ -196,202 +195,6 @@ static int textWrapped(int x, int y, int maxChars, const char* s, uint8_t size =
   return y;
 }
 
-static void drawMoon(int cx, int cy, int r, float phase, bool craters) {
-  epd.fillCircle(cx, cy, r, C_WHITE);
-  epd.drawCircle(cx, cy, r, C_BLACK);
-  float f = cosf(2.0f * (float)M_PI * phase);
-  bool waxing = phase <= 0.5f;
-  for (int y = -r; y <= r; y++) {
-    int xw = (int)lroundf(sqrtf((float)(r * r - y * y)));
-    int xt = (int)lroundf(f * xw);
-    int x0 = waxing ? -xw : -xt;
-    int x1 = waxing ? xt : xw;
-    if (x1 > x0) dFillHLine(cx + x0, cy + y, x1 - x0 + 1, SHADE_DARK);
-  }
-  if (craters) {
-    const int8_t cr[][3] = {{-10, -14, 5}, {12, 6, 7}, {-4, 16, 4}, {18, -10, 3}};
-    for (auto& c : cr) {
-      int px = cx + (waxing ? c[0] : -c[0]), py = cy + c[1];
-      dFillCircle(px, py, c[2], SHADE_LIGHT);
-      epd.drawCircle(px, py, c[2], C_BLACK);
-    }
-  }
-}
-
-// --- sprites: native 64x64 at scale 1.0, drawn from top-left (x,y) -------
-// Every sprite takes a `scale` multiplier so the Foraging view can render a
-// much larger icon without a second copy of the artwork.
-static void sprMushroomCap(int x, int y, float s = 1.0f) {
-  auto S = [s](float v) { return (int)(v * s); };
-  fillDome(x + S(32), y + S(30), S(24), S(20), SHADE_DARK);
-  epd.fillRect(x + S(8), y + S(30), S(49), S(3) + 1, C_BLACK);
-  dFillRect(x + S(26), y + S(33), S(12), S(24), SHADE_LIGHT);
-  epd.drawRect(x + S(26), y + S(33), S(12), S(24), C_BLACK);
-  dFillCircle(x + S(22), y + S(16), S(3), SHADE_LIGHT);
-  dFillCircle(x + S(40), y + S(20), S(2), SHADE_LIGHT);
-}
-
-static void sprMushroomTooth(int x, int y, float s = 1.0f) {
-  auto S = [s](float v) { return (int)(v * s); };
-  fillDome(x + S(32), y + S(28), S(22), S(18), SHADE_DARK);
-  for (int i = 0; i < 9; i++)
-    epd.drawLine(x + S(14 + i * 5), y + S(28), x + S(14 + i * 5), y + S(28 + 4 + (i % 3) * 3),
-                 C_BLACK);
-  dFillRect(x + S(28), y + S(30), S(9), S(24), SHADE_LIGHT);
-  epd.drawRect(x + S(28), y + S(30), S(9), S(24), C_BLACK);
-}
-
-static void sprMorel(int x, int y, float s = 1.0f) {
-  auto S = [s](float v) { return (int)(v * s); };
-  epd.drawLine(x + S(32), y + S(4), x + S(18), y + S(42), C_BLACK);
-  epd.drawLine(x + S(32), y + S(4), x + S(46), y + S(42), C_BLACK);
-  for (int r = 0; r < 5; r++)
-    for (int cc = 0; cc <= 2 + r; cc++) {
-      int bx = x + S(24 + cc * 6 - r * 3), by = y + S(10 + r * 6);
-      dFillRect(bx, by, S(5), S(5), SHADE_DARK);
-      epd.drawRect(bx, by, S(5), S(5), C_BLACK);
-    }
-  dFillRect(x + S(28), y + S(42), S(8), S(13), SHADE_LIGHT);
-  epd.drawRect(x + S(28), y + S(42), S(8), S(13), C_BLACK);
-}
-
-static void sprMatsutake(int x, int y, float s = 1.0f) {
-  auto S = [s](float v) { return (int)(v * s); };
-  fillDome(x + S(32), y + S(24), S(20), S(14), SHADE_DARK);
-  epd.fillRect(x + S(12), y + S(24), S(41), S(3) + 1, C_BLACK);
-  dFillRect(x + S(25), y + S(27), S(15), S(29), SHADE_DARK);
-  epd.drawRect(x + S(25), y + S(27), S(15), S(29), C_BLACK);
-}
-
-static void sprPorcini(int x, int y, float s = 1.0f) {
-  auto S = [s](float v) { return (int)(v * s); };
-  fillDome(x + S(32), y + S(26), S(24), S(16), SHADE_DARK);
-  epd.fillRect(x + S(8), y + S(26), S(49), S(2) + 1, C_BLACK);
-  dFillRect(x + S(23), y + S(28), S(18), S(28), SHADE_LIGHT);
-  epd.drawRect(x + S(23), y + S(28), S(18), S(28), C_BLACK);
-}
-
-static void sprCoral(int x, int y, float s = 1.0f) {
-  auto S = [s](float v) { return (int)(v * s); };
-  for (int i = 0; i < 7; i++) {
-    int bx = x + S(12 + i * 6);
-    epd.drawLine(x + S(32), y + S(52), bx, y + S(14 + (i % 2) * 5), C_BLACK);
-    dFillCircle(bx, y + S(13 + (i % 2) * 5), S(4), SHADE_LIGHT);
-    epd.drawCircle(bx, y + S(13 + (i % 2) * 5), S(4), C_BLACK);
-  }
-}
-
-static void sprLeafyGreen(int x, int y, float s = 1.0f) {
-  auto S = [s](float v) { return (int)(v * s); };
-  dFillCircle(x + S(32), y + S(26), S(18), SHADE_LIGHT);
-  epd.drawCircle(x + S(32), y + S(26), S(18), C_BLACK);
-  epd.drawLine(x + S(32), y + S(26), x + S(32), y + S(56), C_BLACK);
-  for (int i = -1; i <= 1; i += 2) {
-    epd.drawLine(x + S(32), y + S(22), x + S(32) + S(i * 11), y + S(18), C_BLACK);
-    epd.drawLine(x + S(32), y + S(30), x + S(32) + S(i * 12), y + S(30), C_BLACK);
-  }
-}
-
-static void sprNettle(int x, int y, float s = 1.0f) {
-  auto S = [s](float v) { return (int)(v * s); };
-  epd.drawLine(x + S(32), y + S(4), x + S(32), y + S(56), C_BLACK);
-  for (int i = 0; i < 5; i++) {
-    int yy = y + S(12 + i * 8), sp = S(17 - i * 2);
-    epd.drawLine(x + S(32), yy, x + S(32) - sp, yy + S(7), C_BLACK);
-    epd.drawLine(x + S(32), yy, x + S(32) + sp, yy + S(7), C_BLACK);
-    epd.drawLine(x + S(32) - sp, yy + S(7), x + S(32), yy + S(9), C_BLACK);
-    epd.drawLine(x + S(32) + sp, yy + S(7), x + S(32), yy + S(9), C_BLACK);
-  }
-}
-
-static void sprFiddlehead(int x, int y, float s = 1.0f) {
-  for (float a = 0; a < 6.28f * 2.4f; a += 0.18f) {
-    float rr = (3 + a * 2.1f) * s;
-    epd.drawPixel(x + (int)(30 * s + rr * cosf(a)), y + (int)(28 * s + rr * sinf(a)), C_BLACK);
-    epd.drawPixel(x + (int)(31 * s + rr * cosf(a)), y + (int)(28 * s + rr * sinf(a)), C_BLACK);
-  }
-  auto S = [s](float v) { return (int)(v * s); };
-  epd.drawLine(x + S(30), y + S(48), x + S(33), y + S(60), C_BLACK);
-}
-
-static void sprRamp(int x, int y, float s = 1.0f) {
-  auto S = [s](float v) { return (int)(v * s); };
-  dFillTriangle(x + S(30), y + S(50), x + S(20), y + S(8), x + S(28), y + S(12), SHADE_DARK);
-  epd.drawLine(x + S(34), y + S(50), x + S(46), y + S(12), C_BLACK);
-  epd.drawLine(x + S(34), y + S(50), x + S(40), y + S(14), C_BLACK);
-  dFillCircle(x + S(32), y + S(53), S(6), SHADE_LIGHT);
-  epd.drawCircle(x + S(32), y + S(53), S(6), C_BLACK);
-}
-
-static void sprFlowerCluster(int x, int y, float s = 1.0f) {
-  auto S = [s](float v) { return (int)(v * s); };
-  for (int i = 0; i < 7; i++) {
-    int px = x + S(14 + (i % 4) * 11), py = y + S(10 + (i / 4) * 12);
-    for (int k = 0; k < 5; k++) {
-      float a = k * 1.256f;
-      dFillCircle(px + (int)(S(3) * cosf(a)), py + (int)(S(3) * sinf(a)), S(2), SHADE_DARK);
-    }
-    dFillCircle(px, py, S(1), SHADE_LIGHT);
-    epd.drawLine(px, py, x + S(32), y + S(56), C_BLACK);
-  }
-}
-
-static void sprBerryCluster(int x, int y, float s = 1.0f) {
-  auto S = [s](float v) { return (int)(v * s); };
-  const int8_t b[][2] = {{26, 22}, {38, 24}, {32, 32}, {24, 38}, {40, 40}, {32, 46}};
-  for (auto& p : b) {
-    int bx = x + S(p[0]), by = y + S(p[1]);
-    dFillCircle(bx, by, S(6), SHADE_DARK);
-    epd.drawCircle(bx, by, S(6), C_BLACK);
-    epd.fillCircle(bx - S(2), by - S(2), max(1, S(1)), C_WHITE);
-  }
-  epd.drawLine(x + S(32), y + S(6), x + S(32), y + S(22), C_BLACK);
-}
-
-static void drawSprite(uint8_t id, int x, int y, float scale = 1.0f) {
-  switch (id) {
-    case SPR_MUSHROOM_CAP:
-      sprMushroomCap(x, y, scale);
-      break;
-    case SPR_MUSHROOM_TOOTH:
-      sprMushroomTooth(x, y, scale);
-      break;
-    case SPR_MOREL:
-      sprMorel(x, y, scale);
-      break;
-    case SPR_MATSUTAKE:
-      sprMatsutake(x, y, scale);
-      break;
-    case SPR_PORCINI:
-      sprPorcini(x, y, scale);
-      break;
-    case SPR_CORAL:
-      sprCoral(x, y, scale);
-      break;
-    case SPR_LEAFY_GREEN:
-      sprLeafyGreen(x, y, scale);
-      break;
-    case SPR_NETTLE:
-      sprNettle(x, y, scale);
-      break;
-    case SPR_FIDDLEHEAD:
-      sprFiddlehead(x, y, scale);
-      break;
-    case SPR_RAMP:
-      sprRamp(x, y, scale);
-      break;
-    case SPR_FLOWER_CLUSTER:
-      sprFlowerCluster(x, y, scale);
-      break;
-    case SPR_BERRY_CLUSTER:
-      sprBerryCluster(x, y, scale);
-      break;
-    default:
-      sprMushroomCap(x, y, scale);
-      break;
-  }
-}
-
 // Full-screen creature stage: the marmot bitmap already includes its own
 // rock ledge, so there's no separate habitat/ground drawing here anymore --
 // just the horizontal span the creature is centered within.
@@ -420,31 +223,46 @@ static void drawWeatherGlyph(int x, int y, const WeatherData& w) {
   }
 }
 
-// A hoary marmot sitting upright on a rock ledge -- a hardcoded, dithered
-// pen-and-ink-style bitmap (see include/marmot_bitmap.h, generated from
-// artwork in the scratch dir) rather than live procedural shapes, for real
-// fur texture and a recognizable silhouette. No procedural eye/nose/sparkle
-// overlay -- just the bitmap, plus a glow ring for the Glowing mood.
+struct MarmotArt {
+  const uint8_t* bitmap;
+  int w, h, groundY;
+};
+
+// Non-Hungry moods rotate through the base pose plus a handful of real
+// hoary-marmot photos (see include/bitmaps/marmot/) for visual variety --
+// picked once per wake below, not per render, so the creature doesn't
+// change pose mid-session as the user pages between views.
+static const MarmotArt kMarmotVariants[] = {
+    {MARMOT_BITMAP, MARMOT_W, MARMOT_H, MARMOT_GROUND_Y},
+    {MARMOT_VARIANT1_BITMAP, MARMOT_VARIANT1_W, MARMOT_VARIANT1_H, MARMOT_VARIANT1_H},
+    {MARMOT_VARIANT2_BITMAP, MARMOT_VARIANT2_W, MARMOT_VARIANT2_H, MARMOT_VARIANT2_H},
+    {MARMOT_VARIANT3_BITMAP, MARMOT_VARIANT3_W, MARMOT_VARIANT3_H, MARMOT_VARIANT3_H},
+    {MARMOT_VARIANT4_BITMAP, MARMOT_VARIANT4_W, MARMOT_VARIANT4_H, MARMOT_VARIANT4_H},
+    {MARMOT_VARIANT5_BITMAP, MARMOT_VARIANT5_W, MARMOT_VARIANT5_H, MARMOT_VARIANT5_H},
+};
+static const int kMarmotVariantCount = sizeof(kMarmotVariants) / sizeof(kMarmotVariants[0]);
+
+// A hoary marmot -- hardcoded, dithered pen-and-ink-style/photo bitmaps (see
+// include/bitmaps/marmot/) rather than live procedural shapes, for real fur
+// texture and a recognizable silhouette. No procedural eye/nose/sparkle
+// overlay -- just the bitmap.
 static void drawCreature(int cx, int groundY, Mood mood) {
-  int bx, by;
   if (mood == Mood::Hungry) {
-    bx = cx - MARMOT_HUNGRY_W / 2;
-    by = groundY - MARMOT_HUNGRY_GROUND_Y;
+    int bx = cx - MARMOT_HUNGRY_W / 2;
+    int by = groundY - MARMOT_HUNGRY_GROUND_Y;
     epd.drawBitmap(bx, by, MARMOT_HUNGRY_BITMAP, MARMOT_HUNGRY_W, MARMOT_HUNGRY_H, C_BLACK,
                    C_WHITE);
-  } else {
-    bx = cx - MARMOT_W / 2;
-    by = groundY - MARMOT_GROUND_Y;
-    epd.drawBitmap(bx, by, MARMOT_BITMAP, MARMOT_W, MARMOT_H, C_BLACK, C_WHITE);
+    return;
   }
-
-  if (mood == Mood::Glowing)
-    for (int ring = 34; ring <= 46; ring += 6)
-      for (int a = 0; a < 360; a += 20) {
-        float ra = a * (float)M_PI / 180.0f;
-        epd.drawPixel(cx + (int)(ring * cosf(ra)), by + MARMOT_H / 2 + (int)(ring * sinf(ra)),
-                      C_BLACK);
-      }
+  // Deep sleep wipes ordinary RAM, so a function-local static naturally
+  // re-rolls on the very first drawCreature() call each wake and then holds
+  // steady for the rest of the session.
+  static int8_t variant = -1;
+  if (variant < 0) variant = (int8_t)random(kMarmotVariantCount);
+  const MarmotArt& art = kMarmotVariants[variant];
+  int bx = cx - art.w / 2;
+  int by = groundY - art.groundY;
+  epd.drawBitmap(bx, by, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
 }
 
 // Bottom nav bar shown on every view: what LEFT/RIGHT/ENTER do from here.
@@ -465,16 +283,73 @@ static void drawNavBar(const char* leftLbl, const char* enterLbl, const char* ri
   textAt(SCREEN_W - 4 - (int)bw, NAV_Y, buf, 1);
 }
 
+// Per-animal reference-photo artwork for the encounter screen, indexed the
+// same way as events::animalIndex() -- i.e. positionally matching kAnimals[]
+// in events.cpp. Not every animal has art (some source photos didn't dither
+// into a recognizable silhouette); nullptr means "fall back to the marmot".
+struct AnimalArt {
+  const uint8_t* bitmap;
+  int w, h;
+};
+static const AnimalArt kAnimalArt[] = {
+    {ANIMAL_DEER_BITMAP, ANIMAL_DEER_W, ANIMAL_DEER_H},                             // Deer
+    {ANIMAL_MOUNTAIN_GOAT_BITMAP, ANIMAL_MOUNTAIN_GOAT_W, ANIMAL_MOUNTAIN_GOAT_H},  // Mountain Goat
+    {ANIMAL_BALD_EAGLE_BITMAP, ANIMAL_BALD_EAGLE_W, ANIMAL_BALD_EAGLE_H},           // Bald Eagle
+    {ANIMAL_RIVER_OTTER_BITMAP, ANIMAL_RIVER_OTTER_W, ANIMAL_RIVER_OTTER_H},        // River Otter
+    {ANIMAL_RACCOON_BITMAP, ANIMAL_RACCOON_W, ANIMAL_RACCOON_H},                    // Raccoon
+    {ANIMAL_ELK_BITMAP, ANIMAL_ELK_W, ANIMAL_ELK_H},                                // Elk
+    {ANIMAL_BLACK_BEAR_BITMAP, ANIMAL_BLACK_BEAR_W, ANIMAL_BLACK_BEAR_H},           // Black Bear
+    {ANIMAL_ORCA_BITMAP, ANIMAL_ORCA_W, ANIMAL_ORCA_H},                             // Orca
+    {ANIMAL_COUGAR_BITMAP, ANIMAL_COUGAR_W, ANIMAL_COUGAR_H},                       // Cougar
+    {ANIMAL_COYOTE_BITMAP, ANIMAL_COYOTE_W, ANIMAL_COYOTE_H},                       // Coyote
+    {ANIMAL_DOUGLAS_SQUIRREL_BITMAP, ANIMAL_DOUGLAS_SQUIRREL_W,
+     ANIMAL_DOUGLAS_SQUIRREL_H},  // Douglas Squirrel
+    {ANIMAL_SNOWSHOE_HARE_BITMAP, ANIMAL_SNOWSHOE_HARE_W, ANIMAL_SNOWSHOE_HARE_H},  // Snowshoe Hare
+    {ANIMAL_PILEATED_WOODPECKER_BITMAP, ANIMAL_PILEATED_WOODPECKER_W,
+     ANIMAL_PILEATED_WOODPECKER_H},  // Pileated Woodpecker
+    {ANIMAL_STELLERS_JAY_BITMAP, ANIMAL_STELLERS_JAY_W, ANIMAL_STELLERS_JAY_H},  // Steller's Jay
+    {ANIMAL_BANANA_SLUG_BITMAP, ANIMAL_BANANA_SLUG_W, ANIMAL_BANANA_SLUG_H},     // Banana Slug
+    {ANIMAL_PACIFIC_TREE_FROG_BITMAP, ANIMAL_PACIFIC_TREE_FROG_W,
+     ANIMAL_PACIFIC_TREE_FROG_H},                              // Pacific Tree Frog
+    {ANIMAL_BEAVER_BITMAP, ANIMAL_BEAVER_W, ANIMAL_BEAVER_H},  // Beaver
+    {ANIMAL_GREAT_BLUE_HERON_BITMAP, ANIMAL_GREAT_BLUE_HERON_W,
+     ANIMAL_GREAT_BLUE_HERON_H},                                        // Great Blue Heron
+    {ANIMAL_OSPREY_BITMAP, ANIMAL_OSPREY_W, ANIMAL_OSPREY_H},           // Osprey
+    {ANIMAL_CHICKADEE_BITMAP, ANIMAL_CHICKADEE_W, ANIMAL_CHICKADEE_H},  // Chestnut-backed Chickadee
+    {ANIMAL_HARBOR_SEAL_BITMAP, ANIMAL_HARBOR_SEAL_W, ANIMAL_HARBOR_SEAL_H},  // Harbor Seal
+    {ANIMAL_RED_FOX_BITMAP, ANIMAL_RED_FOX_W, ANIMAL_RED_FOX_H},              // Red Fox
+    {ANIMAL_BARRED_OWL_BITMAP, ANIMAL_BARRED_OWL_W, ANIMAL_BARRED_OWL_H},     // Barred Owl
+    {ANIMAL_GRAY_WOLF_BITMAP, ANIMAL_GRAY_WOLF_W, ANIMAL_GRAY_WOLF_H},        // Gray Wolf
+    {ANIMAL_BOBCAT_BITMAP, ANIMAL_BOBCAT_W, ANIMAL_BOBCAT_H},                 // Bobcat
+};
+static const int kAnimalArtCount = sizeof(kAnimalArt) / sizeof(kAnimalArt[0]);
+
 // A pending wildlife sighting takes over the Main view until ENTER
 // resolves it (see events::checkForEvent / onEnter() in main.cpp).
 static void renderEncounter(const AppContext& ctx, const events::PendingEvent& ev) {
   bool negative = events::eventIsNegative(ev);
   textCentered(0, SCREEN_W, 6, events::eventTitle(ev.type, negative), 2);
 
-  int stageCx = SCREEN_W / 2, stageGroundY = 235;
-  drawCreature(stageCx, stageGroundY, negative ? Mood::Annoyed : Mood::Excited);
+  const AnimalArt* art = nullptr;
+  if (ev.type == events::EventType::AnimalSighting) {
+    uint8_t idx = events::animalIndex(ev);
+    if (idx < kAnimalArtCount && kAnimalArt[idx].bitmap != nullptr) art = &kAnimalArt[idx];
+  }
 
-  int y = stageGroundY + 15;
+  int y;
+  if (art != nullptr) {
+    // Real reference-photo art for this animal -- show it instead of the
+    // marmot for this screen; heights vary per photo, so lay out everything
+    // below it relative to its actual bottom edge rather than a fixed offset.
+    int bx = (SCREEN_W - art->w) / 2, by = 26;
+    epd.drawBitmap(bx, by, art->bitmap, art->w, art->h, C_BLACK, C_WHITE);
+    y = by + art->h + 10;
+  } else {
+    int stageCx = SCREEN_W / 2, stageGroundY = 235;
+    drawCreature(stageCx, stageGroundY, negative ? Mood::Annoyed : Mood::Excited);
+    y = stageGroundY + 15;
+  }
+
   textCentered(0, SCREEN_W, y, events::eventName(ev), 2);
   y += 24;
   y = textWrapped(16, y, 40, events::eventNote(ev), 1) + 8;
@@ -556,10 +431,20 @@ static void renderForaging(const AppContext& ctx, int speciesIdx) {
   textAt(SCREEN_W - 8 - (int)pbw, 6, posBuf, 1);
 
   // Large centered icon -- the species art is the focal point of the view.
+  // Species without a sourced photo yet (see include/bitmaps/species/) just
+  // get an empty placeholder frame here rather than a procedural sprite.
   const float iconScale = 2.25f;
   int iconSize = (int)(64 * iconScale);
   int iconX = (SCREEN_W - iconSize) / 2, iconY = 6;
-  drawSprite(f.spriteId, iconX, iconY, iconScale);
+  const species_bitmaps::SpeciesBitmap* art = species_bitmaps::find(f.name);
+  if (art) {
+    int bx = (SCREEN_W - art->w) / 2;
+    int by = iconY + (iconSize - art->h) / 2;
+    epd.drawBitmap(bx, by, art->bitmap, art->w, art->h, C_BLACK, C_WHITE);
+  } else {
+    epd.drawRect(iconX, iconY, iconSize, iconSize, C_BLACK);
+    textCentered(iconX, iconSize, iconY + iconSize / 2 - 4, "?", 2);
+  }
 
   int y = iconY + iconSize + 8;
   textCentered(0, SCREEN_W, y, f.name, 2);
@@ -676,6 +561,25 @@ void renderView(View v, const AppContext& ctx, int speciesIdx) {
     default:
       break;
   }
+  epd.endFrame(true);
+}
+
+void renderSleep() {
+  epd.beginFrame();
+  // Always the base pose here (not the per-wake random variant drawCreature()
+  // picks for the live views) so this screen reads consistently as "asleep"
+  // rather than whatever alert photo pose happened to be rolled this wake.
+  int cx = SCREEN_W / 2;
+  int by = SCREEN_H / 2 + 40;
+  int bx = cx - MARMOT_W / 2;
+  int topY = by - MARMOT_GROUND_Y;
+  epd.drawBitmap(bx, topY, MARMOT_BITMAP, MARMOT_W, MARMOT_H, C_BLACK, C_WHITE);
+
+  int headX = cx + MARMOT_W / 4, headY = topY + 20;
+  textAt(headX, headY, "Z", 3);
+  textAt(headX + 22, headY - 24, "Z", 2);
+  textAt(headX + 38, headY - 44, "Z", 1);
+
   epd.endFrame(true);
 }
 

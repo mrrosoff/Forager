@@ -1,11 +1,12 @@
 #include "net.h"
+
+#include <ArduinoJson.h>
+#include <HTTPClient.h>
+#include <WiFi.h>
+#include <time.h>
+
 #include "config.h"
 #include "secrets.h"
-
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <ArduinoJson.h>
-#include <time.h>
 
 namespace net {
 
@@ -101,8 +102,8 @@ WeatherData fetchWeather() {
   filter["weather"][0]["hourly"][0]["precipMM"] = true;
 
   JsonDocument doc;
-  DeserializationError err = deserializeJson(
-      doc, http.getStream(), DeserializationOption::Filter(filter));
+  DeserializationError err =
+      deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
   http.end();
 
   if (err) {
