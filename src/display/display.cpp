@@ -6,6 +6,7 @@
 #include "config.h"
 #include "creature.h"
 #include "epd_adapter.h"
+#include "events.h"
 #include "foraging.h"
 #include "marmot_bitmap.h"
 #include "sprites.h"
@@ -534,7 +535,34 @@ static void drawNavBar(const char* leftLbl, const char* enterLbl, const char* ri
   textAt(SCREEN_W - 4 - (int)bw, NAV_Y, buf, 1);
 }
 
+// A pending wildlife sighting takes over the Main view until ENTER
+// resolves it (see events::checkForEvent / onEnter() in main.cpp).
+static void renderEncounter(const AppContext& ctx, const events::PendingEvent& ev) {
+  bool negative = events::eventIsNegative(ev);
+  textCentered(0, SCREEN_W, 6, events::eventTitle(ev.type, negative), 2);
+
+  int stageCx = SCREEN_W / 2, stageGroundY = 235;
+  epd.drawFastHLine(20, stageGroundY, SCREEN_W - 40, C_BLACK);
+  drawCreature(stageCx, stageGroundY, negative ? Mood::Annoyed : Mood::Excited, 0);
+
+  int y = stageGroundY + 15;
+  textCentered(0, SCREEN_W, y, events::eventName(ev), 2);
+  y += 24;
+  y = textWrapped(16, y, 40, events::eventNote(ev), 1) + 8;
+  if (negative) textCentered(0, SCREEN_W, y, "Stay alert!", 1);
+
+  drawNavBar("", "Acknowledge", "Foraging");
+}
+
 static void renderMain(const AppContext& ctx) {
+  events::PendingEvent ev;
+  ev.type = (events::EventType)ctx.eventType;
+  ev.dataId = ctx.eventDataId;
+  if (ev.type != events::EventType::None) {
+    renderEncounter(ctx, ev);
+    return;
+  }
+
   char buf[48];
   strftime(buf, sizeof(buf), "%a %b %d", &ctx.now);
   textAt(8, 6, buf, 2);

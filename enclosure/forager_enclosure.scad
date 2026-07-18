@@ -53,6 +53,16 @@ btn_cap_hole  = 3.6;  // through-hole the actuator cap pokes through
 btn_pitch     = 16.0;
 btn_row_gap   = 8.0;  // gap from window bottom edge to button hole centers
 
+// ---- Display module's own 2 onboard buttons (left edge of the board) ----
+// PLACEHOLDER: exact position/size not yet given — these sit in the narrow
+// win_margin_lr strip (4.35mm) between the board edge and the active window,
+// so diameter must stay small. Update disp_btn_* once measured; the holes
+// are cut from the front face straight onto the board's surface, same as
+// the main buttons.
+disp_btn_d  = 3.0;
+disp_btn_y1 = 0.25; // fraction of pocket_h from the bottom of the pocket
+disp_btn_y2 = 0.70;
+
 // ---- USB-C access (in tray side wall, aligned to MCU edge) ----
 usbc_slot_w = 10.0;
 usbc_slot_h = 4.0;
@@ -150,6 +160,13 @@ module front_bezel() {
             translate([bx, btn_row_y, -0.1])
                 cylinder(d = btn_hole, h = bezel_front_t + 0.2);
         }
+
+        // Display's onboard buttons (left edge of the board, in the
+        // win_margin_lr strip) — PLACEHOLDER position, see disp_btn_* above
+        disp_btn_x = pocket_x + win_margin_lr / 2;
+        for (f = [disp_btn_y1, disp_btn_y2])
+            translate([disp_btn_x, pocket_y + f * pocket_h, -0.1])
+                cylinder(d = disp_btn_d, h = bezel_front_t + 0.2);
 
         // Corner screw clearance holes, full depth, with a countersink at the
         // front face so a flat/pan screw head sits recessed

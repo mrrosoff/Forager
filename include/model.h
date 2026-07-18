@@ -68,4 +68,12 @@ struct AppContext {
   Forageable featured;
   CreatureState creature;
   bool netOk;
+
+  // A pending interaction event (see src/events/), shown as a takeover of
+  // the Main view until ENTER resolves it. eventType mirrors
+  // events::EventType (0 = None); kept as raw fields here (rather than an
+  // events:: type) so model.h doesn't depend on that module -- events.h
+  // itself depends on model.h for CreatureState.
+  uint8_t eventType = 0;
+  uint8_t eventDataId = 0;
 };
