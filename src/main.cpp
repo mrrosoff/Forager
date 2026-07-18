@@ -397,13 +397,36 @@ static void onEnter() {
 // partial refreshes in seconds) and ghosting accumulates with each one.
 static const int FORAGE_SCROLL_REFRESH = 25;
 static int forageScrollCount = 0;
-static void advanceForageIdx() {
-  int maxIdx = std::max(foraging::browsableCount() - 1, 0);
-  forageIdx = std::min(forageIdx + 1, maxIdx);
+// step defaults to 1 for a plain tap; a sustained hold passes a larger value
+// (see forageHoldStepSize()) so scrolling speeds up by covering more ground
+// per redraw rather than by redrawing faster -- the panel's own refresh time
+// bounds how often loop() can even get back here, so shrinking the repeat
+// interval alone (see RIGHT_HOLD_FLOOR_MS) can't make a held RIGHT feel any
+// faster once that floor is reached. Wraps past the last species back to the
+// first (and vice versa isn't possible -- Foraging only scrolls forward,
+// LEFT always leaves the view, see retreatView()) instead of clamping, so a
+// long hold can't get stuck sitting at species 200.
+static void advanceForageIdx(int step = 1) {
+  int count = foraging::browsableCount();
+  if (count <= 0) return;
+  forageIdx = (forageIdx + step) % count;
   forageScrollCount++;
   bool forceFullRefresh = forageScrollCount >= FORAGE_SCROLL_REFRESH;
   if (forceFullRefresh) forageScrollCount = 0;
   display::renderView(View::Foraging, ctx, forageIdx, forceFullRefresh);
+}
+
+// Escalating jump size for a held RIGHT in Foraging: covers more species per
+// redraw the longer the hold lasts, in steps of 1/2/3/5/10 as requested --
+// tuned to actually speed up browsing given the panel-redraw bottleneck
+// noted above, rather than the earlier approach of just shrinking the
+// repeat interval.
+static int forageHoldStepSize(int holdSteps) {
+  if (holdSteps < 5) return 1;
+  if (holdSteps < 10) return 2;
+  if (holdSteps < 16) return 3;
+  if (holdSteps < 24) return 5;
+  return 10;
 }
 
 static const char* textEntryPrompt(TextEntryPurpose p) {
@@ -791,7 +814,10 @@ void loop() {
     }
     if (currentView == View::Foraging) {
       // Accelerating hold-to-scroll: a fresh press steps once immediately;
-      // holding repeats with a shrinking interval down to a floor.
+      // holding repeats with a shrinking interval down to a floor, and each
+      // repeat's jump size grows (see forageHoldStepSize()) since the panel's
+      // own redraw time -- not the repeat interval -- is what actually
+      // bounds how fast this can go.
       bool rightDown = digitalRead(PIN_BTN_RIGHT) == HIGH;
       if (rightDown && !rightHeld) {
         rightHeld = true;
@@ -805,7 +831,7 @@ void loop() {
                                 ? RIGHT_HOLD_INITIAL_MS - rightHoldSteps * RIGHT_HOLD_ACCEL_MS
                                 : RIGHT_HOLD_FLOOR_MS;
         if (interval < RIGHT_HOLD_FLOOR_MS) interval = RIGHT_HOLD_FLOOR_MS;
-        advanceForageIdx();
+        advanceForageIdx(forageHoldStepSize(rightHoldSteps));
         rightNextStepMs = millis() + interval;
         lastActivityMs = millis();
       } else if (!rightDown) {
