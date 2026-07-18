@@ -1,0 +1,11 @@
+{
+  "C_Cpp.intelliSenseEngine": "default",
+  "files.associations": {
+    "*.h": "cpp",
+    "*.ino": "cpp"
+  },
+  "files.exclude": {
+    "**/.pio": true
+  },
+  "platformio-ide.useBuiltinPIOCore": true
+}
