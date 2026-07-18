@@ -21,6 +21,7 @@ struct Btn {
   bool prev;
   uint32_t lastEdge;
 };
+static Btn bLeft{PIN_BTN_LEFT, false, 0};
 static Btn bRight{PIN_BTN_RIGHT, false, 0};
 static Btn bEnter{PIN_BTN_ENTER, false, 0};
 
@@ -70,8 +71,14 @@ static bool pressed(Btn& b) {
   return fired;
 }
 
-// RIGHT moves forward through Main -> Foraging -> Status with no wrapping;
-// there is no LEFT/back -- pressing RIGHT on the last view does nothing.
+// LEFT/RIGHT step backward/forward through Main <-> Foraging <-> Status,
+// clamped at each end (no wraparound).
+static void retreatView() {
+  if ((int)currentView <= 0) return;
+  currentView = (View)((int)currentView - 1);
+  display::renderView(currentView, ctx, forageIdx);
+}
+
 static void advanceView() {
   int n = (int)View::COUNT;
   if ((int)currentView >= n - 1) return;
@@ -79,10 +86,12 @@ static void advanceView() {
   display::renderView(currentView, ctx, forageIdx);
 }
 
-// ENTER's action depends on the current view: resolve a pending sighting or
-// (failing that) do nothing on Main, feed on Status, page through species on
-// Foraging (does not wrap -- there's no LEFT to page back, and forageIdx
-// resets to 0 on the next sleep/wake anyway).
+// ENTER's action depends on the current view: resolve a pending sighting on
+// Main, page forward through species on Foraging (clamped at the last
+// entry -- there's no backward paging, and forageIdx resets to 0 on the
+// next sleep/wake anyway), or nothing on Status. There's no manual "feed"
+// action anymore -- hunger and happiness are only moved by events (see
+// src/events/).
 static void onEnter() {
   switch (currentView) {
     case View::Main: {
@@ -98,12 +107,6 @@ static void onEnter() {
       }
       break;
     }
-    case View::Status:
-      creature::feed(ctx.creature, time(nullptr));
-      creature::evaluate(ctx.creature, ctx.now, ctx.moon, ctx.weather);
-      creature::save(ctx.creature);
-      display::renderView(View::Status, ctx, forageIdx);
-      break;
     case View::Foraging:
       if (forageIdx < foraging::speciesCount() - 1) {
         forageIdx++;
@@ -118,6 +121,7 @@ static void onEnter() {
 void setup() {
   Serial.begin(115200);
 
+  pinMode(PIN_BTN_LEFT, INPUT_PULLDOWN);
   pinMode(PIN_BTN_RIGHT, INPUT_PULLDOWN);
   pinMode(PIN_BTN_ENTER, INPUT_PULLDOWN);
   log_i("Woke");
@@ -142,6 +146,10 @@ void setup() {
 }
 
 void loop() {
+  if (pressed(bLeft)) {
+    retreatView();
+    lastActivityMs = millis();
+  }
   if (pressed(bRight)) {
     advanceView();
     lastActivityMs = millis();
@@ -152,9 +160,14 @@ void loop() {
   }
 
 #if DEV_MODE_NO_SLEEP
-  static int lastRight = -1, lastEnter = -1;
+  static int lastLeft = -1, lastRight = -1, lastEnter = -1;
+  int left = digitalRead(PIN_BTN_LEFT);
   int right = digitalRead(PIN_BTN_RIGHT);
   int enter = digitalRead(PIN_BTN_ENTER);
+  if (left != lastLeft) {
+    log_i("LEFT  (GPIO%d) = %d", PIN_BTN_LEFT, left);
+    lastLeft = left;
+  }
   if (right != lastRight) {
     log_i("RIGHT (GPIO%d) = %d", PIN_BTN_RIGHT, right);
     lastRight = right;

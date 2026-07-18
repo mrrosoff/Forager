@@ -9,6 +9,7 @@
 #include "events.h"
 #include "foraging.h"
 #include "marmot_bitmap.h"
+#include "marmot_hungry_bitmap.h"
 #include "sprites.h"
 
 namespace display {
@@ -232,8 +233,8 @@ static void sprMushroomTooth(int x, int y, float s = 1.0f) {
   auto S = [s](float v) { return (int)(v * s); };
   fillDome(x + S(32), y + S(28), S(22), S(18), SHADE_DARK);
   for (int i = 0; i < 9; i++)
-    epd.drawLine(x + S(14 + i * 5), y + S(28), x + S(14 + i * 5),
-                 y + S(28 + 4 + (i % 3) * 3), C_BLACK);
+    epd.drawLine(x + S(14 + i * 5), y + S(28), x + S(14 + i * 5), y + S(28 + 4 + (i % 3) * 3),
+                 C_BLACK);
   dFillRect(x + S(28), y + S(30), S(9), S(24), SHADE_LIGHT);
   epd.drawRect(x + S(28), y + S(30), S(9), S(24), C_BLACK);
 }
@@ -389,21 +390,10 @@ static void drawSprite(uint8_t id, int x, int y, float scale = 1.0f) {
   }
 }
 
-// Full-screen creature stage: ground band the creature stands on, spanning
-// most of the panel width so Main can use the full display area.
+// Full-screen creature stage: the marmot bitmap already includes its own
+// rock ledge, so there's no separate habitat/ground drawing here anymore --
+// just the horizontal span the creature is centered within.
 static const int STAGE_X = 10, STAGE_Y = 34, STAGE_W = 280, STAGE_H = 330;
-
-static void drawHabitat() {
-  int gy = STAGE_Y + STAGE_H - 24;
-  dFillRect(STAGE_X, gy, STAGE_W, STAGE_H - (gy - STAGE_Y), SHADE_LIGHT);
-  epd.drawFastHLine(STAGE_X, gy, STAGE_W, C_BLACK);
-  for (int i = 0; i < 10; i++) {
-    int gx = STAGE_X + 12 + i * 27;
-    epd.drawFastVLine(gx, gy - 7, 7, C_BLACK);
-    epd.drawFastVLine(gx - 3, gy - 5, 5, C_BLACK);
-    epd.drawFastVLine(gx + 3, gy - 5, 5, C_BLACK);
-  }
-}
 
 // Small weather glyph (sun / rain / cloud) so the creature's world reflects
 // current conditions, independent of mood.
@@ -431,61 +421,20 @@ static void drawWeatherGlyph(int x, int y, const WeatherData& w) {
 // A hoary marmot sitting upright on a rock ledge -- a hardcoded, dithered
 // pen-and-ink-style bitmap (see include/marmot_bitmap.h, generated from
 // artwork in the scratch dir) rather than live procedural shapes, for real
-// fur texture and a recognizable silhouette. Eyes and a small brow/mouth
-// accent are drawn on top at runtime so the same base art works for every
-// mood. `frame` gives pose variety (blink, sparkle drift); each render is a
-// static full-panel draw, not a live animation.
-static void drawCreature(int cx, int groundY, Mood mood, uint8_t frame) {
-  int bx = cx - MARMOT_W / 2;
-  int by = groundY - MARMOT_GROUND_Y;
-  epd.drawBitmap(bx, by, MARMOT_BITMAP, MARMOT_W, MARMOT_H, C_BLACK, C_WHITE);
-
-  int eyeX = bx + MARMOT_EYE_X, eyeY = by + MARMOT_EYE_Y;
-  int noseX = bx + MARMOT_NOSE_X, noseY = by + MARMOT_NOSE_Y;
-
-  epd.fillCircle(eyeX, eyeY, 6, C_WHITE);
-
-  bool blink = (frame % 7) == 6;
-  switch (mood) {
-    case Mood::Sleepy:
-    case Mood::Dormant:
-      epd.drawFastHLine(eyeX - 5, eyeY, 10, C_BLACK);
-      break;
-    case Mood::Hungry:
-      epd.drawCircle(eyeX, eyeY, 4, C_BLACK);
-      break;
-    case Mood::Annoyed:
-      // furrowed brow: angled lines instead of round eyes
-      epd.drawLine(eyeX - 6, eyeY - 3, eyeX - 1, eyeY + 1, C_BLACK);
-      epd.drawLine(eyeX + 1, eyeY + 1, eyeX + 6, eyeY - 3, C_BLACK);
-      break;
-    case Mood::Excited:
-    case Mood::Glowing:
-      if (blink)
-        epd.drawFastHLine(eyeX - 5, eyeY, 10, C_BLACK);
-      else {
-        epd.fillCircle(eyeX, eyeY, 5, C_BLACK);
-        epd.fillCircle(eyeX + 1, eyeY - 1, 2, C_WHITE);
-      }
-      break;
-    default:
-      if (blink)
-        epd.drawFastHLine(eyeX - 4, eyeY, 8, C_BLACK);
-      else
-        epd.fillCircle(eyeX, eyeY, 4, C_BLACK);
+// fur texture and a recognizable silhouette. No procedural eye/nose/sparkle
+// overlay -- just the bitmap, plus a glow ring for the Glowing mood.
+static void drawCreature(int cx, int groundY, Mood mood) {
+  int bx, by;
+  if (mood == Mood::Hungry) {
+    bx = cx - MARMOT_HUNGRY_W / 2;
+    by = groundY - MARMOT_HUNGRY_GROUND_Y;
+    epd.drawBitmap(bx, by, MARMOT_HUNGRY_BITMAP, MARMOT_HUNGRY_W, MARMOT_HUNGRY_H, C_BLACK,
+                   C_WHITE);
+  } else {
+    bx = cx - MARMOT_W / 2;
+    by = groundY - MARMOT_GROUND_Y;
+    epd.drawBitmap(bx, by, MARMOT_BITMAP, MARMOT_W, MARMOT_H, C_BLACK, C_WHITE);
   }
-
-  epd.fillCircle(noseX - 2, noseY - 10, 7, C_WHITE);
-  if (mood == Mood::Hungry)
-    epd.drawCircle(noseX - 2, noseY - 10, 3, C_BLACK);
-  else if (mood == Mood::Annoyed)
-    epd.drawFastHLine(noseX - 6, noseY - 12, 8, C_BLACK);
-  else if (mood == Mood::Excited || mood == Mood::Glowing)
-    epd.drawLine(noseX - 6, noseY - 13, noseX + 2, noseY - 13, C_BLACK);
-
-  // The baked nose is faint fine stipple in the source photo -- redraw it
-  // bold so it reads clearly at this resolution.
-  epd.fillCircle(noseX, noseY, 3, C_BLACK);
 
   if (mood == Mood::Glowing)
     for (int ring = 34; ring <= 46; ring += 6)
@@ -494,27 +443,6 @@ static void drawCreature(int cx, int groundY, Mood mood, uint8_t frame) {
         epd.drawPixel(cx + (int)(ring * cosf(ra)), by + MARMOT_H / 2 + (int)(ring * sinf(ra)),
                       C_BLACK);
       }
-
-  if (mood != Mood::Dormant)
-    for (int i = 0; i < 4; i++) {
-      int sx = bx - 10 + (i * 17 + frame * 3) % (MARMOT_W + 20);
-      int sy = by - 10 - ((frame * 2 + i * 9) % 20);
-      epd.fillCircle(sx, sy, 1, C_BLACK);
-    }
-}
-
-// Occasional visiting banana slug in the habitat, purely decorative.
-static void sprBananaSlugCameo(int x, int y) {
-  int w = 34, h = 11;
-  dFillRoundRect(x, y, w, h, h / 2, SHADE_LIGHT);
-  epd.drawRoundRect(x, y, w, h, h / 2, C_BLACK);
-  epd.fillCircle(x + 9, y + 5, 1, C_BLACK);
-  epd.fillCircle(x + 18, y + 7, 1, C_BLACK);
-  epd.fillCircle(x + 25, y + 4, 1, C_BLACK);
-  epd.drawLine(x + 4, y + 1, x + 2, y - 7, C_BLACK);
-  epd.drawLine(x + 9, y + 1, x + 10, y - 7, C_BLACK);
-  epd.fillCircle(x + 2, y - 8, 2, C_BLACK);
-  epd.fillCircle(x + 10, y - 8, 2, C_BLACK);
 }
 
 // Bottom nav bar shown on every view: what LEFT/RIGHT/ENTER do from here.
@@ -542,8 +470,7 @@ static void renderEncounter(const AppContext& ctx, const events::PendingEvent& e
   textCentered(0, SCREEN_W, 6, events::eventTitle(ev.type, negative), 2);
 
   int stageCx = SCREEN_W / 2, stageGroundY = 235;
-  epd.drawFastHLine(20, stageGroundY, SCREEN_W - 40, C_BLACK);
-  drawCreature(stageCx, stageGroundY, negative ? Mood::Annoyed : Mood::Excited, 0);
+  drawCreature(stageCx, stageGroundY, negative ? Mood::Annoyed : Mood::Excited);
 
   int y = stageGroundY + 15;
   textCentered(0, SCREEN_W, y, events::eventName(ev), 2);
@@ -568,17 +495,17 @@ static void renderMain(const AppContext& ctx) {
   textAt(8, 6, buf, 2);
   drawWeatherGlyph(SCREEN_W - 40, 4, ctx.weather);
 
-  drawHabitat();
-  if (random(5) == 0) sprBananaSlugCameo(STAGE_X + STAGE_W - 50, STAGE_Y + STAGE_H - 30);
+  // No separate ground/habitat drawing -- the marmot bitmap already has its
+  // own rock ledge baked in, and a second ground line under it just clashed.
   int stageCx = STAGE_X + STAGE_W / 2 - 20;
   int stageGroundY = STAGE_Y + STAGE_H - 24;
-  drawCreature(stageCx, stageGroundY, ctx.creature.mood, 0);
+  drawCreature(stageCx, stageGroundY, ctx.creature.mood);
 
   drawNavBar("", "", "Foraging");
 }
 
 static const char* const MONTH_ABBR[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+                                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 // Renders a species' active months as compact ranges (e.g. "Jun-Aug, Oct")
 // instead of an unlabeled dot calendar.
@@ -600,7 +527,7 @@ static void seasonText(const Forageable& f, char* buf, size_t bufSize) {
         written += snprintf(buf + written, bufSize - written, "%s", MONTH_ABBR[start - 1]);
       else
         written += snprintf(buf + written, bufSize - written, "%s-%s", MONTH_ABBR[start - 1],
-                             MONTH_ABBR[end - 1]);
+                            MONTH_ABBR[end - 1]);
     }
     first = false;
   }
@@ -660,7 +587,7 @@ static void renderForaging(const AppContext& ctx, int speciesIdx) {
   snprintf(seasonLine, sizeof(seasonLine), "SEASON: %s", seasonBuf);
   textAt(8, y, seasonLine, 1);
 
-  drawNavBar("", "Next", "Status");
+  drawNavBar("Main", "Next", "Status");
 }
 
 // Energy: derived from time of day, not persisted -- low overnight, ramps
@@ -686,9 +613,10 @@ static uint8_t computeCuriosity(const WeatherData& w) {
 static void renderStatus(const AppContext& ctx) {
   textAt(8, 6, "Status", 2);
 
-  int stageCx = SCREEN_W / 2, stageGroundY = 190;
-  drawCreature(stageCx, stageGroundY, ctx.creature.mood, 0);
-  textCentered(0, SCREEN_W, stageGroundY + 18, creature::moodName(ctx.creature.mood), 1);
+  // No mood-name text or "Foraged X days ago" line anymore -- the mascot
+  // moves down to fill the space those left behind.
+  int stageCx = SCREEN_W / 2, stageGroundY = 230;
+  drawCreature(stageCx, stageGroundY, ctx.creature.mood);
 
   auto bar = [&](int y, const char* label, uint8_t pct) {
     textAt(20, y, label, 1);
@@ -697,29 +625,18 @@ static void renderStatus(const AppContext& ctx) {
     epd.drawRect(bx, by, bw, 14, C_BLACK);
     epd.fillRect(bx + 2, by + 2, (bw - 4) * pct / 100, 10, C_BLACK);
   };
-  bar(220, "Fullness", 100 - ctx.creature.hunger);
-  bar(250, "Happiness", ctx.creature.happiness);
-  bar(280, "Energy", computeEnergy(ctx.now));
-  bar(310, "Curiosity", computeCuriosity(ctx.weather));
-
-  char buf[48];
-  if (ctx.creature.lastFed == 0) {
-    snprintf(buf, sizeof(buf), "Never foraged");
-  } else {
-    long days = (mktime(const_cast<struct tm*>(&ctx.now)) - ctx.creature.lastFed) / 86400;
-    if (days <= 0)
-      snprintf(buf, sizeof(buf), "Foraged today");
-    else
-      snprintf(buf, sizeof(buf), "Foraged %ld day%s ago", days, days == 1 ? "" : "s");
-  }
-  textAt(20, 344, buf, 1);
+  bar(250, "Fullness", 100 - ctx.creature.hunger);
+  bar(278, "Happiness", ctx.creature.happiness);
+  bar(306, "Energy", computeEnergy(ctx.now));
+  bar(334, "Curiosity", computeCuriosity(ctx.weather));
 
   if (ctx.weather.valid) {
+    char buf[48];
     snprintf(buf, sizeof(buf), "%s, %.0fC", ctx.weather.condition, ctx.weather.tempC);
-    textAt(20, 362, buf, 1);
+    textAt(20, 364, buf, 1);
   }
 
-  drawNavBar("", "Forage!", "");
+  drawNavBar("Foraging", "", "");
 }
 
 void begin() {

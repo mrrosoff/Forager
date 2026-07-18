@@ -29,13 +29,6 @@ void save(const CreatureState& s) {
   p.end();
 }
 
-void feed(CreatureState& s, time_t now) {
-  s.lastFed = now;
-  s.hunger = 0;
-  int h = (int)s.happiness + 30;
-  s.happiness = (uint8_t)(h > 100 ? 100 : h);
-}
-
 // Recompute hunger as a 0..100 ramp over HUNGER_PERIOD_HOURS since last fed.
 static void agingHunger(CreatureState& s, time_t now) {
   if (s.lastFed == 0 || now <= s.lastFed) return;
