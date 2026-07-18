@@ -19,8 +19,9 @@ SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 static AppContext ctx;
 static View currentView = View::Main;
 static int forageIdx = 0;  // Foraging view's browse position; session-only, and
-                            // reset to 0 on every transition into/out of
-                            // Foraging (see retreatView()/advanceView())
+                            // reset to DEV_MODE_SPECIES_BROWSE_START on every
+                            // transition into/out of Foraging (see
+                            // retreatView()/advanceView())
 static uint32_t lastActivityMs = 0;
 
 // Set by buildContext() when the growth stage just advanced since the last
@@ -312,7 +313,7 @@ static void retreatView() {
   if ((int)currentView <= 0) return;
   View prev = (View)((int)currentView - 1);
   if (!viewReachable(prev)) return;
-  if (currentView == View::Foraging) forageIdx = 0;
+  if (currentView == View::Foraging) forageIdx = DEV_MODE_SPECIES_BROWSE_START;
   currentView = prev;
   bool spawned = bumpScreenChangeAndMaybeSpawn();
   display::renderView(currentView, ctx, forageIdx, spawned);
@@ -323,7 +324,7 @@ static void advanceView() {
   if ((int)currentView >= n - 1) return;
   View next = (View)((int)currentView + 1);
   if (!viewReachable(next)) return;
-  if (next == View::Foraging) forageIdx = 0;
+  if (next == View::Foraging) forageIdx = DEV_MODE_SPECIES_BROWSE_START;
   currentView = next;
   bool spawned = bumpScreenChangeAndMaybeSpawn();
   display::renderView(currentView, ctx, forageIdx, spawned);
