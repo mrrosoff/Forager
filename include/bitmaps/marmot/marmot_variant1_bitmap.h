@@ -1,4 +1,5 @@
-// Marmot mood-variant artwork (variant1) -- hoary marmot on a granite ledge, sourced from Wikimedia Commons.
+// Marmot mood-variant artwork (variant1) -- hoary marmot on a granite ledge, sourced from Wikimedia
+// Commons.
 #pragma once
 
 #include <pgmspace.h>

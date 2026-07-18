@@ -40,16 +40,37 @@ enum class Mood : uint8_t {
   Dormant,  // deep winter
 };
 
+/**
+ * Real-elapsed-time-since-birth growth stage, recomputed once per wake (see
+ * creature::computeStage()) -- Foraging is hidden until Juvenile, and the
+ * marmot's art pool grows with it (see drawCreature() in display.cpp).
+ */
+enum class Stage : uint8_t { Baby, Juvenile, Adult };
+
 struct CreatureState {
   Mood mood;
   uint8_t hunger;     // 0 = full, 100 = starving
   uint8_t happiness;  // 0..100
   time_t lastFed;     // epoch, 0 = never
+
+  time_t birthDate;  // epoch, 0 = never born yet (first-ever boot sentinel)
+
+  /**
+   * Consecutive days fed at least once, for the Status/Achievements streak
+   * display. lastStreakDay is day-truncated (see creature::feedForaged()).
+   */
+  uint16_t feedStreakDays;
+  time_t lastStreakDay;
 };
 
-// Status sits LEFT of Main, Foraging sits RIGHT of Main -- the numeric
-// order here is what LEFT(-1)/RIGHT(+1) step through in main.cpp.
-enum class View : uint8_t { Status = 0, Main, Foraging, COUNT };
+/**
+ * Achievements sits LEFT of Status, Status LEFT of Main, Foraging RIGHT of
+ * Main -- the numeric order here is what LEFT(-1)/RIGHT(+1) step through in
+ * main.cpp. Achievements goes leftmost (not appended after Foraging) because
+ * Foraging's RIGHT button is fully consumed by accelerating hold-to-scroll,
+ * so RIGHT can never reach a view past it.
+ */
+enum class View : uint8_t { Achievements = 0, Status, Main, Foraging, COUNT };
 
 struct AppContext {
   struct tm now;  // local time
@@ -65,4 +86,12 @@ struct AppContext {
   // itself depends on model.h for CreatureState.
   uint8_t eventType = 0;
   uint8_t eventDataId = 0;
+  uint8_t eventExact = 0;
+
+  /**
+   * Mirrors Stage; computed once per wake in main.cpp's buildContext() from
+   * creature.birthDate, and used to gate Foraging visibility and the
+   * baby-appropriate event pool.
+   */
+  uint8_t stage = 0;
 };

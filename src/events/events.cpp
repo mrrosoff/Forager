@@ -2,6 +2,8 @@
 
 #include <Preferences.h>
 
+#include <cstring>
+
 #include "foraging.h"
 
 namespace events {
@@ -110,6 +112,29 @@ static const WeatherDef kWeatherEvents[] = {
 };
 static const int kWeatherCount = sizeof(kWeatherEvents) / sizeof(kWeatherEvents[0]);
 
+struct BabyCareDef {
+  const char* name;
+  const char* note;
+  uint8_t weight;
+};
+
+// Simple, wholesome, always-positive baby-stage moments -- no mishaps or
+// foraging finds, since the marmot is too young for the trail and Foraging
+// is still hidden.
+static const BabyCareDef kBabyCare[] = {
+    {"Nap Time", "The baby marmot curls up for an afternoon nap.", 20},
+    {"Wobbly First Steps", "Takes a few wobbly steps before flopping over.", 15},
+    {"Curious Sniffing", "Investigates every rock within reach.", 15},
+    {"Peekaboo", "Pokes its head out, then ducks back down giggling.", 12},
+    {"Tiny Yawn", "Lets out a surprisingly big yawn for such a small marmot.", 10},
+    {"Snuggle Time", "Wants to be held and snuggled for a while.", 15},
+    {"Copying Mom", "Watches and copies an older marmot's grooming.", 10},
+    {"Chasing a Butterfly", "Chases a butterfly in wobbly circles.", 10},
+    {"Burrow Peekaboo", "Peeks out of the burrow entrance, unsure about the big world.", 10},
+    {"Milk Time", "Nurses contentedly in the warm burrow.", 15},
+};
+static const int kBabyCareCount = sizeof(kBabyCare) / sizeof(kBabyCare[0]);
+
 // Don't roll for a new event more than once every ~6h of wall-clock time,
 // and even then only a 1-in-3 chance -- interactions should feel occasional,
 // not constant.
@@ -128,7 +153,7 @@ static uint8_t weightedPick(const T* items, int count) {
   return 0;
 }
 
-PendingEvent checkForEvent(time_t now, int month) {
+PendingEvent checkForEvent(time_t now, int month, Stage stage) {
   (void)month;  // reserved for future seasonal weighting
   Preferences p;
   p.begin(NVS_NS, /*readOnly=*/false);
@@ -136,30 +161,52 @@ PendingEvent checkForEvent(time_t now, int month) {
   PendingEvent ev;
   ev.type = (EventType)p.getUChar("evType", (uint8_t)EventType::None);
   ev.dataId = p.getUChar("evData", 0);
+  ev.exact = p.getUChar("evExact", 0) != 0;
 
   if (ev.type == EventType::None) {
     uint64_t lastAt = p.getULong64("evLastAt", 0);
     bool cooldownOver =
         lastAt == 0 || (uint64_t)now - lastAt >= (uint64_t)EVENT_COOLDOWN_HOURS * 3600ULL;
     if (cooldownOver && random(EVENT_CHANCE_DENOM) == 0) {
-      // Category mix: sightings and foraging finds most common, mishaps and
-      // weather events rarer.
-      int roll = random(100);
-      if (roll < 40) {
-        ev.type = EventType::AnimalSighting;
-        ev.dataId = weightedPick(kAnimals, kAnimalCount);
-      } else if (roll < 70) {
-        ev.type = EventType::ForagingFind;
-        ev.dataId = (uint8_t)random(foraging::speciesCount());
-      } else if (roll < 85) {
-        ev.type = EventType::TrailMishap;
-        ev.dataId = weightedPick(kMishaps, kMishapCount);
+      if (stage == Stage::Baby) {
+        // No ForagingFind (Foraging is hidden, unresolvable) and no
+        // TrailMishap (doesn't fit a baby-at-home narrative) -- baby care
+        // moments dominate, with a little ambient animal/weather flavor.
+        int roll = random(100);
+        if (roll < 50) {
+          ev.type = EventType::BabyCare;
+          ev.dataId = weightedPick(kBabyCare, kBabyCareCount);
+        } else if (roll < 80) {
+          ev.type = EventType::AnimalSighting;
+          ev.dataId = weightedPick(kAnimals, kAnimalCount);
+        } else {
+          ev.type = EventType::WeatherEvent;
+          ev.dataId = weightedPick(kWeatherEvents, kWeatherCount);
+        }
       } else {
-        ev.type = EventType::WeatherEvent;
-        ev.dataId = weightedPick(kWeatherEvents, kWeatherCount);
+        // Category mix: sightings and foraging finds most common, mishaps
+        // and weather events rarer.
+        int roll = random(100);
+        if (roll < 40) {
+          ev.type = EventType::AnimalSighting;
+          ev.dataId = weightedPick(kAnimals, kAnimalCount);
+        } else if (roll < 70) {
+          ev.type = EventType::ForagingFind;
+          ev.dataId = (uint8_t)random(foraging::speciesCount());
+          // A minority of finds pin to one exact species instead of any
+          // species of its kind -- rarer and harder, for variety.
+          ev.exact = random(100) < 30;
+        } else if (roll < 85) {
+          ev.type = EventType::TrailMishap;
+          ev.dataId = weightedPick(kMishaps, kMishapCount);
+        } else {
+          ev.type = EventType::WeatherEvent;
+          ev.dataId = weightedPick(kWeatherEvents, kWeatherCount);
+        }
       }
       p.putUChar("evType", (uint8_t)ev.type);
       p.putUChar("evData", ev.dataId);
+      p.putUChar("evExact", ev.exact ? 1 : 0);
     }
   }
 
@@ -177,6 +224,8 @@ const char* eventTitle(EventType type, bool negative) {
       return "TRAIL MISHAP";
     case EventType::WeatherEvent:
       return negative ? "ROUGH WEATHER" : "NICE WEATHER";
+    case EventType::BabyCare:
+      return "BABY MARMOT";
     default:
       return "";
   }
@@ -197,11 +246,14 @@ const char* eventName(const PendingEvent& ev) {
     case EventType::AnimalSighting:
       return kAnimals[ev.dataId % kAnimalCount].name;
     case EventType::ForagingFind:
-      return capitalizedKind(foraging::speciesAt(ev.dataId).kind);
+      return ev.exact ? foraging::speciesAt(ev.dataId).name
+                      : capitalizedKind(foraging::speciesAt(ev.dataId).kind);
     case EventType::TrailMishap:
       return kMishaps[ev.dataId % kMishapCount].name;
     case EventType::WeatherEvent:
       return kWeatherEvents[ev.dataId % kWeatherCount].name;
+    case EventType::BabyCare:
+      return kBabyCare[ev.dataId % kBabyCareCount].name;
     default:
       return "";
   }
@@ -212,19 +264,28 @@ const char* eventNote(const PendingEvent& ev) {
     case EventType::AnimalSighting:
       return kAnimals[ev.dataId % kAnimalCount].note;
     case EventType::ForagingFind:
-      return "Head to the Foraging list and find one to feed the marmot!";
+      return ev.exact ? "Find and eat this exact species to feed the marmot!"
+                      : "Head to the Foraging list and eat one to feed the marmot!";
     case EventType::TrailMishap:
       return kMishaps[ev.dataId % kMishapCount].note;
     case EventType::WeatherEvent:
       return kWeatherEvents[ev.dataId % kWeatherCount].note;
+    case EventType::BabyCare:
+      return kBabyCare[ev.dataId % kBabyCareCount].note;
     default:
       return "";
   }
 }
 
 const char* eventCategory(const PendingEvent& ev) {
-  if (ev.type != EventType::ForagingFind) return "";
+  if (ev.type != EventType::ForagingFind || ev.exact) return "";
   return foraging::speciesAt(ev.dataId).kind;
+}
+
+bool eventMatchesSpecies(const PendingEvent& ev, const Forageable& f) {
+  if (ev.type != EventType::ForagingFind) return false;
+  if (ev.exact) return strcmp(f.name, foraging::speciesAt(ev.dataId).name) == 0;
+  return strcmp(f.kind, foraging::speciesAt(ev.dataId).kind) == 0;
 }
 
 uint8_t animalIndex(const PendingEvent& ev) { return ev.dataId % kAnimalCount; }

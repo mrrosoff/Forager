@@ -16,6 +16,9 @@ void load(CreatureState& s) {
   s.hunger = p.getUChar("hunger", 30);
   s.happiness = p.getUChar("happy", 60);
   s.lastFed = (time_t)p.getULong64("lastFed", 0);
+  s.birthDate = (time_t)p.getULong64("birthDate", 0);
+  s.feedStreakDays = p.getUShort("streak", 0);
+  s.lastStreakDay = (time_t)p.getULong64("streakDay", 0);
   p.end();
   s.mood = Mood::Content;  // recomputed by evaluate()
 }
@@ -26,6 +29,9 @@ void save(const CreatureState& s) {
   p.putUChar("hunger", s.hunger);
   p.putUChar("happy", s.happiness);
   p.putULong64("lastFed", (uint64_t)s.lastFed);
+  p.putULong64("birthDate", (uint64_t)s.birthDate);
+  p.putUShort("streak", s.feedStreakDays);
+  p.putULong64("streakDay", (uint64_t)s.lastStreakDay);
   p.end();
 }
 
@@ -68,6 +74,44 @@ Mood evaluate(CreatureState& s, const struct tm& now, const WeatherData& weather
 
   s.mood = m;
   return m;
+}
+
+// Whole-day index (not calendar-local, just a consistent 24h bucket) --
+// good enough for a streak counter, no need for exact local-midnight math.
+static int64_t dayIndex(time_t t) { return (int64_t)t / 86400; }
+
+void feedForaged(CreatureState& s, time_t now, bool inSeason) {
+  s.hunger = s.hunger > 25 ? s.hunger - 25 : 0;
+  int h = (int)s.happiness + (inSeason ? 15 : 10);
+  s.happiness = (uint8_t)(h > 100 ? 100 : h);
+  s.lastFed = now;
+
+  int64_t today = dayIndex(now);
+  int64_t lastDay = dayIndex(s.lastStreakDay);
+  if (s.lastStreakDay == 0 || today - lastDay == 1) {
+    s.feedStreakDays++;
+    s.lastStreakDay = now;
+  } else if (today - lastDay > 1) {
+    s.feedStreakDays = 1;
+    s.lastStreakDay = now;
+  }
+  // today - lastDay == 0 (already fed today): streak unchanged, but still
+  // bump lastStreakDay so later feeds today don't re-trigger the >1 branch.
+  else {
+    s.lastStreakDay = now;
+  }
+}
+
+/**
+ * Growth stage from real elapsed time since birth (see BABY_STAGE_DAYS /
+ * JUVENILE_STAGE_DAYS in config.h).
+ */
+Stage computeStage(time_t birthDate, time_t now) {
+  if (birthDate == 0 || now <= birthDate) return Stage::Baby;
+  double days = (double)(now - birthDate) / 86400.0;
+  if (days < (double)BABY_STAGE_DAYS) return Stage::Baby;
+  if (days < (double)JUVENILE_STAGE_DAYS) return Stage::Juvenile;
+  return Stage::Adult;
 }
 
 const char* moodName(Mood m) {

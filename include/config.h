@@ -38,6 +38,14 @@ static const int PIN_BTN_LEFT = 1;
 static const int PIN_BTN_RIGHT = 2;
 static const int PIN_BTN_ENTER = 4;
 
+/**
+ * The Waveshare display board's onboard "KEY0" button, provisionally wired
+ * to GPIO5 (ADC1, not a strapping pin, so it's safe by the same criteria as
+ * LEFT/RIGHT/ENTER above) -- CONFIRM against the actual board silkscreen
+ * before flashing, this was not fully verified against hardware.
+ */
+static const int PIN_BTN_SETTINGS = 5;
+
 static const uint32_t INACTIVITY_SLEEP_MS = 60UL * 1000UL;
 static const uint32_t BTN_DEBOUNCE_MS = 40;
 static const uint32_t WIFI_TIMEOUT_MS = 12UL * 1000UL;
@@ -53,3 +61,11 @@ static const char* const TZ_SEATTLE = "PST8PDT,M3.2.0,M11.1.0";
 static const char* const WEATHER_URL = "https://wttr.in/Seattle?format=j1";
 
 static const uint32_t HUNGER_PERIOD_HOURS = 72;
+
+/**
+ * Growth-stage thresholds (real elapsed days since birth, see
+ * creature::computeStage()): Baby for the first BABY_STAGE_DAYS, Juvenile
+ * through JUVENILE_STAGE_DAYS, Adult after that.
+ */
+static const uint32_t BABY_STAGE_DAYS = 2;
+static const uint32_t JUVENILE_STAGE_DAYS = 7;

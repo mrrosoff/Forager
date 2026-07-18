@@ -1,4 +1,5 @@
-// Generated wildlife-sighting artwork (pacific_tree_frog) -- sourced from Wikimedia Commons via wiki_fetch.py.
+// Generated wildlife-sighting artwork (pacific_tree_frog) -- sourced from Wikimedia Commons via
+// wiki_fetch.py.
 #pragma once
 
 #include <pgmspace.h>
