@@ -227,6 +227,8 @@ const char* eventCategory(const PendingEvent& ev) {
   return foraging::speciesAt(ev.dataId).kind;
 }
 
+uint8_t animalIndex(const PendingEvent& ev) { return ev.dataId % kAnimalCount; }
+
 bool eventIsNegative(const PendingEvent& ev) {
   switch (ev.type) {
     case EventType::AnimalSighting:

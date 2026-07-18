@@ -9,7 +9,6 @@
 #include "events.h"
 #include "foraging.h"
 #include "model.h"
-#include "moon.h"
 #include "net.h"
 
 SET_LOOP_TASK_STACK_SIZE(16 * 1024);
@@ -32,11 +31,11 @@ static void goToSleep() {
 #if DEV_MODE_NO_SLEEP
   return;
 #else
-  // Always return to Main before sleeping, so the bistable e-ink panel
-  // shows the home screen (not whatever view was last open) until next
-  // woken, and the next wake starts from Main too.
+  // Always return to Main next wake, and show the sleeping marmot now --
+  // the bistable e-ink panel keeps displaying whatever we draw here,
+  // unpowered, until the next wake redraws it.
   currentView = View::Main;
-  display::renderView(currentView, ctx, forageIdx);
+  display::renderSleep();
   display::hibernate();
   esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BTN_ENTER, 1);
   esp_sleep_enable_timer_wakeup(FORCE_REFRESH_INTERVAL_US);
@@ -49,11 +48,10 @@ static void buildContext() {
   localtime_r(&nowUtc, &ctx.now);
   int month = ctx.now.tm_mon + 1;
 
-  ctx.moon = moon::compute(nowUtc);
   ctx.featured = foraging::featured(month);
 
   creature::load(ctx.creature);
-  creature::evaluate(ctx.creature, ctx.now, ctx.moon, ctx.weather);
+  creature::evaluate(ctx.creature, ctx.now, ctx.weather);
   creature::save(ctx.creature);
 
   // Spawn-check runs exactly once per wake, here -- there's no live
@@ -108,7 +106,7 @@ static void onEnter() {
       ev.dataId = ctx.eventDataId;
       if (ev.type != events::EventType::None && ev.type != events::EventType::ForagingFind) {
         events::resolve(ev, ctx.creature, time(nullptr));
-        creature::evaluate(ctx.creature, ctx.now, ctx.moon, ctx.weather);
+        creature::evaluate(ctx.creature, ctx.now, ctx.weather);
         creature::save(ctx.creature);
         ctx.eventType = (uint8_t)events::EventType::None;
         display::renderView(View::Main, ctx, forageIdx);
@@ -123,7 +121,7 @@ static void onEnter() {
       if (ev.type == events::EventType::ForagingFind &&
           strcmp(current.kind, events::eventCategory(ev)) == 0) {
         events::resolve(ev, ctx.creature, time(nullptr));
-        creature::evaluate(ctx.creature, ctx.now, ctx.moon, ctx.weather);
+        creature::evaluate(ctx.creature, ctx.now, ctx.weather);
         creature::save(ctx.creature);
         ctx.eventType = (uint8_t)events::EventType::None;
         display::renderView(View::Foraging, ctx, forageIdx);

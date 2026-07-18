@@ -8,9 +8,13 @@ namespace display {
 // Initialize SPI (custom pins) and the e-ink panel. Call once after wake.
 void begin();
 
-// Full refresh draw of an entire view from the current context. speciesIdx
-// selects which entry the Foraging view shows.
+// speciesIdx selects which entry the Foraging view shows.
 void renderView(View v, const AppContext& ctx, int speciesIdx);
+
+// Full-screen sleeping marmot with a few drifting Zzz's -- shown right
+// before deep sleep, no text or nav bar, since the panel stays on this
+// image (unpowered) until the next wake.
+void renderSleep();
 
 // Power the panel down before deep sleep. The image is retained with no power.
 void hibernate();

@@ -41,8 +41,7 @@ static void agingHunger(CreatureState& s, time_t now) {
   if (s.hunger > 70 && s.happiness > 25) s.happiness -= 1;
 }
 
-Mood evaluate(CreatureState& s, const struct tm& now, const MoonInfo& moon,
-              const WeatherData& weather) {
+Mood evaluate(CreatureState& s, const struct tm& now, const WeatherData& weather) {
   agingHunger(s, mktime(const_cast<struct tm*>(&now)));
 
   int month = now.tm_mon + 1;  // 1..12
@@ -53,10 +52,7 @@ Mood evaluate(CreatureState& s, const struct tm& now, const MoonInfo& moon,
   bool goodForaging = weather.valid && weather.postRain;
 
   Mood m;
-  // Priority order: special states first, then needs, then conditions.
-  if (moon.isFull) {
-    m = Mood::Glowing;  // full-moon glow trumps everything
-  } else if (deepWinter && cold && s.hunger < 70) {
+  if (deepWinter && cold && s.hunger < 70) {
     m = Mood::Dormant;  // hibernating through the cold dark
   } else if (s.hunger >= 70) {
     m = Mood::Hungry;
@@ -86,8 +82,6 @@ const char* moodName(Mood m) {
       return "hungry";
     case Mood::Annoyed:
       return "annoyed";
-    case Mood::Glowing:
-      return "glowing";
     case Mood::Dormant:
       return "dormant";
   }

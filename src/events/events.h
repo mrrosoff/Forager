@@ -42,6 +42,12 @@ const char* eventCategory(const PendingEvent& ev);
 // mood/expression instead of an excited one.
 bool eventIsNegative(const PendingEvent& ev);
 
+// For AnimalSighting only: the index into the animal table (0-based, stable
+// across builds -- matches kAnimals[] declaration order in events.cpp). Lets
+// the display layer look up per-animal artwork without events.cpp needing to
+// know anything about bitmaps. Meaningless for other event types.
+uint8_t animalIndex(const PendingEvent& ev);
+
 // Applies this event's stat effect to the creature, clears the pending
 // event, and stamps the cooldown so the next one waits its turn.
 void resolve(const PendingEvent& ev, CreatureState& creature, time_t now);
