@@ -243,6 +243,7 @@ void resolve(const PendingEvent& ev, CreatureState& creature, time_t now) {
       int h = (int)creature.happiness + 15;
       creature.happiness = (uint8_t)(h > 100 ? 100 : h);
       creature.hunger = creature.hunger > 20 ? creature.hunger - 20 : 0;
+      creature.lastFed = now;  // the only remaining way "Foraged X days ago" updates
       break;
     }
     case EventType::TrailMishap: {

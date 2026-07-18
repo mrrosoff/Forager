@@ -31,9 +31,10 @@ static const int EPD_HEIGHT = 300;
 // after WiFi.mode(WIFI_OFF); confirmed by reproducing the oscillation on
 // GPIO13 twice). GPIO4 is RTC-capable, ADC1 (unaffected by the radio
 // conflict), and free now that there's no PIR -- ENTER lives there so
-// esp_sleep_enable_ext0_wakeup() can use it directly. RIGHT stays on GPIO2
-// (also ADC1, proven reliable) for in-session forward navigation -- there's
-// no LEFT/back button; navigation is one-directional and doesn't wrap.
+// esp_sleep_enable_ext0_wakeup() can use it directly. LEFT/RIGHT stay on
+// GPIO1/2 (also ADC1, proven reliable) for in-session bidirectional
+// navigation (clamped at each end, no wraparound).
+static const int PIN_BTN_LEFT = 1;
 static const int PIN_BTN_RIGHT = 2;
 static const int PIN_BTN_ENTER = 4;
 
