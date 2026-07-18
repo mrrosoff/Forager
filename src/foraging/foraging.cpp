@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstring>
 
+#include "config.h"
 #include "journal.h"
 
 namespace foraging {
@@ -66,13 +67,17 @@ void rebuildBrowseOrder(int month, bool postRain) {
     scores[i] = score;
     browseCount++;
   }
-  // Insertion sort by score descending -- kSpeciesCount is small (~250), and
+  // Insertion sort by score descending -- kSpeciesCount is small (~200), and
   // this only runs once per wake.
   for (int i = 1; i < browseCount; i++) {
     uint8_t keyIdx = browseOrder[i];
     int keyScore = scores[keyIdx];
     int j = i - 1;
+#if DEV_MODE_ALPHABETIZE_BROWSE
+    while (j >= 0 && strcmp(kSpecies[browseOrder[j]].name, kSpecies[keyIdx].name) > 0) {
+#else
     while (j >= 0 && scores[browseOrder[j]] < keyScore) {
+#endif
       browseOrder[j + 1] = browseOrder[j];
       j--;
     }
@@ -82,7 +87,7 @@ void rebuildBrowseOrder(int month, bool postRain) {
 }
 
 // Number of discovered (browsable) species -- may be 0 early on. Distinct
-// from speciesCount(), which is the full 250-species reference size.
+// from speciesCount(), which is the full 200-species reference size.
 int browsableCount() {
   if (!browseOrderBuilt) rebuildBrowseOrder(1, false);
   return browseCount;

@@ -23,7 +23,7 @@ int totalEaten();
 
 // A species only shows up in the Foraging browse list once discovered via
 // a Discovery encounter (see events::EventType::Discovery) -- the full
-// 250-species reference isn't handed over on day one.
+// 200-species reference isn't handed over on day one.
 void markDiscovered(int speciesIndex);
 
 bool isDiscovered(int speciesIndex);

@@ -9,9 +9,9 @@
 // monthMask bits mark active months (1=Jan .. 12=Dec, via the MO() macro).
 // caution is "" when there's no meaningful look-alike risk.
 static const Forageable kSpecies[] = {
-    {"Hedgehog Mushroom", "mushroom", "Toothed underside, no true gills. Lingers after frost.",
-     "No toxic lookalikes -- teeth instead of gills make ID easy.",
-     "Look under conifers in duff after fall rains.", MO(1) | MO(10) | MO(11) | MO(12),
+    {"Dead Man's Fingers", "mushroom", "Dark charcoal-black finger-like clubs pushing up from buried wood.",
+     "Not edible -- tough and bitter, just a striking find.",
+     "Look for the dark clustered fingers at the base of rotting stumps.", MO(6) | MO(7) | MO(8),
      Biome::Forest},
 
     {"Miner's Lettuce", "green", "Round leaf cupping the stem. Shady wet banks.", "",
@@ -73,9 +73,6 @@ static const Forageable kSpecies[] = {
      "Keeps fruiting through light frost -- check familiar patches.", MO(11) | MO(12),
      Biome::Forest},
 
-    {"Cauliflower Fungus", "mushroom", "Cream coral at conifer bases. Soak grit out.", "",
-     "Cut at the base; soak well, it hides a lot of grit.", MO(11), Biome::Forest},
-
     {"Velvet Shank", "mushroom", "Enokitake's wild cousin. Orange caps in cold snaps.",
      "Sticky cap and velvety stem distinguish it from toxic Galerina.",
      "Fruits on hardwood stumps during cold snaps.", MO(12) | MO(1), Biome::Forest},
@@ -90,17 +87,9 @@ static const Forageable kSpecies[] = {
     {"Mountain Cranberry", "berry", "Lingonberry cousin. Tart red berries in dwarf mats.", "",
      "Best after light frost sweetens the fruit; pick sparingly.", MO(9) | MO(10), Biome::Mountain},
 
-    {"Alpine Sorrel", "green", "Reddish, lemony leaf tucked in high rock crevices.",
-     "High in oxalic acid -- a trailside nibble, not a meal.",
-     "Check talus and scree edges above the treeline.", MO(6) | MO(7) | MO(8), Biome::Mountain},
-
     {"Devil's Club Shoots", "green", "Spring shoots, mild and green before the spines toughen.",
      "Cook thoroughly; handle mature stalks with gloves -- spiny.",
      "Snap shoots while still tender, before leaves fully open.", MO(4) | MO(5), Biome::Mountain},
-
-    {"Subalpine Puffball", "mushroom", "Round white body in high meadows after summer storms.",
-     "Cut in half first -- interior must be pure white, no gill shadow.",
-     "Harvest young and firm; skip any with a yellowing center.", MO(8) | MO(9), Biome::Mountain},
 
     {"Swamp Onion", "green", "Wild mountain onion in wet subalpine meadows.", "",
      "Pull gently from soft mud; rinse the bulb at the creek.", MO(6) | MO(7), Biome::Mountain},
@@ -122,8 +111,9 @@ static const Forageable kSpecies[] = {
      "Pick loose, undamaged sheets; avoid ones near outfalls.", MO(4) | MO(5) | MO(6) | MO(7),
      Biome::Coast},
 
-    {"Dulse", "seaweed", "Deep red, hand-shaped fronds in the upper splash zone.", "",
-     "Peel fronds off rocks at low tide; dries well in the sun.", MO(6) | MO(7) | MO(8),
+    {"Ochre Sea Star", "shellfish", "Chunky five-armed sea star in orange or deep purple, gripping rocks.",
+     "Not edible -- a tidepool sight, not a snack.",
+     "Look on rocky shores at low tide, often in tight clusters.", MO(6) | MO(7) | MO(8),
      Biome::Coast},
 
     {"Sea Asparagus", "green", "Pickleweed. Crunchy, salty segmented stems in the marsh.", "",
@@ -217,14 +207,14 @@ static const Forageable kSpecies[] = {
      "Look in the same duff patches as goldens, slightly earlier in the season.", MO(8) | MO(9),
      Biome::Forest},
 
-    {"Jack-o'-Lantern Mushroom", "mushroom",
+    {"Jack-o'-Lantern", "mushroom",
      "Bright orange clusters on buried roots, true sharp gills.",
      "Toxic -- causes severe vomiting; the classic chanterelle lookalike, ID by true blade-like "
      "gills.",
      "Do not pick -- note the clustered growth on wood, not soil, as a warning sign.",
      MO(9) | MO(10), Biome::Forest},
 
-    {"Cortinarius (Deadly Webcap)", "mushroom",
+    {"Deadly Webcap", "mushroom",
      "Rusty-brown cap with a cobwebby veil, common in conifer duff.",
      "Deadly poisonous -- causes delayed, irreversible kidney failure; never eat any brown "
      "Cortinarius.",
@@ -244,11 +234,6 @@ static const Forageable kSpecies[] = {
      "Pick while still firm and pure white before it yellows and turns to spore dust.",
      MO(9) | MO(10), Biome::Forest},
 
-    {"Pig's Ear (Violet Chanterelle)", "mushroom",
-     "Dark purple-brown trumpet, thin flesh, blends into duff.", "",
-     "Scan closely -- the dark color camouflages it against wet soil.", MO(9) | MO(10) | MO(11),
-     Biome::Forest},
-
     {"Black Trumpet", "mushroom",
      "Thin, funnel-shaped, nearly black -- 'trumpet of death' in name only.", "",
      "Search mossy hardwood-conifer mix slopes; they hide in shadow and leaf litter.",
@@ -264,18 +249,7 @@ static const Forageable kSpecies[] = {
      "Look under planted pines; the slick cap is diagnostic.", MO(9) | MO(10) | MO(11),
      Biome::Forest},
 
-    {"Short-Stemmed Slippery Jack", "mushroom",
-     "Squat bolete with a stubby stem, common under introduced pines.",
-     "Peel the cap skin before cooking.",
-     "Common in planted pine groves and urban conifer plantings.", MO(10) | MO(11), Biome::Forest},
-
-    {"Boletus edulis (King Bolete flush)", "mushroom",
-     "Second porcini flush after early fall rain, fatter and firmer.",
-     "Avoid any bolete with red pores or blue-staining flesh.",
-     "Check the same porcini patches again after a second rain event.", MO(10) | MO(11),
-     Biome::Forest},
-
-    {"Angel's Wing Bolete (Suillus lakei)", "mushroom",
+    {"Angel's Wing Bolete", "mushroom",
      "Orange-brown scaly cap, yellow pores, grows under Douglas fir only.", "",
      "Search specifically under Douglas fir needles, its only host tree.", MO(9) | MO(10),
      Biome::Forest},
@@ -286,11 +260,7 @@ static const Forageable kSpecies[] = {
      "Check the base for a volva sac before eating any lookalike field mushroom.", MO(9) | MO(10),
      Biome::Forest},
 
-    {"Horse Mushroom", "mushroom", "Large, anise-scented relative of the meadow mushroom.",
-     "Confirm no basal sac and a pleasant anise smell, not a chemical/inky one.",
-     "Sniff the flesh -- a sweet anise smell is the giveaway.", MO(9) | MO(10), Biome::Forest},
-
-    {"Destroying Angel's cousin (Panther Cap)", "mushroom",
+    {"Panther Cap", "mushroom",
      "Brown-capped amanita with white warts and a basal bulb.",
      "Toxic, causes neurological symptoms -- another reason to skip all warty amanitas.",
      "Do not harvest -- note the ring and bulb as amanita warning signs.", MO(9) | MO(10) | MO(11),
@@ -302,29 +272,6 @@ static const Forageable kSpecies[] = {
      "Check leaf litter piles and compost edges after the first frosts.", MO(10) | MO(11) | MO(12),
      Biome::Forest},
 
-    {"Fried Chicken Mushroom (Lyophyllum decastes)", "mushroom",
-     "Grey-brown clustered caps pushing up through hard-packed soil or gravel.",
-     "Cook well; a few similar Lyophyllum species have caused rare poisonings.",
-     "Look for tight clusters breaking through compacted trail edges.", MO(9) | MO(10),
-     Biome::Forest},
-
-    {"Man on Horseback", "mushroom", "Yellow-capped Tricholoma, sandy soil under pine.",
-     "Linked to rare rhabdomyolysis with repeated heavy meals -- eat only occasionally, in "
-     "moderation.",
-     "Look in sandy soil under pines; cap and gills are both yellow.", MO(10) | MO(11),
-     Biome::Forest},
-
-    {"Deer Mushroom", "mushroom", "Grey-brown cap on decaying wood, common but forgettable.",
-     "Must be cooked; raw specimens have caused mild GI upset.",
-     "Common on rotting logs but rarely worth harvesting -- a good beginner ID practice species.",
-     MO(9) | MO(10), Biome::Forest},
-
-    {"Woolly Chanterelle (Scaly Vase)", "mushroom",
-     "Shaggy grey-brown trumpet with a hollow center, under conifers.",
-     "Best cooked well; some find it mildly bitter raw.",
-     "Check shaded conifer duff for the scaly, funnel-shaped cap.", MO(9) | MO(10) | MO(11),
-     Biome::Forest},
-
     {"Indigo Milk Cap", "mushroom", "Slate-blue mushroom that bleeds indigo latex when cut.", "",
      "Slice the gills -- true blue milk oozing out confirms the ID.", MO(9) | MO(10),
      Biome::Forest},
@@ -333,17 +280,6 @@ static const Forageable kSpecies[] = {
      "Shaggy black-scaled bolete, easy to spot on the forest floor.", "",
      "Look for the distinctive shaggy black scales against pale flesh underneath.", MO(9) | MO(10),
      Biome::Forest},
-
-    {"Western Giant Puffball", "mushroom",
-     "Softball to volleyball-sized puffball in forest clearings and edges.",
-     "Cut in half before eating -- interior must be uniformly white with no embryonic mushroom "
-     "shape.",
-     "Harvest while firm and snow-white; skip any turning yellow or brown inside.", MO(9) | MO(10),
-     Biome::Forest},
-
-    {"Larch Bolete", "mushroom", "Golden-yellow cap with a persistent slimy ring, always under larch.",
-     "No dangerous lookalikes near larch, but skin the slimy cap before eating.",
-     "Look under planted or native larch trees in fall.", MO(9) | MO(10) | MO(11), Biome::Forest},
 
     {"Witch's Butter", "mushroom",
      "Bright orange gelatinous blob on dead conifer branches after rain.", "",
@@ -422,21 +358,22 @@ static const Forageable kSpecies[] = {
     {"Self-heal", "flower", "Small purple flower spike in lawns and trailsides.", "",
      "Snip the flowering tops for tea or salad.", MO(6) | MO(7) | MO(8), Biome::Forest},
 
-    {"Cow Parsnip", "green", "Giant celery-like shoot, umbrella flower heads.",
-     "Sap causes severe light-triggered burns -- confusable with deadly poison hemlock and "
-     "hogweed.",
-     "Peel young stalks fast; avoid skin contact with sap.", MO(4) | MO(5), Biome::Forest},
+    {"Lupine", "flower", "Tall spike of pea-shaped blue-purple flowers on a leafy stalk.",
+     "Seeds are mildly toxic in quantity -- admire the flower, skip eating any part.",
+     "Look for the tall purple flower spikes in open meadows.", MO(6) | MO(7), Biome::Mountain},
 
     {"Salmonberry Shoots", "green", "Peeled spring shoots, mild cucumber-like crunch.",
      "Peel the fibrous outer skin before eating raw.",
      "Snap tender new shoots before leaves unfurl.", MO(3) | MO(4), Biome::Forest},
 
-    {"Reishi (Hemlock Varnish Shelf)", "mushroom", "Glossy lacquered shelf fungus on hemlock and conifer wood.", "",
-     "Look for the shiny varnished cap low on hemlock trunks.", MO(6) | MO(7) | MO(8) | MO(9), Biome::Forest},
+    {"Chaga", "mushroom", "Rough black charcoal-like burl growing straight out of birch bark.",
+     "Not a typical mushroom -- a hardened fungal mass, brewed as tea rather than eaten.",
+     "Look for the black clinker-like burl on live birch trunks.", MO(1) | MO(2) | MO(11) | MO(12), Biome::Forest},
 
-    {"Beech Mushroom", "mushroom", "Small tan caps in dense clusters with a slightly bitter raw taste.",
-     "Cook thoroughly -- mildly upsetting raw, mellow once cooked.",
-     "Look for tight clusters on hardwood stumps and logs.", MO(9) | MO(10) | MO(11), Biome::Forest},
+    {"Lion's Mane", "mushroom", "Shaggy white pom-pom of dangling icicle spines, no cap or gills at all.",
+     "",
+     "Look for the toothed white ball on wounds in hardwood trunks.", MO(9) | MO(10) | MO(11),
+     Biome::Forest},
 
     {"Saffron Milk Cap", "mushroom", "Orange cap that bleeds carrot-colored milk when cut, stains green with age.",
      "Bleeding orange/green milk is the easy tell -- few PNW lookalikes do this.",
@@ -460,23 +397,9 @@ static const Forageable kSpecies[] = {
     {"Yellow Salsify", "green", "Grass-like leaves and a big dandelion-style seed puff; root and shoots both edible.", "",
      "Young rosettes are best before the yellow flower opens.", MO(5) | MO(6) | MO(7), Biome::Forest},
 
-    {"Bigleaf Maple Sap", "sap", "Late-winter sap, boils down like maple syrup.", "",
-     "Tap trunks during a cold snap before buds break.", MO(1) | MO(2), Biome::Forest},
-
     {"Cottonwood Buds", "bud", "Resinous balm-of-Gilead bud, sweet balsam scent.",
      "Sticky resin can irritate sensitive skin -- for salves, not raw eating.",
      "Pinch sticky buds before leaves unfurl for salve.", MO(1) | MO(2) | MO(3), Biome::Forest},
-
-    {"Red Flowering Currant Blossom", "flower", "Pink-red spring bloom, hummingbird favorite.", "",
-     "Snip open clusters for a mild sweet garnish.", MO(3) | MO(4), Biome::Forest},
-
-    {"Nettle Tips", "green", "The first 4-6 inches of spring nettle growth, milder and more tender than mature leaf.",
-     "Stings until cooked or dried -- always handle gloved and blanch before eating.",
-     "Snip only the top tender inches in early spring.", MO(3) | MO(4) | MO(5), Biome::Forest},
-
-    {"Common Yarrow", "flower", "Feathery leaf, flat white flower clusters.",
-     "Avoid large medicinal doses in pregnancy; can irritate sensitive skin.",
-     "Cut flowering tops in full bloom for drying.", MO(6) | MO(7) | MO(8), Biome::Forest},
 
     {"Oxeye Daisy", "green", "White-petaled daisy, edible bitter young leaf.", "",
      "Pick basal leaves before the flower stalk bolts.", MO(4) | MO(5), Biome::Forest},
@@ -491,10 +414,6 @@ static const Forageable kSpecies[] = {
     {"Oregon Grape", "berry", "Holly-like leaves, sour blue berries for jelly.",
      "Very tart and seedy raw -- best cooked and strained.",
      "Strip clusters once berries turn deep dusty blue.", MO(8) | MO(9), Biome::Mountain},
-
-    {"Fireweed", "green", "Tall pink spikes on burns; shoots taste like asparagus.", "",
-     "Snap young shoots under 8 inches before they toughen.", MO(5) | MO(6) | MO(7),
-     Biome::Mountain},
 
     {"King Bolete Button", "mushroom", "Young unopened Boletus edulis, firm white pores, before the cap flattens.",
      "No toxic boletes with the classic white-pore, non-bruising profile at this stage.",
@@ -521,16 +440,6 @@ static const Forageable kSpecies[] = {
      "Peel young stalks before the leaf fully unfurls; cook like rhubarb.", MO(5) | MO(6),
      Biome::Mountain},
 
-    {"Aspen Bolete", "mushroom", "Orange-capped bolete under eastside aspen groves.",
-     "Pores, not gills, confirm it's a bolete -- cook thoroughly, flesh darkens when cut.",
-     "Look in aspen stands after August rain; check the stem base for grubs.", MO(8) | MO(9),
-     Biome::Mountain},
-
-    {"Delicious Milk Cap", "mushroom", "Orange latex weeps when cut -- a clear, safe ID.",
-     "Confirm the orange latex turns green-ish on exposure; that's the key ID trait.",
-     "Look under pine at mid-elevation after fall rain; nick the gills to check the latex.",
-     MO(9) | MO(10), Biome::Mountain},
-
     {"Hawk's Wing", "mushroom", "Scaly cap, toothed underside, in conifer duff.",
      "Teeth instead of gills make ID easy; older caps turn bitter -- pick young.",
      "Look on mossy conifer slopes; younger, paler specimens taste best.", MO(9) | MO(10),
@@ -543,9 +452,6 @@ static const Forageable kSpecies[] = {
 
     {"Alpine Strawberry", "berry", "Tiny intensely sweet strawberries tucked in rocky subalpine turf.", "",
      "Look low to the ground in sunny rocky openings.", MO(7) | MO(8), Biome::Mountain},
-
-    {"Woodland Strawberry", "berry", "Thin-leaved wild strawberry with small fragrant fruit under forest-edge cover.", "",
-     "Check shaded meadow edges just below the subalpine band.", MO(7) | MO(8), Biome::Mountain},
 
     {"Red Currant", "berry", "Translucent red berry clusters dangling from an arching mountain shrub.", "",
      "Strip whole clusters once berries turn glassy red.", MO(7) | MO(8), Biome::Mountain},
@@ -577,24 +483,9 @@ static const Forageable kSpecies[] = {
      "Collect fresh-fallen cones and pry the scales open for seeds.", MO(9) | MO(10),
      Biome::Mountain},
 
-    {"Lodgepole Pine Cambium", "cambium", "Sweet inner bark, peeled in a short spring window only.",
-     "Strip only a small patch of bark -- girdling kills the tree.",
-     "Peel a narrow strip of outer bark, scrape the white cambium beneath.", MO(5) | MO(6),
-     Biome::Mountain},
-
-    {"Western Hemlock Cambium", "cambium",
-     "Inner bark once dried and pounded into cakes by coastal peoples.",
-     "Only take from downed trees or a narrow strip, never a full ring.",
-     "Scrape cambium from a fallen trunk rather than a live one.", MO(4) | MO(5), Biome::Mountain},
-
-    {"Western Larch Gum", "sap", "Hardened sap chewed like gum -- a subalpine forest treat.", "",
-     "Look for amber globs on trunk wounds and scrape off clean bits.",
-     MO(6) | MO(7) | MO(8) | MO(9), Biome::Mountain},
-
-    {"Engelmann Spruce Tips", "tree tip",
-     "Bright citrus-flavored new growth at high-elevation branch ends.",
-     "Confirm true spruce -- flat single needles rule out toxic yew.",
-     "Pinch only the pale, papery new tips, a few per branch.", MO(5) | MO(6), Biome::Mountain},
+    {"Licorice Fern", "fern", "Slender fern growing straight out of mossy maple trunks and logs.", "",
+     "Look for green fronds sprouting from thick moss on bigleaf maple.", MO(10) | MO(11) | MO(1),
+     Biome::Forest},
 
     {"Subalpine Fir Tips", "tree tip", "Balsam-scented new growth right at the treeline.",
      "Don't confuse with Pacific yew -- yew needles are toxic.",
@@ -609,12 +500,8 @@ static const Forageable kSpecies[] = {
      "Skip the spiny stem -- fruit itself has no toxic lookalike.",
      "Reach past the spines to strip ripe berries into a container.", MO(7) | MO(8), Biome::Mountain},
 
-    {"Sitka Mountain Ash Berries", "berry", "Bright orange-red berry clusters on a high-elevation mountain ash.",
-     "Bitter and mildly upsetting raw -- cook or dry before eating.",
-     "Best picked after the first light frost sweetens them.", MO(8) | MO(9), Biome::Mountain},
-
-    {"Cascade Blueberry", "berry", "Mat-forming blueberry with a waxy blue-green leaf, high subalpine slopes.", "",
-     "Look on open rocky slopes just below permanent snowfields.", MO(8) | MO(9), Biome::Mountain},
+    {"Highbush Cranberry", "berry", "Translucent red berry clusters dangling from a maple-like shrub.", "",
+     "Look for grape-like clusters along stream edges in fall.", MO(9) | MO(10), Biome::Forest},
 
     {"Black Huckleberry", "berry", "Deep purple-black berries on a mid-elevation shrub, the classic PNW huckleberry.", "",
      "Best in burn sites and open subalpine slopes.", MO(8) | MO(9), Biome::Mountain},
@@ -628,38 +515,21 @@ static const Forageable kSpecies[] = {
     {"Wild Blueberry", "berry", "Tiny tart blueberries on ankle-high subalpine mats.", "",
      "Comb low mats in open sun near the treeline.", MO(8) | MO(9), Biome::Mountain},
 
-    {"Black Gooseberry", "berry", "Bristly dark purple-black berries on a spiny high-elevation currant relative.",
-     "Fruit is fine -- just mind the bristly stems and spines when picking.",
-     "Search damp rocky draws and old avalanche paths.", MO(7) | MO(8), Biome::Mountain},
-
-    {"Blue Elderberry Cluster", "berry", "Flat-topped clusters of powdery blue berries on a high shrub.",
-     "Cook before eating -- raw stems, leaves, and unripe berries are mildly toxic.",
-     "Only take fully ripe, dusty-blue clusters.", MO(8) | MO(9), Biome::Mountain},
-
-    {"Mountain Strawberry", "berry", "Compact wild strawberry patch in sunny high-elevation meadow openings.", "",
-     "Check meadow edges just after the spring flower flush.", MO(7) | MO(8), Biome::Mountain},
+    {"Snowberry", "berry", "Clusters of bright white berries on arching stems in forest understory.",
+     "Not edible -- mildly toxic (saponins); enjoy the look, skip the taste.",
+     "Look for the ghostly white berry clusters through fall and winter.", MO(9) | MO(10) | MO(11),
+     Biome::Forest},
 
     {"Pearly Everlasting", "herb", "Papery white everlasting bloom, dried for a mild herbal tea.",
      "", "Cut flowering stalks and hang them to dry before storing.", MO(7) | MO(8) | MO(9),
      Biome::Mountain},
 
-    {"Cow Parsnip Shoots", "shoot",
-     "Celery-like stalk peeled young; a genuine carrot-family risk plant.",
-     "Sap causes severe sun blistering, and it resembles deadly poison hemlock.",
-     "Peel young stalks fully and wear gloves, avoiding sun on bare skin.", MO(5) | MO(6),
+    {"Nootka Rose", "flower", "Fragrant single pink five-petaled wild rose on a thorny bush.", "",
+     "Look for the bright pink open blooms along trail edges.", MO(5) | MO(6),
      Biome::Mountain},
 
     {"Fireweed Shoots", "shoot", "Asparagus-like spring shoot from the tall pink-flowered burns.",
      "", "Snap tender shoots under 8 inches before they toughen.", MO(4) | MO(5), Biome::Mountain},
-
-    {"Fireweed Flowers", "flower",
-     "Tall pink flower spike that fills mountain burns and clearings.", "",
-     "Strip petals for jelly or tea before the seed fluff appears.", MO(7) | MO(8),
-     Biome::Mountain},
-
-    {"Kinnikinnick Berries", "berry", "Mealy red berry in low evergreen mats on dry alpine ground.",
-     "", "Pick red berries late season; best simmered, they're bland raw.", MO(9) | MO(10),
-     Biome::Mountain},
 
     {"Juniper Berries", "berry", "Blue-black cone scale used whole as a savory mountain spice.",
      "Confirm true common juniper -- don't confuse with toxic yew berries nearby.",
@@ -742,9 +612,6 @@ static const Forageable kSpecies[] = {
      "Snip young top leaves before the seed heads form.", MO(5) | MO(6) | MO(7) | MO(8),
      Biome::Coast},
 
-    {"Beach Asparagus", "green", "Jointed, salty-crisp succulent stems carpeting upper tideflats.", "",
-     "Snap the top few inches of each jointed stem.", MO(6) | MO(7) | MO(8), Biome::Coast},
-
     {"Scurvy Grass", "green", "Small round leaves, peppery like watercress.", "",
      "Pick tender rosettes from rocky splash-zone crevices.", MO(3) | MO(4) | MO(5), Biome::Coast},
 
@@ -767,11 +634,6 @@ static const Forageable kSpecies[] = {
      "Avoid summer months -- biotoxin quarantines run roughly Jul-Oct.",
      "Twist clusters free from rocks at the lowest tides.",
      MO(11) | MO(12) | MO(1) | MO(2) | MO(3) | MO(4) | MO(5) | MO(6), Biome::Coast},
-
-    {"Manila Littleneck Clam", "shellfish", "Small ridged clam just under the sand surface.",
-     "Check state biotoxin/PSP closures before digging.",
-     "Dig 2-4 inches down in gravelly sand at low tide.",
-     MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3) | MO(4), Biome::Coast},
 
     {"Butter Clam", "shellfish", "Deep-digging clam, thick chalky-white shell.",
      "Holds PSP toxin longest of any local clam -- check closures.",
@@ -817,14 +679,9 @@ static const Forageable kSpecies[] = {
      "Rake shallow sand-gravel flats a few inches down.",
      MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), Biome::Coast},
 
-    {"Horse Clam", "shellfish", "Large gaping clam with a leathery siphon tip.",
-     "Check biotoxin closures; remove the tough siphon skin.",
-     "Dig deep and fast once you spot its wide neck-hole.",
-     MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), Biome::Coast},
-
-    {"Giant Red Sea Cucumber", "shellfish", "Warty red-orange grazer on subtidal rock and sand.",
-     "Only the muscular body wall is eaten -- clean thoroughly.",
-     "Hand-pick from subtidal rock at the lowest minus tides.", MO(5) | MO(6) | MO(7) | MO(8),
+    {"Nudibranch", "shellfish", "Wildly colorful sea slug with feathery gills, crawling on tidepool rock.",
+     "Not edible -- toxic defenses borrowed from its prey.",
+     "Look in tidepools and subtidal rock at the lowest minus tides.", MO(5) | MO(6) | MO(7) | MO(8),
      Biome::Coast},
 
     {"Moon Snail", "shellfish", "Large round predator snail plowing through tide-flat sand.",
@@ -852,17 +709,9 @@ static const Forageable kSpecies[] = {
      "Look for a squirting hole in sand at an extreme low tide.",
      MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), Biome::Coast},
 
-    {"Basket Cockle", "shellfish", "Ribbed round shell, sits shallow in sand and mud.", "",
-     "Rake the top few inches of sand near eelgrass beds.",
-     MO(9) | MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), Biome::Coast},
-
     {"Softshell Clam", "shellfish", "Thin brittle shell common in estuary mudflats.", "",
      "Dig soft mud near creek mouths; the shell breaks easily.",
      MO(9) | MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), Biome::Coast},
-
-    {"Varnish Clam", "shellfish", "Glossy purple-brown shell, an abundant newcomer.", "",
-     "Shallow digging in mixed sand often fills a limit fastest.",
-     MO(9) | MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3) | MO(4), Biome::Coast},
 
     {"California Mussel", "shellfish", "Large ridged mussel on wave-battered outer rocks.",
      "Skip harvest in warm months when biotoxin risk peaks.",
@@ -907,26 +756,12 @@ static const Forageable kSpecies[] = {
      "Comb dense coastal understory shrubs after other berries fade.",
      MO(9) | MO(10) | MO(11) | MO(12), Biome::Coast},
 
-    {"American Sea Rocket", "green", "Peppery succulent leaves on the driftwood line.", "",
-     "Pick young leaves and pods before the stem toughens.", MO(5) | MO(6) | MO(7), Biome::Coast},
-
-    {"Rockweed", "seaweed", "Air-bladdered brown seaweed draping mid-tide rocks in dense mats.", "",
-     "Cut fronds from clean rocky mid-tide zones, away from outfalls.", MO(1) | MO(2) | MO(3) | MO(4) | MO(5) | MO(6) | MO(7) | MO(8) | MO(9) | MO(10) | MO(11) | MO(12), Biome::Coast},
-
     {"Partridgefoot Greens", "green", "Mossy mat of tiny fan-shaped leaves and white flower spikes on coastal bluffs.", "",
      "Snip a few leaf tufts from large, well-established mats.", MO(6) | MO(7), Biome::Coast},
-
-    {"Sea Beach Sandwort", "green", "Succulent trailing leaves on open sand foredunes.", "",
-     "Pinch fleshy leaf tips from mats just above the tideline.", MO(5) | MO(6) | MO(7),
-     Biome::Coast},
 
     {"Gem-Studded Puffball", "mushroom", "Warty white ball in duff; cut in half to check.",
      "Interior must be pure white throughout -- yellow or gill shadow means don't eat.",
      "Pick young, before the skin yellows or splits.", MO(9) | MO(10) | MO(11), Biome::Forest},
-
-    {"Pear-Shaped Puffball", "mushroom", "Clustered puffballs on rotting conifer logs.",
-     "Cut in half first -- must be solid white inside, no developing cap shape.",
-     "Pop only the firm, all-white ones off old stumps.", MO(9) | MO(10) | MO(11), Biome::Forest},
 
     {"Pigskin Poison Puffball", "mushroom",
      "Thick, scaly rind and black marbled inside -- not edible.",
@@ -940,30 +775,9 @@ static const Forageable kSpecies[] = {
      "Firm caps only, cut base to check for tunneling grubs.", MO(9) | MO(10) | MO(11),
      Biome::Forest},
 
-    {"Western Painted Suillus", "mushroom", "Red-streaked cap glued to Douglas fir needles. Slimy.",
-     "Peel the sticky cap skin before cooking; grows only under Douglas fir.",
-     "Twist gently -- the cap skin peels back like a label.", MO(9) | MO(10) | MO(11),
-     Biome::Forest},
-
-    {"Red-Cracked Bolete", "mushroom",
-     "Cracked reddish-brown cap over yellow pores, in mixed duff.",
-     "Flesh blues faintly on cutting -- normal for this one, not a warning sign.",
-     "Best in young, firm specimens; pores turn mushy with age.", MO(9) | MO(10), Biome::Forest},
-
     {"Butter Bolete", "mushroom", "Smooth tan cap, thick stem, mild buttery flavor.",
      "Check pore color is pale yellow, not orange-red, before eating.",
      "Look on mossy ground under hemlock after fall rain.", MO(10) | MO(11), Biome::Forest},
-
-    {"Crown-Tipped Coral", "mushroom",
-     "Tan coral with tiny crown-shaped branch tips on rotten wood.",
-     "Crown-shaped branch tips separate it from thinner, unpalatable corals.",
-     "Cut whole clusters from downed logs; rinse grit from the base.", MO(9) | MO(10) | MO(11),
-     Biome::Forest},
-
-    {"Pink Coral Fungus", "mushroom", "Salmon-pink branching coral in conifer duff.",
-     "Bitter, brittle corals with acrid taste should be spit out and avoided.",
-     "Taste-test a tiny raw sliver; bitter ones aren't worth cooking.", MO(10) | MO(11),
-     Biome::Forest},
 
     {"Pig's Ears", "mushroom", "Purple-brown, vase-shaped chanterelle relative in mossy duff.",
      "False gills like a chanterelle, not true blades -- safe ID feature.",
@@ -977,12 +791,6 @@ static const Forageable kSpecies[] = {
      "Branching white coral studded with tiny icicle teeth on wounds in bigleaf maple.",
      "Distinguish by branching form from unbranched Bear's Head on the same logs.",
      "Cut the whole cluster where it grows from a wound scar.", MO(9) | MO(10) | MO(11),
-     Biome::Forest},
-
-    {"Jelly Tooth", "mushroom",
-     "Translucent gray-brown jelly cap with tiny teeth beneath, on conifer logs.",
-     "No toxic lookalikes, but bland -- best added to soups for texture.",
-     "Pick after rain when it's fully plumped and rubbery.", MO(10) | MO(11) | MO(12),
      Biome::Forest},
 
     {"Wood Ear", "mushroom", "Rubbery brown ear-shaped shelves on dead alder and elder branches.",
@@ -1006,18 +814,6 @@ static const Forageable kSpecies[] = {
      "Pry brackets whole off the log; the color persists when dried.",
      MO(9) | MO(10) | MO(11) | MO(12), Biome::Forest},
 
-    {"False Turkey Tail", "mushroom",
-     "Fuzzy gray-brown shelving crust on stumps, no pore surface underneath.",
-     "Too tough to eat -- smooth underside (not pored) tells it apart from true Turkey Tail.",
-     "Good for tea steeping like true Turkey Tail, just simmer longer.",
-     MO(9) | MO(10) | MO(11) | MO(12), Biome::Forest},
-
-    {"Split Gill", "mushroom",
-     "Tiny fuzzy gray fan with split, forked gill folds on dead branches.",
-     "Edible in small amounts once well cooked, but tough and better left alone.",
-     "Common on any downed hardwood branch year-round after rain.",
-     MO(1) | MO(10) | MO(11) | MO(12), Biome::Forest},
-
     {"Orange Peel Fungus", "mushroom",
      "Bright orange cup fungus scattered on bare, disturbed soil.",
      "Edible raw, but confirm the bright orange upper surface and pale underside.",
@@ -1037,12 +833,6 @@ static const Forageable kSpecies[] = {
      "Twist clusters free at the stump; check for the telltale ring on the stem.",
      MO(9) | MO(10) | MO(11), Biome::Forest},
 
-    {"The Prince", "mushroom",
-     "Large white-capped Agaricus with an almond smell, in open forest duff.",
-     "Confirm yellow bruising and almond smell -- avoid any with a chemical or inky odor.",
-     "Look in park-like open stands and forest clearings after rain.", MO(9) | MO(10),
-     Biome::Forest},
-
     {"Snow Bank False Morel", "mushroom",
      "Reddish-brown brain-like cap pushing up at the edge of melting snow.",
      "Toxic raw and even parboiled for some people -- true morels are hollow, this one is "
@@ -1050,30 +840,10 @@ static const Forageable kSpecies[] = {
      "Best left alone; note it only to avoid confusing it with true morels.", MO(4) | MO(5),
      Biome::Forest},
 
-    {"Shaggy Scalycap", "mushroom",
-     "Shaggy yellow-brown scaled caps clustered thick at stump bases.",
-     "Edible young but causes stomach upset in some people -- cook thoroughly, skip if unsure.",
-     "Pick only young caps with tight, unopened scales.", MO(9) | MO(10) | MO(11), Biome::Forest},
-
     {"Blue Chanterelle", "mushroom", "Small violet-blue funnel, false gills, in deep conifer duff.",
      "False ridges like true chanterelles; color alone confirms it's not a lookalike.",
      "Easy to miss against blue-shadowed duff -- look closely, not just for orange.",
      MO(9) | MO(10), Biome::Forest},
-
-    {"Fairy Ring Mushroom", "mushroom",
-     "Small tan caps in rings across mossy lawns and forest clearings.",
-     "Confirm the tough, pliable stem and ring pattern -- some ring-forming lookalikes are toxic.",
-     "Pick only the caps; the stems are too tough to eat.", MO(9) | MO(10) | MO(11), Biome::Forest},
-
-    {"Rooting Shank", "mushroom", "Long buried root-like stem base, mild cap, near buried wood.",
-     "No toxic lookalikes locally, but always cook thoroughly.",
-     "Dig gently to keep the long tapering stem base intact.", MO(9) | MO(10) | MO(11),
-     Biome::Forest},
-
-    {"Dyer's Polypore", "mushroom",
-     "Soft yellow-orange shelf bracket at conifer bases, bleeds yellow when cut young.",
-     "Edible only when very young and soft -- mature brackets turn corky and inedible.",
-     "Press it -- if it's spongy-soft, it's young enough to cook.", MO(9) | MO(10), Biome::Forest},
 
     {"Birch Polypore", "mushroom", "Smooth pale-brown kidney-shaped bracket found only on birch.", "",
      "Pick young, still-flexible brackets low on birch trunks.", MO(8) | MO(9) | MO(10), Biome::Forest},
@@ -1093,9 +863,8 @@ static const Forageable kSpecies[] = {
      "Snap coiled fronds where they bend easily, leave most per plant.", MO(4) | MO(5),
      Biome::Forest},
 
-    {"Bracken Fern Fiddlehead", "fern", "Common trailside fern; historic food, modern caution.",
-     "Contains a suspected carcinogen -- eat sparingly, always cooked well, never raw.",
-     "Snap only tightly coiled young shoots before the frond unrolls.", MO(4) | MO(5),
+    {"Vanilla Leaf", "green", "Fan of three broad leaflets carpeting the forest floor, vanilla scent when dried.", "",
+     "Look for the distinctive three-lobed fan leaf low in shady forest.", MO(4) | MO(5),
      Biome::Forest},
 
     {"Lady Fern Fiddlehead", "fern", "Lacy-fronded fern of moist forest floors and streambanks.",
@@ -1108,7 +877,8 @@ static const Forageable kSpecies[] = {
      "Pull the young shoot and peel down to the tender white core.", MO(4) | MO(5) | MO(6),
      Biome::Forest},
 
-    {"Cattail Pollen", "flower", "Golden pollen from summer seed heads, used as flour.", "",
-     "Bag the pollen spike and shake into a bag on a still morning.", MO(6) | MO(7), Biome::Forest},
+    {"Skunk Cabbage", "flower", "Huge bright yellow hooded spathe pushing up through spring swamp mud.",
+     "Raw leaves burn from calcium oxalate -- needs thorough drying/cooking, best left alone.",
+     "Look for the glowing yellow hood in wet forest seeps.", MO(3) | MO(4), Biome::Forest},
 
 };

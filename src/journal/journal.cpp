@@ -2,11 +2,13 @@
 
 #include <Preferences.h>
 
+#include "config.h"
+
 namespace journal {
 
 static const char* NVS_NS = "forager";
 
-// 256 bits -- comfortably covers the current 250-species database with a
+// 256 bits -- comfortably covers the current 200-species database with a
 // little headroom; bump if the species count ever grows past that.
 static const int kBytes = 32;
 static uint8_t bits[kBytes];
@@ -39,6 +41,9 @@ void load() {
   // existed) counts as discovered too, so an upgrade doesn't suddenly hide
   // species a player had already found.
   for (int i = 0; i < kBytes; i++) discoveredBits[i] |= bits[i];
+#if DEV_MODE_UNLOCK_SPECIES
+  for (int i = 0; i < kBytes; i++) discoveredBits[i] = 0xFF;
+#endif
   p.end();
 }
 

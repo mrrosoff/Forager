@@ -18,6 +18,20 @@
 // to 0 before shipping.
 #define DEV_MODE_SKIP_GROWTH 0
 
+// Dev-mode: journal::load() marks every species discovered (visible in the
+// Foraging browse list) on every wake, regardless of what's actually been
+// found -- lets Foraging/species-icon work be tested without grinding
+// Discovery events first. Doesn't affect eaten/growth-stage progress, only
+// visibility. Flip to 0 before shipping.
+#define DEV_MODE_UNLOCK_SPECIES 1
+
+// Dev-mode: foraging::rebuildBrowseOrder() sorts the Foraging list
+// alphabetically by name instead of by relevance score -- pairs with
+// DEV_MODE_UNLOCK_SPECIES for systematically paging through every species
+// (e.g. reviewing/replacing art) in a stable, predictable order. Flip to 0
+// before shipping.
+#define DEV_MODE_ALPHABETIZE_BROWSE 1
+
 // Dev-mode: setup() shows every wake-time event's encounter screen
 // back-to-back in a loop instead of the normal wake flow -- one
 // representative AnimalSighting/Discovery/ForagingFind plus every distinct

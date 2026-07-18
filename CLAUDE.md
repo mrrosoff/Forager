@@ -21,14 +21,19 @@ real errors — trust `pio run`, not the inline squiggles.
 - `include/secrets.h` is gitignored; `include/secrets.example.h` is the template.
 - `include/bitmaps/{animals,badges,marmot,species}/` are generated art -- one
   PROGMEM header per photo/icon (see the sourcing pipeline notes below), plus
-  a generated `species/species_index.h` that ties all 250 species headers
+  a generated `species/species_index.h` that ties all species headers
   together with a name-keyed lookup table (that one's regenerated wholesale,
   not hand-edited, since it's a large auto-derived index rather than a small
-  curated set like the animal/marmot/badges folders).
+  curated set like the animal/marmot/badges folders). It still has entries
+  for a handful of names that were cut from `foraging_species.h` in the
+  250->200 trim (see below) -- harmless dead PROGMEM data, `species_bitmaps::
+  find()` just never gets called with those names anymore, but worth
+  regenerating wholesale next time the pipeline runs rather than leaving
+  as-is indefinitely.
 - Pure-data tables (no runtime/`epd` dependency) live in their own headers,
   `#include`d only from the one `.cpp` that uses them, instead of inline --
   keeps the logic-heavy files scannable. Established pattern:
-  `foraging/foraging_species.h` (the 250-entry species table, out of
+  `foraging/foraging_species.h` (the 200-entry species table, out of
   `foraging.cpp`), `events/events_data.h` (mishap/weather/treasure/encounter/
   baby-care pools, out of `events.cpp`), `display/display_marmot_art.h` +
   `display_animal_art.h` + `display_thoughts.h` (pose-art tables and
@@ -41,6 +46,37 @@ real errors — trust `pio run`, not the inline squiggles.
   `epd` instance) stays in `display.cpp` rather than being split further --
   splitting that would require exposing `epd` via an extern in a shared
   internal header, which hasn't been worth the risk yet.
+
+## Species table: name length and the 250->200 trim
+
+`renderForaging()` in `display.cpp` draws each species' display name
+centered at text size 2 (`textCentered(0, SCREEN_W, y, f.name, 2)`), with no
+wrapping or shrink-to-fit -- the built-in 5x7 font advances 6px/char at size
+1, so 12px/char at size 2. SCREEN_W is 300, so any name at or above ~25
+characters overflows and reads as cut off on real hardware (confirmed: two
+25+ char names -- `"Boletus edulis (King Bolete flush)"` and `"Angel's Wing
+Bolete (Suillus lakei)"` -- were visibly clipped). When adding or renaming a
+species, keep `name` at 23 characters or fewer (274px, comfortable margin);
+anything longer needs a shorter display name (move the detail, e.g. a Latin
+binomial or parenthetical, into `note` instead).
+
+The species table was trimmed from 250 to exactly 200 entries in one pass:
+every name over the length budget was either shortened (e.g. `"Cortinarius
+(Deadly Webcap)"` -> `"Deadly Webcap"`) or, if it turned out to be a
+near-duplicate of another entry anyway, deleted rather than renamed. That
+covered about 20 of the 50 cuts; the rest were genuine near-duplicate pairs
+found by fuzzy name/description matching (same species under two names, e.g.
+`"Manila Clam"`/`"Manila Littleneck Clam"`, `"Bladderwrack"`/`"Rockweed"`,
+`"Stinging Nettle"`/`"Nettle Tips"`) plus the `sap`/`cambium`-kind entries
+(`Bigleaf Maple Sap`, `Western Larch Gum`, `Lodgepole Pine Cambium`, `Western
+Hemlock Cambium`) and a chunk of the most obscure, least visually-distinct
+mushroom variants (redundant boletes, crust/jelly/coral fungi, puffballs --
+the `mushroom` kind was 89/250 entries pre-trim, wildly overrepresented).
+Kept species were chosen to preserve one representative per duplicate pair,
+prioritizing whichever entry already had real sourced-photo art in
+`include/bitmaps/species/` (see the sourcing pipeline notes below) over one
+that didn't. `species_index.h` was *not* regenerated as part of this trim
+(see above) -- it still has bitmap entries for a few now-deleted names.
 
 ## NVS persistence
 
@@ -169,6 +205,10 @@ recognizable instead of an all-over stipple.
 - `forageIdx` (the Foraging view's browse position) is a plain RAM global,
   not persisted — it resets to 0 every sleep/wake cycle by design, unrelated
   to the relevance-sorted browse order which is also rebuilt fresh each wake.
+  It also resets to 0 on every LEFT/RIGHT transition into or out of the
+  Foraging view (`retreatView()`/`advanceView()` in `main.cpp`), so leaving
+  for Main and paging back in always lands on species 1 rather than wherever
+  you left off.
 - `checkForEvent()`'s spawn-check is explicitly skipped on `firstBoot`: it
   treats a never-set `evLastAt` as "cooldown already elapsed" (nothing to
   measure from yet), so without the guard a newborn marmot could roll
