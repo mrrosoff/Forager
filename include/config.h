@@ -32,6 +32,15 @@
 // before shipping.
 #define DEV_MODE_ALPHABETIZE_BROWSE 1
 
+// Dev-mode: Foraging's browse position starts here instead of species 1 --
+// pairs with DEV_MODE_ALPHABETIZE_BROWSE for resuming a systematic
+// species-art review partway through the alphabet without re-paging past
+// already-reviewed/approved species every time. 0-based index into the
+// alphabetized list -- "start from species N" (1-based, as the user counts
+// species while paging) means N-1 here. 0 = normal (start at species 1).
+// Flip to 0 before shipping.
+#define DEV_MODE_SPECIES_BROWSE_START 0
+
 // Dev-mode: setup() shows every wake-time event's encounter screen
 // back-to-back in a loop instead of the normal wake flow -- one
 // representative AnimalSighting/Discovery/ForagingFind plus every distinct
