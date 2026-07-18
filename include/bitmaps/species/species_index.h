@@ -57,7 +57,7 @@
 #include "chicken_of_the_woods_bitmap.h"
 #include "chickweed_bitmap.h"
 #include "cinnabar_polypore_bitmap.h"
-#include "cleavers_bitmap.h"
+#include "bleeding_heart_bitmap.h"
 #include "common_yarrow_bitmap.h"
 #include "coral_tooth_fungus_bitmap.h"
 #include "cortinarius__deadly_webcap_bitmap.h"
@@ -97,6 +97,7 @@
 #include "gem_studded_puffball_bitmap.h"
 #include "geoduck_bitmap.h"
 #include "giant_kelp_bitmap.h"
+#include "glacier_lily_bitmap.h"
 #include "nudibranch_bitmap.h"
 #include "golden_chanterelle_bitmap.h"
 #include "gooseneck_barnacle_bitmap.h"
@@ -186,7 +187,6 @@
 #include "saffron_milk_cap_bitmap.h"
 #include "salal_bitmap.h"
 #include "salmonberry_bitmap.h"
-#include "salmonberry_shoots_bitmap.h"
 #include "scurvy_grass_bitmap.h"
 #include "sea_asparagus_bitmap.h"
 #include "sea_beach_sandwort_bitmap.h"
@@ -355,14 +355,14 @@ static const SpeciesBitmap kSpeciesBitmaps[] = {
     {"Wine Cap Mushroom", SPECIES_WINE_CAP_MUSHROOM_BITMAP, SPECIES_WINE_CAP_MUSHROOM_W, SPECIES_WINE_CAP_MUSHROOM_H},
     {"Sheep Sorrel", SPECIES_SHEEP_SORREL_BITMAP, SPECIES_SHEEP_SORREL_W, SPECIES_SHEEP_SORREL_H},
     {"Curly Dock", SPECIES_CURLY_DOCK_BITMAP, SPECIES_CURLY_DOCK_W, SPECIES_CURLY_DOCK_H},
-    {"Cleavers", SPECIES_CLEAVERS_BITMAP, SPECIES_CLEAVERS_W, SPECIES_CLEAVERS_H},
+    {"Bleeding Heart", SPECIES_BLEEDING_HEART_BITMAP, SPECIES_BLEEDING_HEART_W, SPECIES_BLEEDING_HEART_H},
     {"Dandelion", SPECIES_DANDELION_BITMAP, SPECIES_DANDELION_W, SPECIES_DANDELION_H},
     {"Plantain", SPECIES_PLANTAIN_BITMAP, SPECIES_PLANTAIN_W, SPECIES_PLANTAIN_H},
     {"Watercress", SPECIES_WATERCRESS_BITMAP, SPECIES_WATERCRESS_W, SPECIES_WATERCRESS_H},
     {"Wild Mint", SPECIES_WILD_MINT_BITMAP, SPECIES_WILD_MINT_W, SPECIES_WILD_MINT_H},
     {"Self-heal", SPECIES_SELF_HEAL_BITMAP, SPECIES_SELF_HEAL_W, SPECIES_SELF_HEAL_H},
     {"Lupine", SPECIES_LUPINE_BITMAP, SPECIES_LUPINE_W, SPECIES_LUPINE_H},
-    {"Salmonberry Shoots", SPECIES_SALMONBERRY_SHOOTS_BITMAP, SPECIES_SALMONBERRY_SHOOTS_W, SPECIES_SALMONBERRY_SHOOTS_H},
+    {"Glacier Lily", SPECIES_GLACIER_LILY_BITMAP, SPECIES_GLACIER_LILY_W, SPECIES_GLACIER_LILY_H},
     {"Chaga", SPECIES_CHAGA_BITMAP, SPECIES_CHAGA_W, SPECIES_CHAGA_H},
     {"Lion's Mane", SPECIES_LIONS_MANE_BITMAP, SPECIES_LIONS_MANE_W, SPECIES_LIONS_MANE_H},
     {"Saffron Milk Cap", SPECIES_SAFFRON_MILK_CAP_BITMAP, SPECIES_SAFFRON_MILK_CAP_W, SPECIES_SAFFRON_MILK_CAP_H},

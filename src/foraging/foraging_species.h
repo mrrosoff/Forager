@@ -337,9 +337,9 @@ static const Forageable kSpecies[] = {
      "High in oxalic acid; cook young leaves and eat in moderation.",
      "Take young spring leaves before they toughen.", MO(3) | MO(4), Biome::Forest},
 
-    {"Cleavers", "green", "Sticky, hooked stems that cling to clothing.",
-     "Fine hooked hairs make it rough raw -- steep as tea instead.",
-     "Snip young tips for tea before flowers form.", MO(3) | MO(4) | MO(5), Biome::Forest},
+    {"Bleeding Heart", "flower", "Rows of dangling pink heart-shaped flowers on an arching stem.",
+     "Not edible -- mildly toxic; enjoy the look, skip the taste.",
+     "Look for the pink heart blooms in shady forest clearings.", MO(4) | MO(5), Biome::Forest},
 
     {"Dandelion", "green", "Toothed leaf rosette, bitter green, yellow bloom.", "",
      "Pick young leaves before the flower stalk rises.", MO(2) | MO(3) | MO(4) | MO(5),
@@ -362,9 +362,9 @@ static const Forageable kSpecies[] = {
      "Seeds are mildly toxic in quantity -- admire the flower, skip eating any part.",
      "Look for the tall purple flower spikes in open meadows.", MO(6) | MO(7), Biome::Mountain},
 
-    {"Salmonberry Shoots", "green", "Peeled spring shoots, mild cucumber-like crunch.",
-     "Peel the fibrous outer skin before eating raw.",
-     "Snap tender new shoots before leaves unfurl.", MO(3) | MO(4), Biome::Forest},
+    {"Glacier Lily", "flower", "Nodding yellow lily on a bare stalk, blooming right at snowmelt.",
+     "The corm is edible cooked but digging it up wrecks the plant -- leave it for the marmots.",
+     "Look for the reflexed yellow petals in fresh-melted alpine meadows.", MO(6) | MO(7), Biome::Mountain},
 
     {"Chaga", "mushroom", "Rough black charcoal-like burl growing straight out of birch bark.",
      "Not a typical mushroom -- a hardened fungal mass, brewed as tea rather than eaten.",
