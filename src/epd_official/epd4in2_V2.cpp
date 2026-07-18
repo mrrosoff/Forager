@@ -47,7 +47,23 @@ int Epd::Init(void) {
     if (IfInit() != 0) {
         return -1;
     }
-    /* EPD hardware init start */
+    ResetAndConfigure();
+    return 0;
+}
+
+/**
+ *  @brief: Re-runs the panel-level reset + register configuration sequence
+ *          (RST pulse, soft reset, border/update-control/RAM-window
+ *          registers) WITHOUT touching SPI setup (see IfInit() -- that
+ *          calls SPI.begin()/beginTransaction(), which is not safe to call
+ *          a second time on top of an already-open SPI transaction from an
+ *          earlier Init() this session; doing so was confirmed to wedge
+ *          the bus and hang the subsequent ReadBusy() forever). This is
+ *          what a mid-session forced-full-refresh should call instead of
+ *          Init() to get the panel controller back to a known-clean state
+ *          (clearing partial-refresh ghosting) without re-touching SPI.
+ */
+void Epd::ResetAndConfigure(void) {
     Reset();
     ReadBusy();
 
@@ -81,9 +97,6 @@ int Epd::Init(void) {
     SendData(0x00);
     SendData(0x00);
     ReadBusy();
-
-    /* EPD hardware init end */
-    return 0;
 }
 
 /**
@@ -103,11 +116,19 @@ void Epd::SendData(unsigned char data) {
 }
 
 /**
- *  @brief: Wait until the busy_pin goes HIGH
+ *  @brief: Wait until the busy_pin goes HIGH, bounded so a stuck/misbehaving
+ *          BUSY line (e.g. re-initializing the panel mid-refresh-cycle)
+ *          can never hang the whole device forever, requiring a physical
+ *          reset to recover -- confirmed happening in practice, so this
+ *          isn't a hypothetical. A real refresh (partial or full) never
+ *          takes anywhere near this long, so the timeout should never
+ *          actually fire during normal operation.
  */
 void Epd::ReadBusy(void) {
-    while(DigitalRead(busy_pin) == 1) {      //1: busy, 0: idle
-        // Wait
+    unsigned long start = millis();
+    const unsigned long kBusyTimeoutMs = 8000;
+    while (DigitalRead(busy_pin) == 1) {      //1: busy, 0: idle
+        if (millis() - start > kBusyTimeoutMs) break;
     }
 }
 

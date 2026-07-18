@@ -1,4 +1,4 @@
-// Bladderwrack -- v5, 130x130
+// Bladderwrack -- v7 fix
 #pragma once
 
 #include <pgmspace.h>

@@ -38,6 +38,7 @@ enum class Mood : uint8_t {
   Hungry,
   Annoyed,
   Dormant,  // deep winter
+  Scared,   // transient reaction to a bad encounter, not a persistent state
 };
 
 /**
@@ -47,11 +48,22 @@ enum class Mood : uint8_t {
  */
 enum class Stage : uint8_t { Baby, Juvenile, Adult };
 
+/**
+ * Which bar bottomed out (see creature::checkDeath()) -- None means still
+ * alive. Drives which flavor-text pool the death screen picks from (see
+ * display::renderDeath()) so the ending reflects what actually killed the
+ * marmot instead of always saying the same generic line.
+ */
+enum class DeathCause : uint8_t { None, Starved, Heartbroken, Exhausted };
+
 struct CreatureState {
   Mood mood;
   uint8_t hunger;     // 0 = full, 100 = starving
   uint8_t happiness;  // 0..100
-  time_t lastFed;     // epoch, 0 = never
+  uint8_t energy;     // 0..100 -- decays like happiness, refilled by feeding
+                       // (more so by protein/fat-rich food kinds; see
+                       // creature::feedEffectForKind())
+  time_t lastFed;      // epoch, 0 = never
 
   /**
    * Epoch of the last "play" interaction -- feeding or resolving a wake-time
@@ -77,14 +89,6 @@ struct CreatureState {
    * without needing a separate persisted flag.
    */
   uint8_t lastSeenStage;
-
-  /**
-   * Epoch when hunger/happiness first both crossed into neglect territory
-   * (see creature::updateNeglect()), 0 = not currently neglected. Persists
-   * across wakes so neglect has to be *continuous* for NEGLECT_DAYS, not
-   * just true at any single wake -- feeding or playing resets it to 0.
-   */
-  time_t neglectSince;
 
   // Chosen at birth via the on-screen text entry (see textentry.h);
   // defaults to "Marmot" if the player leaves it blank.

@@ -3,6 +3,7 @@
 #include <SPI.h>
 #include <math.h>
 
+#include <algorithm>
 #include <cstring>
 
 #include "bitmaps/animals/bald_eagle_bitmap.h"
@@ -32,22 +33,70 @@
 #include "bitmaps/animals/stellers_jay_bitmap.h"
 #include "bitmaps/marmot/marmot_baby2_bitmap.h"
 #include "bitmaps/marmot/marmot_baby3_bitmap.h"
+#include "bitmaps/marmot/marmot_baby4_bitmap.h"
+#include "bitmaps/marmot/marmot_baby6_bitmap.h"
+#include "bitmaps/marmot/marmot_baby7_bitmap.h"
 #include "bitmaps/marmot/marmot_baby_bitmap.h"
 #include "bitmaps/marmot/marmot_bitmap.h"
+#include "bitmaps/marmot/marmot_death_bitmap.h"
 #include "bitmaps/marmot/marmot_juvenile2_bitmap.h"
-#include "bitmaps/marmot/marmot_juvenile_bitmap.h"
+#include "bitmaps/marmot/marmot_juvenile3_bitmap.h"
 #include "bitmaps/marmot/marmot_variant10_bitmap.h"
 #include "bitmaps/marmot/marmot_variant11_bitmap.h"
-#include "bitmaps/marmot/marmot_variant12_bitmap.h"
-#include "bitmaps/marmot/marmot_variant1_bitmap.h"
-#include "bitmaps/marmot/marmot_variant2_bitmap.h"
-#include "bitmaps/marmot/marmot_variant3_bitmap.h"
-#include "bitmaps/marmot/marmot_variant4_bitmap.h"
+#include "bitmaps/marmot/marmot_variant13_bitmap.h"
+#include "bitmaps/marmot/marmot_variant15_bitmap.h"
+#include "bitmaps/marmot/marmot_variant16_bitmap.h"
+#include "bitmaps/marmot/marmot_variant17_bitmap.h"
+#include "bitmaps/marmot/marmot_variant18_bitmap.h"
+#include "bitmaps/marmot/marmot_variant20_bitmap.h"
+#include "bitmaps/marmot/marmot_variant21_bitmap.h"
+#include "bitmaps/marmot/marmot_variant22_bitmap.h"
+#include "bitmaps/marmot/marmot_variant24_bitmap.h"
+#include "bitmaps/marmot/marmot_variant25_bitmap.h"
+#include "bitmaps/marmot/marmot_variant26_bitmap.h"
+#include "bitmaps/marmot/marmot_variant27_bitmap.h"
+#include "bitmaps/marmot/marmot_variant28_bitmap.h"
 #include "bitmaps/marmot/marmot_variant5_bitmap.h"
 #include "bitmaps/marmot/marmot_variant6_bitmap.h"
 #include "bitmaps/marmot/marmot_variant7_bitmap.h"
 #include "bitmaps/marmot/marmot_variant8_bitmap.h"
 #include "bitmaps/marmot/marmot_variant9_bitmap.h"
+#include "bitmaps/marmot/marmot_baby2_small_bitmap.h"
+#include "bitmaps/marmot/marmot_baby4_small_bitmap.h"
+#include "bitmaps/marmot/marmot_baby6_small_bitmap.h"
+#include "bitmaps/marmot/marmot_baby7_small_bitmap.h"
+#include "bitmaps/marmot/marmot_baby_small_bitmap.h"
+#include "bitmaps/marmot/marmot_juvenile2_small_bitmap.h"
+#include "bitmaps/marmot/marmot_juvenile3_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant10_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant11_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant13_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant15_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant16_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant17_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant18_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant20_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant21_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant22_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant24_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant25_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant26_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant27_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant28_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant5_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant6_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant7_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant8_small_bitmap.h"
+#include "bitmaps/badges/berries_bitmap.h"
+#include "bitmaps/badges/complete_bitmap.h"
+#include "bitmaps/badges/halfway_bitmap.h"
+#include "bitmaps/badges/herbalist_bitmap.h"
+#include "bitmaps/badges/mushrooms_bitmap.h"
+#include "bitmaps/badges/naturalist_bitmap.h"
+#include "bitmaps/badges/storms_bitmap.h"
+#include "bitmaps/badges/wanderer_bitmap.h"
+#include "bitmaps/badges/wildlife_bitmap.h"
+#include "bitmaps/marmot/marmot_variant9_small_bitmap.h"
 #include "bitmaps/species/species_index.h"
 #include "config.h"
 #include "creature.h"
@@ -237,49 +286,8 @@ static void drawWeatherGlyph(int x, int y, const WeatherData& w) {
   }
 }
 
-struct MarmotArt {
-  const uint8_t* bitmap;
-  int w, h, groundY;
-};
+#include "display_marmot_art.h"
 
-// Non-Hungry moods rotate through the base pose plus a handful of real
-// hoary-marmot photos (see include/bitmaps/marmot/) for visual variety --
-// picked once per wake below, not per render, so the creature doesn't
-// change pose mid-session as the user pages between views.
-static const MarmotArt kMarmotVariants[] = {
-    {MARMOT_BITMAP, MARMOT_W, MARMOT_H, MARMOT_GROUND_Y},
-    {MARMOT_VARIANT1_BITMAP, MARMOT_VARIANT1_W, MARMOT_VARIANT1_H, MARMOT_VARIANT1_H},
-    {MARMOT_VARIANT2_BITMAP, MARMOT_VARIANT2_W, MARMOT_VARIANT2_H, MARMOT_VARIANT2_H},
-    {MARMOT_VARIANT3_BITMAP, MARMOT_VARIANT3_W, MARMOT_VARIANT3_H, MARMOT_VARIANT3_H},
-    {MARMOT_VARIANT4_BITMAP, MARMOT_VARIANT4_W, MARMOT_VARIANT4_H, MARMOT_VARIANT4_H},
-    {MARMOT_VARIANT5_BITMAP, MARMOT_VARIANT5_W, MARMOT_VARIANT5_H, MARMOT_VARIANT5_H},
-    {MARMOT_VARIANT6_BITMAP, MARMOT_VARIANT6_W, MARMOT_VARIANT6_H, MARMOT_VARIANT6_H},
-    {MARMOT_VARIANT7_BITMAP, MARMOT_VARIANT7_W, MARMOT_VARIANT7_H, MARMOT_VARIANT7_H},
-    {MARMOT_VARIANT8_BITMAP, MARMOT_VARIANT8_W, MARMOT_VARIANT8_H, MARMOT_VARIANT8_H},
-    {MARMOT_VARIANT9_BITMAP, MARMOT_VARIANT9_W, MARMOT_VARIANT9_H, MARMOT_VARIANT9_H},
-    {MARMOT_VARIANT10_BITMAP, MARMOT_VARIANT10_W, MARMOT_VARIANT10_H, MARMOT_VARIANT10_H},
-    {MARMOT_VARIANT11_BITMAP, MARMOT_VARIANT11_W, MARMOT_VARIANT11_H, MARMOT_VARIANT11_H},
-    {MARMOT_VARIANT12_BITMAP, MARMOT_VARIANT12_W, MARMOT_VARIANT12_H, MARMOT_VARIANT12_H},
-};
-static const int kMarmotVariantCount = sizeof(kMarmotVariants) / sizeof(kMarmotVariants[0]);
-
-// Dedicated Baby and Juvenile pose pools -- real hoary/yellow-bellied marmot
-// pup photos found on a wider Commons sweep (zoo/park and family shots turned
-// out to have much cleaner backgrounds than the wild adult shots this
-// project mostly draws from), each rotated randomly per wake exactly like
-// the adult pool below.
-static const MarmotArt kBabyVariants[] = {
-    {MARMOT_BABY_BITMAP, MARMOT_BABY_W, MARMOT_BABY_H, MARMOT_BABY_H},
-    {MARMOT_BABY2_BITMAP, MARMOT_BABY2_W, MARMOT_BABY2_H, MARMOT_BABY2_H},
-    {MARMOT_BABY3_BITMAP, MARMOT_BABY3_W, MARMOT_BABY3_H, MARMOT_BABY3_H},
-};
-static const int kBabyVariantCount = sizeof(kBabyVariants) / sizeof(kBabyVariants[0]);
-
-static const MarmotArt kJuvenileVariants[] = {
-    {MARMOT_JUVENILE_BITMAP, MARMOT_JUVENILE_W, MARMOT_JUVENILE_H, MARMOT_JUVENILE_H},
-    {MARMOT_JUVENILE2_BITMAP, MARMOT_JUVENILE2_W, MARMOT_JUVENILE2_H, MARMOT_JUVENILE2_H},
-};
-static const int kJuvenileVariantCount = sizeof(kJuvenileVariants) / sizeof(kJuvenileVariants[0]);
 
 // A hoary marmot -- hardcoded, dithered pen-and-ink-style/photo bitmaps (see
 // include/bitmaps/marmot/) rather than live procedural shapes, for real fur
@@ -294,28 +302,73 @@ static int8_t pickVariant(int8_t& cache, int count) {
   return cache;
 }
 
-static void drawCreature(int cx, int groundY, Mood mood, Stage stage) {
+// small=true picks from the genuinely-smaller-canvas bitmap pools (see
+// their declarations above) instead of runtime-scaling the full-size ones
+// -- nearest-neighbor scaling an already-dithered 1-bit image aliases the
+// dither pattern into noise, so the Status view needs real small assets.
+// Returns the top pixel row the art was drawn at, so callers can position
+// things (like the Main view's thought bubble) relative to the actual pose
+// height instead of a fixed offset that leaves a gap above shorter poses.
+static int drawCreature(int cx, int groundY, Mood mood, Stage stage, bool small = false) {
   if (stage == Stage::Baby || stage == Stage::Juvenile) {
     static int8_t babyVariant = -1;
     static int8_t juvenileVariant = -1;
-    const MarmotArt& art =
-        (stage == Stage::Baby)
-            ? kBabyVariants[pickVariant(babyVariant, kBabyVariantCount)]
-            : kJuvenileVariants[pickVariant(juvenileVariant, kJuvenileVariantCount)];
+    int idx = (stage == Stage::Baby) ? pickVariant(babyVariant, kBabyVariantCount)
+                                      : pickVariant(juvenileVariant, kJuvenileVariantCount);
+    const MarmotArt& art = (stage == Stage::Baby)
+                                ? (small ? kBabyVariantsSmall[idx] : kBabyVariants[idx])
+                                : (small ? kJuvenileVariantsSmall[idx] : kJuvenileVariants[idx]);
     int bx = cx - art.w / 2;
     int by = groundY - art.groundY;
     epd.drawBitmap(bx, by, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
-    return;
+    return by;
   }
 
-  // No dedicated hungry-mood art -- reuses the same adult pose pool as every
-  // other non-baby/juvenile mood. Hunger is communicated through the Status
-  // view's meter, not a distinct sprite.
-  static int8_t variant = -1;
-  const MarmotArt& art = kMarmotVariants[pickVariant(variant, kMarmotVariantCount)];
-  int bx = cx - art.w / 2;
-  int by = groundY - art.groundY;
-  epd.drawBitmap(bx, by, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
+  static int8_t excitedVariant = -1;
+  static int8_t contentVariant = -1;
+  static int8_t sleepyVariant = -1;
+  static int8_t annoyedVariant = -1;
+  static int8_t hungryVariant = -1;
+  static int8_t scaredVariant = -1;
+  const MarmotArt* art;
+  switch (mood) {
+    case Mood::Excited: {
+      int idx = pickVariant(excitedVariant, kMarmotExcitedCount);
+      art = small ? &kMarmotExcitedSmall[idx] : &kMarmotExcited[idx];
+      break;
+    }
+    case Mood::Sleepy:
+    case Mood::Dormant: {
+      int idx = pickVariant(sleepyVariant, kMarmotSleepyCount);
+      art = small ? &kMarmotSleepySmall[idx] : &kMarmotSleepy[idx];
+      break;
+    }
+    case Mood::Annoyed: {
+      int idx = pickVariant(annoyedVariant, kMarmotAnnoyedCount);
+      art = small ? &kMarmotAnnoyedSmall[idx] : &kMarmotAnnoyed[idx];
+      break;
+    }
+    case Mood::Hungry: {
+      int idx = pickVariant(hungryVariant, kMarmotHungryCount);
+      art = small ? &kMarmotHungrySmall[idx] : &kMarmotHungry[idx];
+      break;
+    }
+    case Mood::Scared: {
+      int idx = pickVariant(scaredVariant, kMarmotScaredCount);
+      art = small ? &kMarmotScaredSmall[idx] : &kMarmotScared[idx];
+      break;
+    }
+    case Mood::Content:
+    default: {
+      int idx = pickVariant(contentVariant, kMarmotContentCount);
+      art = small ? &kMarmotContentSmall[idx] : &kMarmotContent[idx];
+      break;
+    }
+  }
+  int bx = cx - art->w / 2;
+  int by = groundY - art->groundY;
+  epd.drawBitmap(bx, by, art->bitmap, art->w, art->h, C_BLACK, C_WHITE);
+  return by;
 }
 
 // Bottom nav bar shown on every view: what LEFT/RIGHT/ENTER do from here.
@@ -340,53 +393,23 @@ static void drawNavBar(const char* leftLbl, const char* enterLbl, const char* ri
 // same way as events::animalIndex() -- i.e. positionally matching kAnimals[]
 // in events.cpp. Not every animal has art (some source photos didn't dither
 // into a recognizable silhouette); nullptr means "fall back to the marmot".
-struct AnimalArt {
-  const uint8_t* bitmap;
-  int w, h;
-};
-static const AnimalArt kAnimalArt[] = {
-    {ANIMAL_DEER_BITMAP, ANIMAL_DEER_W, ANIMAL_DEER_H},                             // Deer
-    {ANIMAL_MOUNTAIN_GOAT_BITMAP, ANIMAL_MOUNTAIN_GOAT_W, ANIMAL_MOUNTAIN_GOAT_H},  // Mountain Goat
-    {ANIMAL_BALD_EAGLE_BITMAP, ANIMAL_BALD_EAGLE_W, ANIMAL_BALD_EAGLE_H},           // Bald Eagle
-    {ANIMAL_RIVER_OTTER_BITMAP, ANIMAL_RIVER_OTTER_W, ANIMAL_RIVER_OTTER_H},        // River Otter
-    {ANIMAL_RACCOON_BITMAP, ANIMAL_RACCOON_W, ANIMAL_RACCOON_H},                    // Raccoon
-    {ANIMAL_ELK_BITMAP, ANIMAL_ELK_W, ANIMAL_ELK_H},                                // Elk
-    {ANIMAL_BLACK_BEAR_BITMAP, ANIMAL_BLACK_BEAR_W, ANIMAL_BLACK_BEAR_H},           // Black Bear
-    {ANIMAL_ORCA_BITMAP, ANIMAL_ORCA_W, ANIMAL_ORCA_H},                             // Orca
-    {ANIMAL_COUGAR_BITMAP, ANIMAL_COUGAR_W, ANIMAL_COUGAR_H},                       // Cougar
-    {ANIMAL_COYOTE_BITMAP, ANIMAL_COYOTE_W, ANIMAL_COYOTE_H},                       // Coyote
-    {ANIMAL_DOUGLAS_SQUIRREL_BITMAP, ANIMAL_DOUGLAS_SQUIRREL_W,
-     ANIMAL_DOUGLAS_SQUIRREL_H},  // Douglas Squirrel
-    {ANIMAL_SNOWSHOE_HARE_BITMAP, ANIMAL_SNOWSHOE_HARE_W, ANIMAL_SNOWSHOE_HARE_H},  // Snowshoe Hare
-    {ANIMAL_PILEATED_WOODPECKER_BITMAP, ANIMAL_PILEATED_WOODPECKER_W,
-     ANIMAL_PILEATED_WOODPECKER_H},  // Pileated Woodpecker
-    {ANIMAL_STELLERS_JAY_BITMAP, ANIMAL_STELLERS_JAY_W, ANIMAL_STELLERS_JAY_H},  // Steller's Jay
-    {ANIMAL_BANANA_SLUG_BITMAP, ANIMAL_BANANA_SLUG_W, ANIMAL_BANANA_SLUG_H},     // Banana Slug
-    {ANIMAL_PACIFIC_TREE_FROG_BITMAP, ANIMAL_PACIFIC_TREE_FROG_W,
-     ANIMAL_PACIFIC_TREE_FROG_H},                              // Pacific Tree Frog
-    {ANIMAL_BEAVER_BITMAP, ANIMAL_BEAVER_W, ANIMAL_BEAVER_H},  // Beaver
-    {ANIMAL_GREAT_BLUE_HERON_BITMAP, ANIMAL_GREAT_BLUE_HERON_W,
-     ANIMAL_GREAT_BLUE_HERON_H},                                        // Great Blue Heron
-    {ANIMAL_OSPREY_BITMAP, ANIMAL_OSPREY_W, ANIMAL_OSPREY_H},           // Osprey
-    {ANIMAL_CHICKADEE_BITMAP, ANIMAL_CHICKADEE_W, ANIMAL_CHICKADEE_H},  // Chestnut-backed Chickadee
-    {ANIMAL_HARBOR_SEAL_BITMAP, ANIMAL_HARBOR_SEAL_W, ANIMAL_HARBOR_SEAL_H},  // Harbor Seal
-    {ANIMAL_RED_FOX_BITMAP, ANIMAL_RED_FOX_W, ANIMAL_RED_FOX_H},              // Red Fox
-    {ANIMAL_BARRED_OWL_BITMAP, ANIMAL_BARRED_OWL_W, ANIMAL_BARRED_OWL_H},     // Barred Owl
-    {ANIMAL_GRAY_WOLF_BITMAP, ANIMAL_GRAY_WOLF_W, ANIMAL_GRAY_WOLF_H},        // Gray Wolf
-    {ANIMAL_BOBCAT_BITMAP, ANIMAL_BOBCAT_W, ANIMAL_BOBCAT_H},                 // Bobcat
-};
-static const int kAnimalArtCount = sizeof(kAnimalArt) / sizeof(kAnimalArt[0]);
+#include "display_animal_art.h"
+
 
 // A pending wildlife sighting takes over the Main view until ENTER
 // resolves it (see events::checkForEvent / onEnter() in main.cpp).
 static void renderEncounter(const AppContext& ctx, const events::PendingEvent& ev) {
   bool negative = events::eventIsNegative(ev);
-  textCentered(0, SCREEN_W, 6, events::eventTitle(ev.type, negative), 2);
+  textCentered(0, SCREEN_W, 16, events::eventTitle(ev.type, negative), 2);
 
   const AnimalArt* art = nullptr;
   if (ev.type == events::EventType::AnimalSighting) {
     uint8_t idx = events::animalIndex(ev);
     if (idx < kAnimalArtCount && kAnimalArt[idx].bitmap != nullptr) art = &kAnimalArt[idx];
+  }
+  const species_bitmaps::SpeciesBitmap* speciesArt = nullptr;
+  if (ev.type == events::EventType::Discovery) {
+    speciesArt = species_bitmaps::find(events::eventName(ev));
   }
 
   int y;
@@ -394,21 +417,84 @@ static void renderEncounter(const AppContext& ctx, const events::PendingEvent& e
     // Real reference-photo art for this animal -- show it instead of the
     // marmot for this screen; heights vary per photo, so lay out everything
     // below it relative to its actual bottom edge rather than a fixed offset.
-    int bx = (SCREEN_W - art->w) / 2, by = 26;
+    int bx = (SCREEN_W - art->w) / 2, by = 32;
     epd.drawBitmap(bx, by, art->bitmap, art->w, art->h, C_BLACK, C_WHITE);
     y = by + art->h + 10;
+  } else if (speciesArt != nullptr) {
+    int bx = (SCREEN_W - speciesArt->w) / 2, by = 40;
+    epd.drawBitmap(bx, by, speciesArt->bitmap, speciesArt->w, speciesArt->h, C_BLACK, C_WHITE);
+    y = by + speciesArt->h + 10;
   } else {
-    int stageCx = SCREEN_W / 2, stageGroundY = 235;
-    drawCreature(stageCx, stageGroundY, negative ? Mood::Annoyed : Mood::Excited, (Stage)ctx.stage);
+    // Full-size marmot art is 220px tall, bottom-aligned at stageGroundY --
+    // groundY=240 put its top edge at y=20, overlapping the y=16 title.
+    // There's slack in the bottom of this screen (text below rarely
+    // reaches the nav bar), so push it down instead of shrinking the title.
+    int stageCx = SCREEN_W / 2, stageGroundY = 260;
+    drawCreature(stageCx, stageGroundY, negative ? Mood::Scared : Mood::Excited, (Stage)ctx.stage);
     y = stageGroundY + 15;
   }
 
-  textCentered(0, SCREEN_W, y, events::eventName(ev), 2);
+  textAt(16, y, events::eventName(ev), 2);
   y += 24;
   y = textWrapped(16, y, 40, events::eventNote(ev), 1) + 8;
-  if (negative) textCentered(0, SCREEN_W, y, "Stay alert!", 1);
+  if (negative) {
+    y += 6;
+    textAt(16, y, "Stay alert!", 1);
+    y += 16;
+  }
+  // ForagingFind isn't resolved by ENTER here (see main.cpp's onEnter()) --
+  // its effect only happens on Foraging, so no preview for it.
+  if (ev.type != events::EventType::ForagingFind) {
+    textAt(16, y, events::eventEffectPreview(ev), 1);
+  }
 
   drawNavBar("Status", "Acknowledge", "Foraging");
+}
+
+// Short, wholesome flavor lines for the occasional Main-view thought
+// bubble -- pure decoration, no mechanical effect. Content matches how
+// coherent a marmot's inner monologue should sound at each growth stage:
+// baby is pure gibberish, juvenile is simple/disjointed single concepts,
+// adult is the only stage with actual complete thoughts.
+#include "display_thoughts.h"
+
+
+// A rounded speech-cloud with two small trailing circles, shown above the
+// marmot's head about 2 in 3 wakes -- re-rolled once per wake (cached in a
+// function-local static, same pattern as pickVariant()) so it doesn't
+// flicker between renders of the same view.
+static void maybeDrawThoughtBubble(int headX, int headY, Stage stage) {
+  static int8_t roll = -1;
+  static int8_t thoughtIdx = -1;
+  if (roll < 0) {
+    roll = (int8_t)random(3);
+    int count = stage == Stage::Baby       ? kThoughtsBabyCount
+                : stage == Stage::Juvenile ? kThoughtsJuvenileCount
+                                            : kThoughtsAdultCount;
+    thoughtIdx = (int8_t)random(count);
+  }
+  if (roll == 0) return;
+
+  const char* thought = stage == Stage::Baby       ? kThoughtsBaby[thoughtIdx]
+                         : stage == Stage::Juvenile ? kThoughtsJuvenile[thoughtIdx]
+                                                     : kThoughtsAdult[thoughtIdx];
+  int16_t bx, by;
+  uint16_t bw, bh;
+  epd.setFont(nullptr);
+  epd.setTextSize(1);
+  epd.getTextBounds(thought, 0, 0, &bx, &by, &bw, &bh);
+
+  int padX = 8, padY = 6;
+  int cx = headX, cy = headY - 34 - bh / 2;
+  int rw = (int)bw / 2 + padX, rh = (int)bh / 2 + padY;
+  epd.fillRoundRect(cx - rw, cy - rh, rw * 2, rh * 2, 8, C_WHITE);
+  epd.drawRoundRect(cx - rw, cy - rh, rw * 2, rh * 2, 8, C_BLACK);
+  textAt(cx - (int)bw / 2, cy - (int)bh / 2, thought, 1);
+
+  epd.fillCircle(headX - 10, headY - 10, 4, C_WHITE);
+  epd.drawCircle(headX - 10, headY - 10, 4, C_BLACK);
+  epd.fillCircle(headX - 4, headY - 20, 3, C_WHITE);
+  epd.drawCircle(headX - 4, headY - 20, 3, C_BLACK);
 }
 
 static void renderMain(const AppContext& ctx) {
@@ -420,8 +506,8 @@ static void renderMain(const AppContext& ctx) {
     return;
   }
 
-  textAt(8, 6, ctx.creature.name, 2);
-  drawWeatherGlyph(SCREEN_W - 40, 4, ctx.weather);
+  textAt(8, 10, ctx.creature.name, 2);
+  drawWeatherGlyph(SCREEN_W - 40, 8, ctx.weather);
 
   char buf[24];
   strftime(buf, sizeof(buf), "%a %b %d", &ctx.now);
@@ -431,7 +517,14 @@ static void renderMain(const AppContext& ctx) {
   // own rock ledge baked in, and a second ground line under it just clashed.
   int stageCx = STAGE_X + STAGE_W / 2 - 20;
   int stageGroundY = STAGE_Y + STAGE_H - 24;
-  drawCreature(stageCx, stageGroundY, ctx.creature.mood, (Stage)ctx.stage);
+  int topY = drawCreature(stageCx, stageGroundY, ctx.creature.mood, (Stage)ctx.stage);
+  // Anchored to the actual pose's top edge (with a floor so it never rises
+  // above where the name/date text sits) rather than a fixed offset -- a
+  // tall pose keeps the bubble up near the top of the stage area like
+  // before, but a shorter pose (more headroom above it) pulls the bubble
+  // down closer to the creature instead of leaving a big empty gap.
+  int bubbleY = std::max(topY + 30, STAGE_Y + 70);
+  maybeDrawThoughtBubble(STAGE_X + STAGE_W - 55, bubbleY, (Stage)ctx.stage);
 
   drawNavBar("Status", "", "Foraging");
 }
@@ -466,6 +559,14 @@ static void seasonText(const Forageable& f, char* buf, size_t bufSize) {
 }
 
 static void renderForaging(const AppContext& ctx, int speciesIdx) {
+  if (foraging::browsableCount() == 0) {
+    textCentered(0, SCREEN_W, 160, "Nothing discovered yet", 1);
+    textCentered(0, SCREEN_W, 180, "Explore to find your", 1);
+    textCentered(0, SCREEN_W, 194, "first plant or animal!", 1);
+    drawNavBar("Main", "", "");
+    return;
+  }
+
   const Forageable& f = foraging::speciesAtRank(speciesIdx);
   int month = ctx.now.tm_mon + 1;
   bool active = foraging::inSeason(f, month);
@@ -478,7 +579,7 @@ static void renderForaging(const AppContext& ctx, int speciesIdx) {
 
   char posBuf[16];
   bool eaten = journal::hasEaten(foraging::indexAtRank(speciesIdx));
-  snprintf(posBuf, sizeof(posBuf), "%d/%d%s", speciesIdx + 1, foraging::speciesCount(),
+  snprintf(posBuf, sizeof(posBuf), "%d/%d%s", speciesIdx + 1, foraging::browsableCount(),
            eaten ? " (eaten)" : "");
   int16_t pbx, pby;
   uint16_t pbw, pbh;
@@ -542,16 +643,6 @@ static void renderForaging(const AppContext& ctx, int speciesIdx) {
   drawNavBar("Main", "Eat", "Scroll");
 }
 
-// Energy: derived from time of day, not persisted -- low overnight, ramps
-// up through the morning, peaks midday, tapers into the evening.
-static uint8_t computeEnergy(const struct tm& now) {
-  int hour = now.tm_hour;
-  if (hour < 6 || hour >= 22) return 15;
-  if (hour < 9) return 55;
-  if (hour < 18) return 95;
-  return 50;
-}
-
 // Curiosity: derived from current weather, not persisted -- fresh rain (good
 // foraging conditions) makes for a curious creature; stale/offline data is
 // neutral.
@@ -576,12 +667,12 @@ static const char* stageName(Stage s) {
 static void renderStatus(const AppContext& ctx) {
   char titleBuf[40];
   snprintf(titleBuf, sizeof(titleBuf), "%s - %s", ctx.creature.name, stageName((Stage)ctx.stage));
-  textAt(8, 6, titleBuf, 2);
+  textAt(8, 10, titleBuf, 2);
 
-  // No mood-name text or "Foraged X days ago" line anymore -- the mascot
-  // moves down to fill the space those left behind.
-  int stageCx = SCREEN_W / 2, stageGroundY = 230;
-  drawCreature(stageCx, stageGroundY, ctx.creature.mood, (Stage)ctx.stage);
+  // Smaller than the Main view's mascot -- Status needs the vertical room
+  // for four bars plus weather/streak text below it.
+  int stageCx = SCREEN_W / 2, stageGroundY = 168;
+  drawCreature(stageCx, stageGroundY, ctx.creature.mood, (Stage)ctx.stage, /*small=*/true);
 
   auto bar = [&](int y, const char* label, uint8_t pct) {
     textAt(20, y, label, 1);
@@ -590,39 +681,139 @@ static void renderStatus(const AppContext& ctx) {
     epd.drawRect(bx, by, bw, 14, C_BLACK);
     epd.fillRect(bx + 2, by + 2, (bw - 4) * pct / 100, 10, C_BLACK);
   };
-  bar(250, "Fullness", 100 - ctx.creature.hunger);
-  bar(278, "Happiness", ctx.creature.happiness);
-  bar(306, "Energy", computeEnergy(ctx.now));
-  bar(334, "Curiosity", computeCuriosity(ctx.weather));
+  bar(196, "Fullness", 100 - ctx.creature.hunger);
+  bar(232, "Happiness", ctx.creature.happiness);
+  bar(268, "Energy", ctx.creature.energy);
+  bar(304, "Curiosity", computeCuriosity(ctx.weather));
 
   if (ctx.weather.valid) {
     char buf[48];
     snprintf(buf, sizeof(buf), "%s, %.0fC", ctx.weather.condition, ctx.weather.tempC);
-    textAt(20, 364, buf, 1);
+    textAt(20, 344, buf, 1);
   }
 
   char progressBuf[48];
   snprintf(progressBuf, sizeof(progressBuf), "Streak: %ud | Eaten: %d/%d",
            ctx.creature.feedStreakDays, journal::totalEaten(), foraging::speciesCount());
-  textAt(20, 376, progressBuf, 1);
+  textAt(20, 364, progressBuf, 1);
 
-  drawNavBar("Achievements", "", "Main");
+  bool achievementsReachable = (Stage)ctx.stage == Stage::Adult;
+  drawNavBar(achievementsReachable ? "Achievements" : "", "", "Main");
 }
 
 // Badge progress line: "[X] Name (n/threshold)" -- a filled box once count
 // reaches threshold. No per-badge icons; matches the existing blocky-font,
 // text-only aesthetic used everywhere else.
-static int drawBadge(int y, const char* name, int count, int threshold) {
-  bool done = count >= threshold;
-  int shown = count < threshold ? count : threshold;
-  char line[48];
-  snprintf(line, sizeof(line), "[%c] %s (%d/%d)", done ? 'X' : ' ', name, shown, threshold);
-  textAt(8, y, line, 1);
-  return y + 16;
+// Simple procedural glyphs (GFX primitives, not photo bitmaps) drawn inside
+// an unlocked badge circle -- one per badge, kept recognizable at ~50px.
+enum class BadgeIcon { Mushroom, Berries, Leaf, Paw, Binoculars, Cloud, Compass, HalfMoon, Star };
+
+static void drawBadgeIcon(BadgeIcon icon, int cx, int cy, int r) {
+  switch (icon) {
+    case BadgeIcon::Mushroom:
+      epd.fillCircle(cx, cy - r / 4, r * 2 / 3, C_BLACK);
+      epd.fillRect(cx - r / 5, cy - r / 4, r * 2 / 5, r, C_BLACK);
+      break;
+    case BadgeIcon::Berries:
+      epd.fillCircle(cx - r / 3, cy - r / 4, r / 3, C_BLACK);
+      epd.fillCircle(cx + r / 3, cy - r / 4, r / 3, C_BLACK);
+      epd.fillCircle(cx, cy + r / 3, r / 3, C_BLACK);
+      break;
+    case BadgeIcon::Leaf:
+      epd.fillTriangle(cx, cy - r * 2 / 3, cx - r * 2 / 3, cy + r / 2, cx + r * 2 / 3,
+                        cy + r / 2, C_BLACK);
+      epd.drawLine(cx, cy - r / 2, cx, cy + r / 2, C_WHITE);
+      break;
+    case BadgeIcon::Paw:
+      epd.fillCircle(cx, cy + r / 4, r / 2, C_BLACK);
+      epd.fillCircle(cx - r / 2, cy - r / 3, r / 5, C_BLACK);
+      epd.fillCircle(cx, cy - r / 2, r / 5, C_BLACK);
+      epd.fillCircle(cx + r / 2, cy - r / 3, r / 5, C_BLACK);
+      break;
+    case BadgeIcon::Binoculars:
+      epd.fillCircle(cx - r / 3, cy, r / 3, C_BLACK);
+      epd.fillCircle(cx + r / 3, cy, r / 3, C_BLACK);
+      epd.fillRect(cx - r / 4, cy - r / 2, r / 2, r / 4, C_BLACK);
+      break;
+    case BadgeIcon::Cloud:
+      epd.fillCircle(cx - r / 3, cy, r / 3, C_BLACK);
+      epd.fillCircle(cx + r / 3, cy, r / 3, C_BLACK);
+      epd.fillCircle(cx, cy - r / 5, r / 2, C_BLACK);
+      epd.fillRect(cx - r / 2, cy, r, r / 3, C_BLACK);
+      break;
+    case BadgeIcon::Compass:
+      epd.drawCircle(cx, cy, r * 2 / 3, C_BLACK);
+      epd.drawCircle(cx, cy, r * 2 / 3 - 1, C_BLACK);
+      epd.fillTriangle(cx, cy - r / 2, cx - r / 5, cy, cx + r / 5, cy, C_BLACK);
+      epd.fillTriangle(cx, cy + r / 2, cx - r / 5, cy, cx + r / 5, cy, C_BLACK);
+      break;
+    case BadgeIcon::HalfMoon:
+      epd.fillCircle(cx, cy, r * 2 / 3, C_BLACK);
+      epd.fillRect(cx, cy - r * 2 / 3, r * 2 / 3 + 1, r * 4 / 3, C_WHITE);
+      break;
+    case BadgeIcon::Star:
+      for (int i = 0; i < 5; i++) {
+        float a1 = (float)i * 2 * PI / 5 - PI / 2;
+        float a2 = (float)(i + 2) * 2 * PI / 5 - PI / 2;
+        epd.drawLine(cx + (int)(cosf(a1) * r * 0.8f), cy + (int)(sinf(a1) * r * 0.8f),
+                     cx + (int)(cosf(a2) * r * 0.8f), cy + (int)(sinf(a2) * r * 0.8f), C_BLACK);
+      }
+      break;
+  }
+}
+
+struct BadgeDef {
+  const char* name;
+  BadgeIcon icon;
+  int count;
+  int threshold;
+  // Real dithered-photo art (a cropped/thresholded scan of an actual
+  // embroidered patch) overrides the procedural icon when set -- nullptr
+  // falls back to drawBadgeIcon(). Sourced one badge at a time as real
+  // patch photos matching the theme turn up (see
+  // assets/source_photos/badges/), not all 9 at once.
+  const uint8_t* bitmap;
+  int bitmapW;
+  int bitmapH;
+};
+
+// Medal-style rim: an outer ring, an inset inner ring, and short radial tick
+// marks between them (like a coin's reeded edge) -- reads as a proper medal
+// instead of a plain outline circle.
+static void drawMedalRim(int cx, int cy, int r) {
+  epd.drawCircle(cx, cy, r, C_BLACK);
+  epd.drawCircle(cx, cy, r - 4, C_BLACK);
+  const int ticks = 24;
+  for (int i = 0; i < ticks; i++) {
+    float a = (float)i * 2.0f * (float)M_PI / ticks;
+    int x0 = cx + (int)((r - 1) * cosf(a)), y0 = cy + (int)((r - 1) * sinf(a));
+    int x1 = cx + (int)((r - 4) * cosf(a)), y1 = cy + (int)((r - 4) * sinf(a));
+    epd.drawLine(x0, y0, x1, y1, C_BLACK);
+  }
+}
+
+static void drawBadge(const BadgeDef& b, int cx, int cy) {
+  const int r = 26;
+  bool unlocked = b.count >= b.threshold;
+  drawMedalRim(cx, cy, r);
+  if (unlocked) {
+    if (b.bitmap) {
+      epd.drawBitmap(cx - b.bitmapW / 2, cy - b.bitmapH / 2, b.bitmap, b.bitmapW, b.bitmapH, C_BLACK);
+    } else {
+      drawBadgeIcon(b.icon, cx, cy, r);
+    }
+  } else {
+    textCentered(cx - r, r * 2, cy - 4, "?", 1);
+  }
+  textCentered(cx - 45, 90, cy + r + 4, b.name, 1);
+  char countBuf[12];
+  int shown = b.count < b.threshold ? b.count : b.threshold;
+  snprintf(countBuf, sizeof(countBuf), "%d/%d", shown, b.threshold);
+  textCentered(cx - 45, 90, cy + r + 16, countBuf, 1);
 }
 
 static void renderAchievements(const AppContext& ctx) {
-  textAt(8, 6, "Achievements", 2);
+  textAt(8, 10, "Achievements", 2);
 
   // Locked until full-grown -- badges/streak tracking still runs underneath
   // the whole time (see journal.cpp/creature.cpp), this just gates the
@@ -635,34 +826,43 @@ static void renderAchievements(const AppContext& ctx) {
     return;
   }
 
-  int y = 40;
-
   int total = journal::totalEaten();
   char buf[48];
-  snprintf(buf, sizeof(buf), "Species eaten: %d/%d", total, foraging::speciesCount());
-  textAt(8, y, buf, 1);
-  y += 14;
-  snprintf(buf, sizeof(buf), "Feed streak: %u days", ctx.creature.feedStreakDays);
-  textAt(8, y, buf, 1);
-  y += 22;
-
-  y = drawBadge(y, "Mushroom Hunter", foraging::countEatenOfKind("mushroom"), 15);
-  y = drawBadge(y, "Berry Picker", foraging::countEatenOfKind("berry"), 10);
+  snprintf(buf, sizeof(buf), "Species: %d/%d   Streak: %ud", total, foraging::speciesCount(),
+           ctx.creature.feedStreakDays);
+  textCentered(0, SCREEN_W, 46, buf, 1);
 
   int herbalist = foraging::countEatenOfKind("green") + foraging::countEatenOfKind("herb") +
                   foraging::countEatenOfKind("flower") + foraging::countEatenOfKind("fern") +
                   foraging::countEatenOfKind("root") + foraging::countEatenOfKind("shoot");
-  y = drawBadge(y, "Herbalist", herbalist, 15);
 
-  y = drawBadge(y, "Coastal Forager", foraging::countEatenOfBiome(Biome::Coast), 15);
-  y = drawBadge(y, "Mountain Forager", foraging::countEatenOfBiome(Biome::Mountain), 10);
+  // 3 foraging (food types), 2 animals, 2 other events, 2 completionist.
+  const BadgeDef badges[9] = {
+      {"Mushrooms", BadgeIcon::Mushroom, foraging::countEatenOfKind("mushroom"), 15, BADGE_MUSHROOMS_BITMAP,
+       BADGE_MUSHROOMS_W, BADGE_MUSHROOMS_H},
+      {"Berries", BadgeIcon::Berries, foraging::countEatenOfKind("berry"), 10, BADGE_BERRIES_BITMAP,
+       BADGE_BERRIES_W, BADGE_BERRIES_H},
+      {"Herbalist", BadgeIcon::Leaf, herbalist, 15, BADGE_HERBALIST_BITMAP, BADGE_HERBALIST_W,
+       BADGE_HERBALIST_H},
+      {"Wildlife", BadgeIcon::Paw, journal::totalAnimalSightings(), 10, BADGE_WILDLIFE_BITMAP,
+       BADGE_WILDLIFE_W, BADGE_WILDLIFE_H},
+      {"Naturalist", BadgeIcon::Binoculars, journal::totalAnimalSightings(), 25, BADGE_NATURALIST_BITMAP,
+       BADGE_NATURALIST_W, BADGE_NATURALIST_H},
+      {"Storms", BadgeIcon::Cloud, journal::totalWeatherEvents(), 10, BADGE_STORMS_BITMAP, BADGE_STORMS_W,
+       BADGE_STORMS_H},
+      {"Wanderer", BadgeIcon::Compass, journal::totalOtherEvents(), 15, BADGE_WANDERER_BITMAP,
+       BADGE_WANDERER_W, BADGE_WANDERER_H},
+      {"Halfway", BadgeIcon::HalfMoon, total, foraging::speciesCount() / 2, BADGE_HALFWAY_BITMAP,
+       BADGE_HALFWAY_W, BADGE_HALFWAY_H},
+      {"Complete", BadgeIcon::Star, total, foraging::speciesCount(), BADGE_COMPLETE_BITMAP,
+       BADGE_COMPLETE_W, BADGE_COMPLETE_H},
+  };
 
-  int tidepool = foraging::countEatenOfKind("shellfish") + foraging::countEatenOfKind("crab") +
-                 foraging::countEatenOfKind("urchin") + foraging::countEatenOfKind("snail") +
-                 foraging::countEatenOfKind("chiton") + foraging::countEatenOfKind("shrimp");
-  y = drawBadge(y, "Tidepool Forager", tidepool, 8);
-
-  y = drawBadge(y, "Completionist", total, foraging::speciesCount());
+  const int cols[3] = {60, 150, 240};
+  const int rows[3] = {110, 210, 310};
+  for (int i = 0; i < 9; i++) {
+    drawBadge(badges[i], cols[i % 3], rows[i / 3]);
+  }
 
   drawNavBar("", "", "Status");
 }
@@ -675,11 +875,15 @@ void begin() {
   epd.setTextWrap(false);
 }
 
-void renderView(View v, const AppContext& ctx, int speciesIdx) {
-  // Requesting partial refresh here, not full: EpdGFX::endFrame() forces a
-  // full (flashy) refresh on the first frame after epd.begin() regardless
-  // of what's requested (see epd_adapter.h), so every subsequent view
-  // change in the same wake session gets the fast, flicker-free path.
+void renderView(View v, const AppContext& ctx, int speciesIdx, bool forceFullRefresh) {
+  // Requesting partial refresh, not full: endFrame() forces a full refresh
+  // on the wake's first frame regardless (see epd_adapter.h) and honors
+  // `partial` after that -- unless the caller wants a forced full draw.
+  // forceFullRefresh re-inits just the panel registers (reinitPanel(), not
+  // the SPI-touching epd.begin() -- calling that mid-session wedged the
+  // bus and hung the device, see epd_adapter.h) to actually clear ghosting
+  // instead of drawing on top of leftover partial-refresh state.
+  if (forceFullRefresh) epd.reinitPanel();
   epd.beginFrame();
   switch (v) {
     case View::Main:
@@ -697,7 +901,7 @@ void renderView(View v, const AppContext& ctx, int speciesIdx) {
     default:
       break;
   }
-  epd.endFrame(true);
+  epd.endFrame(!forceFullRefresh);
 }
 
 /**
@@ -720,10 +924,11 @@ void renderBirth() {
   int topY = by - baby.groundY;
   epd.drawBitmap(bx, topY, baby.bitmap, baby.w, baby.h, C_BLACK, C_WHITE);
   textCentered(0, SCREEN_W, topY - 30, "A baby marmot is born!", 1);
+  textCentered(0, SCREEN_W, SCREEN_H - 30, "Press ENTER", 1);
   epd.endFrame(true);
 }
 
-void renderTransition(Stage newStage) {
+void renderTransition(Stage newStage, const char* name) {
   // A couple of deliberate full-refresh flashes -- normally something this
   // codebase avoids (see the dithering/no-partial-refresh notes elsewhere),
   // but here the flicker itself sells the "leveling up" moment.
@@ -739,29 +944,62 @@ void renderTransition(Stage newStage) {
   }
 
   epd.beginFrame();
-  const MarmotArt& art = (newStage == Stage::Juvenile) ? kJuvenileVariants[0] : kMarmotVariants[0];
+  char headline[40];
+  snprintf(headline, sizeof(headline), "%s grew up!", name);
+  textCentered(0, SCREEN_W, 20, headline, 1);
+
+  const MarmotArt& art = (newStage == Stage::Juvenile) ? kJuvenileVariants[0] : kMarmotContent[0];
   int cx = SCREEN_W / 2;
-  int by = SCREEN_H / 2 + 60;
+  int by = 60 + art.groundY;
   int bx = cx - art.w / 2;
   int topY = by - art.groundY;
   epd.drawBitmap(bx, topY, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
-  const char* label = (newStage == Stage::Juvenile) ? "Now a Juvenile!" : "Now an Adult!";
-  textCentered(0, SCREEN_W, topY - 42, "Your marmot grew up!", 1);
-  textCentered(0, SCREEN_W, topY - 26, label, 2);
+
+  const char* label = (newStage == Stage::Juvenile) ? "Juvenile" : "Adult";
+  textCentered(0, SCREEN_W, by + 20, label, 2);
   textCentered(0, SCREEN_W, SCREEN_H - 30, "Press ENTER", 1);
   epd.endFrame(true);
 }
 
-void renderRanAway() {
+// One line per DeathCause, picked at random each time so the ending doesn't
+// always read the same way -- the cause itself (which bar bottomed out)
+// still always matches what actually happened.
+static const char* const kDeathStarved[] = {
+    "Starved after too long without food.",
+    "Never found enough to eat.",
+    "Went too long between meals.",
+};
+static const char* const kDeathHeartbroken[] = {
+    "Heartbroken from being ignored.",
+    "Gave up after too long alone.",
+    "Lost interest in everything, unloved.",
+};
+static const char* const kDeathExhausted[] = {
+    "Exhausted from never resting easy.",
+    "Wore out with no one checking in.",
+    "Ran out of energy, alone too long.",
+};
+
+static const char* deathReasonLine(DeathCause cause) {
+  switch (cause) {
+    case DeathCause::Starved:
+      return kDeathStarved[random(3)];
+    case DeathCause::Heartbroken:
+      return kDeathHeartbroken[random(3)];
+    case DeathCause::Exhausted:
+      return kDeathExhausted[random(3)];
+    default:
+      return "Neglected for too long.";
+  }
+}
+
+void renderDeath(DeathCause cause) {
   epd.beginFrame();
-  const MarmotArt& art = kMarmotVariants[0];
-  int cx = SCREEN_W / 2;
-  int by = SCREEN_H / 2 + 40;
-  int bx = cx - art.w / 2;
-  int topY = by - art.groundY;
-  epd.drawBitmap(bx, topY, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
-  textCentered(0, SCREEN_W, topY - 56, "Your marmot wandered off...", 1);
-  textCentered(0, SCREEN_W, topY - 40, "Neglected for too long.", 1);
+  textCentered(0, SCREEN_W, 40, "Your marmot has died.", 2);
+  int bx = (SCREEN_W - MARMOT_DEATH_W) / 2, by = 76;
+  epd.drawBitmap(bx, by, MARMOT_DEATH_BITMAP, MARMOT_DEATH_W, MARMOT_DEATH_H, C_BLACK, C_WHITE);
+  int textY = by + MARMOT_DEATH_H + 20;
+  textCentered(0, SCREEN_W, textY, deathReasonLine(cause), 1);
   textCentered(0, SCREEN_W, SCREEN_H - 44, "Press ENTER to start over", 1);
   textCentered(0, SCREEN_W, SCREEN_H - 30, "with a new baby marmot.", 1);
   epd.endFrame(true);
@@ -775,42 +1013,111 @@ void renderRanAway() {
  */
 void renderSettings(int selected, bool confirmPending) {
   epd.beginFrame();
-  textAt(8, 6, "Settings", 2);
+  textAt(8, 10, "Settings", 2);
 
   if (confirmPending) {
-    textCentered(0, SCREEN_W, 160, "Really reset the game?", 1);
-    textCentered(0, SCREEN_W, 180, "This erases all progress.", 1);
-    drawNavBar("No", "", "");
-    textCentered(0, SCREEN_W, SCREEN_H - 34, "ENTER = Yes", 1);
+    if (selected == 1) {
+      textCentered(0, SCREEN_W, 160, "Really reset the game?", 1);
+      textCentered(0, SCREEN_W, 180, "This erases all progress.", 1);
+    } else {
+      textCentered(0, SCREEN_W, 160, "Power off?", 1);
+      textCentered(0, SCREEN_W, 180, "Only the switch wakes it.", 1);
+    }
+    drawNavBar("", "", "");
+    textCentered(0, SCREEN_W, SCREEN_H - 34, "ENTER = Yes, BACK = No", 1);
   } else {
-    const char* options[] = {"Power Off", "Reset Game", "WiFi Networks"};
+    const char* options[] = {"WiFi Networks", "Reset Game", "Power Off"};
     for (int i = 0; i < 3; i++) {
       char line[24];
       snprintf(line, sizeof(line), "%s %s", i == selected ? ">" : " ", options[i]);
-      textAt(20, 60 + i * 20, line, 1);
+      textAt(20, 90 + i * 30, line, 1);
     }
-    drawNavBar("Exit", "Select", "Next");
+    drawNavBar("Prev", "Select", "Next");
+    textCentered(0, SCREEN_W, SCREEN_H - 34, "BACK = previous menu", 1);
   }
 
   epd.endFrame(true);
 }
 
-void renderTextEntry(const char* prompt, const char* buffer, char currentPick) {
-  epd.beginFrame();
-  textAt(8, 6, prompt, 1);
-  textAt(8, 40, buffer, 2);
-
-  char label[8];
-  if (currentPick == textentry::BACKSPACE) {
-    snprintf(label, sizeof(label), "DEL");
-  } else if (currentPick == textentry::DONE) {
-    snprintf(label, sizeof(label), "OK");
-  } else if (currentPick == ' ') {
-    snprintf(label, sizeof(label), "_");
+// Short label for a grid cell -- printable characters show as themselves,
+// the control/toggle sentinels get a word so an empty-looking or sentinel
+// cell isn't mistaken for a rendering glitch.
+static void keyLabel(char c, char* out, size_t outSize) {
+  if (c == textentry::BACKSPACE) {
+    snprintf(out, outSize, "DEL");
+  } else if (c == textentry::DONE) {
+    snprintf(out, outSize, "OK");
+  } else if (c == textentry::SHIFT) {
+    snprintf(out, outSize, "SHIFT");
+  } else if (c == textentry::SYMBOLS) {
+    snprintf(out, outSize, "SYM");
+  } else if (c == ' ') {
+    snprintf(out, outSize, "SPACE");
   } else {
-    snprintf(label, sizeof(label), "%c", currentPick);
+    snprintf(out, outSize, "%c", c);
   }
-  textCentered(0, SCREEN_W, SCREEN_H / 2, label, 4);
+}
+
+// A real on-screen keyboard grid (not a single blown-up character) -- every
+// key on the active page (letters/SHIFT-caps/SYMBOLS, see textentry.h) is
+// visible at once, LEFT/RIGHT sweep the highlighted cell through the grid
+// in the same row-major order the flat charset is stored in, so cursor
+// motion always matches what's drawn without any separate 2D-navigation
+// bookkeeping. Each key is sized to fit its own label (so "SPACE"/"SHIFT"
+// aren't clipped) rather than a fixed column width, then each row is
+// centered as a whole -- which is also what gives the letter rows their
+// realistic QWERTY stagger.
+void renderTextEntry(const char* prompt, const textentry::State& s) {
+  epd.beginFrame();
+  textAt(8, 10, prompt, 1);
+  textAt(8, 34, s.buffer, 2);
+
+  const int cellH = 24;
+  const int keyPad = 8;
+  const int minKeyW = 22;
+  const int gridY = 66;
+
+  epd.setFont(nullptr);
+  epd.setTextSize(1);
+
+  int idx = 0;
+  for (int row = 0; row < textentry::rowCount(s); row++) {
+    int rowLen = textentry::rowLen(s, row);
+    int widths[16];
+    int rowW = 0;
+    for (int col = 0; col < rowLen; col++) {
+      char label[8];
+      keyLabel(textentry::charsetAt(s, idx + col), label, sizeof(label));
+      int16_t bx, by;
+      uint16_t bw, bh;
+      epd.getTextBounds(label, 0, 0, &bx, &by, &bw, &bh);
+      widths[col] = std::max((int)bw + keyPad, minKeyW);
+      rowW += widths[col];
+    }
+    int cx = (SCREEN_W - rowW) / 2;
+    int cy = gridY + row * cellH;
+    for (int col = 0; col < rowLen; col++, idx++) {
+      char label[8];
+      char c = textentry::charsetAt(s, idx);
+      keyLabel(c, label, sizeof(label));
+      int w = widths[col];
+      int16_t bx, by;
+      uint16_t bw, bh;
+      epd.getTextBounds(label, 0, 0, &bx, &by, &bw, &bh);
+      bool toggledOn = (c == textentry::SHIFT && s.caps) || (c == textentry::SYMBOLS && s.symbols);
+      if (idx == s.pickerIndex) {
+        epd.fillRect(cx + 1, cy + 1, w - 2, cellH - 2, C_BLACK);
+        epd.setTextColor(C_WHITE);
+        epd.setCursor(cx + (w - (int)bw) / 2, cy + (cellH - (int)bh) / 2);
+        epd.print(label);
+        epd.setTextColor(C_BLACK);
+      } else {
+        if (toggledOn) epd.drawRect(cx + 1, cy + 1, w - 2, cellH - 2, C_BLACK);
+        textCentered(cx, w, cy + 6, label, 1);
+      }
+      cx += w;
+    }
+  }
 
   drawNavBar("Prev", "Pick", "Next");
   epd.endFrame(true);
@@ -818,15 +1125,15 @@ void renderTextEntry(const char* prompt, const char* buffer, char currentPick) {
 
 void renderWifiMenu(int selected, bool confirmRemove) {
   epd.beginFrame();
-  textAt(8, 6, "WiFi Networks", 2);
+  textAt(8, 10, "WiFi Networks", 2);
 
   int count = wifistore::count();
   if (confirmRemove && selected >= 0 && selected < count) {
     char msg[48];
     snprintf(msg, sizeof(msg), "Remove '%s'?", wifistore::at(selected).ssid);
     textCentered(0, SCREEN_W, 160, msg, 1);
-    drawNavBar("No", "", "");
-    textCentered(0, SCREEN_W, SCREEN_H - 34, "ENTER = Yes", 1);
+    drawNavBar("", "", "");
+    textCentered(0, SCREEN_W, SCREEN_H - 34, "ENTER = Yes, BACK = No", 1);
     epd.endFrame(true);
     return;
   }
@@ -847,7 +1154,8 @@ void renderWifiMenu(int selected, bool confirmRemove) {
   snprintf(addLine, sizeof(addLine), "%s Add Network", selected == count ? ">" : " ");
   textAt(20, y, addLine, 1);
 
-  drawNavBar("Exit", "Select", "Next");
+  drawNavBar("Prev", "Select", "Next");
+  textCentered(0, SCREEN_W, SCREEN_H - 34, "BACK = previous menu", 1);
   epd.endFrame(true);
 }
 
@@ -857,24 +1165,38 @@ void renderWifiMenu(int selected, bool confirmRemove) {
  * back after this.
  */
 void renderPowerOff() {
+  // Genuinely off (no wake source armed) -- a blank panel is the correct
+  // resting state here, not a lingering message that'd sit on an
+  // unpowered e-ink display until the physical switch cycles it.
   epd.beginFrame();
-  textCentered(0, SCREEN_W, SCREEN_H / 2 - 10, "Powered off", 2);
-  textCentered(0, SCREEN_W, SCREEN_H / 2 + 14, "Flip the switch to wake", 1);
   epd.endFrame(true);
 }
 
-void renderSleep() {
+void renderSleep(Stage stage) {
   epd.beginFrame();
-  // Always the base pose here (not the per-wake random variant drawCreature()
-  // picks for the live views) so this screen reads consistently as "asleep"
-  // rather than whatever alert photo pose happened to be rolled this wake.
+  // Always the first variant for the stage (not the per-wake random pick
+  // drawCreature() uses for the live views) so this screen reads
+  // consistently as "asleep". No dedicated lounging/sleeping photo exists
+  // for Baby/Juvenile (real hoary marmot pup photos in that specific pose
+  // don't turn up in the wild -- see CLAUDE.md's sourcing notes), so those
+  // stages reuse their normal standing pose here rather than showing the
+  // wrong-stage Adult art.
+  const MarmotArt* art = stage == Stage::Baby     ? &kBabyVariants[0]
+                          : stage == Stage::Juvenile ? &kJuvenileVariants[0]
+                                                      : &kMarmotSleepy[0];
   int cx = SCREEN_W / 2;
   int by = SCREEN_H / 2 + 40;
-  int bx = cx - MARMOT_W / 2;
-  int topY = by - MARMOT_GROUND_Y;
-  epd.drawBitmap(bx, topY, MARMOT_BITMAP, MARMOT_W, MARMOT_H, C_BLACK, C_WHITE);
+  int bx = cx - art->w / 2;
+  int topY = by - art->groundY;
+  epd.drawBitmap(bx, topY, art->bitmap, art->w, art->h, C_BLACK, C_WHITE);
 
-  int headX = cx + MARMOT_W / 4, headY = topY + 20;
+  // Stack the Z's up and to the right of the head. The Adult sleepy pose's
+  // canvas has a lot of empty headroom above the actual marmot (a wide
+  // lounging shot on a portrait canvas), so it anchors off the ground line
+  // instead of the art's top edge; Baby/Juvenile's standing poses don't
+  // have that headroom, so anchor those off the art's actual top edge.
+  int headX = std::min(bx + art->w - 40, SCREEN_W - 50);
+  int headY = stage == Stage::Adult ? std::max(by - 100, 44) : std::max(topY + 20, 44);
   textAt(headX, headY, "Z", 3);
   textAt(headX + 22, headY - 24, "Z", 2);
   textAt(headX + 38, headY - 44, "Z", 1);
@@ -882,265 +1204,6 @@ void renderSleep() {
   epd.endFrame(true);
 }
 
-// --- TEMPORARY review helpers (see DEV_MODE_SCREEN_CYCLE in config.h) -----
-
-// Encounter/Main/Status/Foraging/Achievements variety shown by the misc
-// section below, past the bitmap galleries. Not meant to be exhaustive over
-// every event content entry -- just one example per event type/outcome so
-// every distinct screen layout gets reviewed once.
-static const int kDebugMiscCount = 18;
-
-static void renderDebugMisc(int i) {
-  AppContext dummy{};
-  time_t now = 1700000000;  // arbitrary fixed epoch, deterministic for review
-  localtime_r(&now, &dummy.now);
-  dummy.weather.valid = true;
-  dummy.weather.tempC = 15.0f;
-  dummy.weather.postRain = true;
-  snprintf(dummy.weather.condition, sizeof(dummy.weather.condition), "Partly Cloudy");
-  dummy.creature.mood = Mood::Content;
-  dummy.creature.hunger = 30;
-  dummy.creature.happiness = 70;
-  dummy.creature.feedStreakDays = 5;
-  strncpy(dummy.creature.name, "Marmot", sizeof(dummy.creature.name) - 1);
-  dummy.featured = foraging::featured(6);
-
-  auto ev = [](events::EventType t, uint8_t dataId, bool exact = false) {
-    events::PendingEvent e;
-    e.type = t;
-    e.dataId = dataId;
-    e.exact = exact;
-    return e;
-  };
-
-  switch (i) {
-    case 0:
-      dummy.stage = (uint8_t)Stage::Baby;
-      epd.beginFrame();
-      renderMain(dummy);
-      epd.endFrame(true);
-      return;
-    case 1:
-      dummy.stage = (uint8_t)Stage::Juvenile;
-      epd.beginFrame();
-      renderMain(dummy);
-      epd.endFrame(true);
-      return;
-    case 2:
-      dummy.stage = (uint8_t)Stage::Adult;
-      epd.beginFrame();
-      renderMain(dummy);
-      epd.endFrame(true);
-      return;
-    case 3:
-      dummy.stage = (uint8_t)Stage::Adult;
-      epd.beginFrame();
-      renderStatus(dummy);
-      epd.endFrame(true);
-      return;
-    case 4:
-      dummy.stage = (uint8_t)Stage::Juvenile;
-      epd.beginFrame();
-      renderForaging(dummy, 0);
-      epd.endFrame(true);
-      return;
-    case 5:
-      dummy.stage = (uint8_t)Stage::Baby;
-      epd.beginFrame();
-      renderAchievements(dummy);  // locked
-      epd.endFrame(true);
-      return;
-    case 6:
-      dummy.stage = (uint8_t)Stage::Adult;
-      epd.beginFrame();
-      renderAchievements(dummy);  // unlocked
-      epd.endFrame(true);
-      return;
-    case 7:
-      epd.beginFrame();
-      renderEncounter(dummy, ev(events::EventType::AnimalSighting, 0));
-      epd.endFrame(true);
-      return;
-    case 8:
-      epd.beginFrame();
-      renderEncounter(dummy, ev(events::EventType::AnimalSighting, 6));  // Black Bear: predator
-      epd.endFrame(true);
-      return;
-    case 9:
-      epd.beginFrame();
-      renderEncounter(dummy, ev(events::EventType::ForagingFind, 0, false));
-      epd.endFrame(true);
-      return;
-    case 10:
-      epd.beginFrame();
-      renderEncounter(dummy, ev(events::EventType::ForagingFind, 0, true));
-      epd.endFrame(true);
-      return;
-    case 11:
-      epd.beginFrame();
-      renderEncounter(dummy, ev(events::EventType::TrailMishap, 0));
-      epd.endFrame(true);
-      return;
-    case 12:
-      epd.beginFrame();
-      renderEncounter(dummy, ev(events::EventType::WeatherEvent, 0));  // Rainbow: positive
-      epd.endFrame(true);
-      return;
-    case 13:
-      epd.beginFrame();
-      renderEncounter(dummy, ev(events::EventType::WeatherEvent, 3));  // Sudden Downpour: negative
-      epd.endFrame(true);
-      return;
-    case 14:
-      epd.beginFrame();
-      renderEncounter(dummy, ev(events::EventType::BabyCare, 0));
-      epd.endFrame(true);
-      return;
-    case 15:
-      epd.beginFrame();
-      renderEncounter(dummy, ev(events::EventType::TrailTreasure, 0));
-      epd.endFrame(true);
-      return;
-    case 16:
-      epd.beginFrame();
-      renderEncounter(dummy, ev(events::EventType::MarmotEncounter, 0));  // friendly
-      epd.endFrame(true);
-      return;
-    case 17:
-      epd.beginFrame();
-      renderEncounter(dummy, ev(events::EventType::MarmotEncounter, 10));  // rival
-      epd.endFrame(true);
-      return;
-    default:
-      return;
-  }
-}
-
-int debugScreenCount() {
-  return kMarmotVariantCount + kBabyVariantCount + kJuvenileVariantCount + kAnimalArtCount +
-         species_bitmaps::kSpeciesBitmapCount + kDebugMiscCount +
-         9 /* birth, transitions, ran away, power off, sleep, settings x3 */;
-}
-
-void renderDebugScreen(int index) {
-  int i = index;
-
-  if (i < kMarmotVariantCount) {
-    const MarmotArt& art = kMarmotVariants[i];
-    epd.beginFrame();
-    int cx = SCREEN_W / 2, by = SCREEN_H / 2 + 40;
-    epd.drawBitmap(cx - art.w / 2, by - art.groundY, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "Adult pose %d/%d", i + 1, kMarmotVariantCount);
-    textCentered(0, SCREEN_W, 16, buf, 1);
-    epd.endFrame(true);
-    return;
-  }
-  i -= kMarmotVariantCount;
-
-  if (i < kBabyVariantCount) {
-    const MarmotArt& art = kBabyVariants[i];
-    epd.beginFrame();
-    int cx = SCREEN_W / 2, by = SCREEN_H / 2 + 40;
-    epd.drawBitmap(cx - art.w / 2, by - art.groundY, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "Baby pose %d/%d", i + 1, kBabyVariantCount);
-    textCentered(0, SCREEN_W, 16, buf, 1);
-    epd.endFrame(true);
-    return;
-  }
-  i -= kBabyVariantCount;
-
-  if (i < kJuvenileVariantCount) {
-    const MarmotArt& art = kJuvenileVariants[i];
-    epd.beginFrame();
-    int cx = SCREEN_W / 2, by = SCREEN_H / 2 + 40;
-    epd.drawBitmap(cx - art.w / 2, by - art.groundY, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "Juvenile pose %d/%d", i + 1, kJuvenileVariantCount);
-    textCentered(0, SCREEN_W, 16, buf, 1);
-    epd.endFrame(true);
-    return;
-  }
-  i -= kJuvenileVariantCount;
-
-  if (i < kAnimalArtCount) {
-    events::PendingEvent ev;
-    ev.type = events::EventType::AnimalSighting;
-    ev.dataId = (uint8_t)i;
-    const AnimalArt& art = kAnimalArt[i];
-    epd.beginFrame();
-    char buf[48];
-    snprintf(buf, sizeof(buf), "Animal %d/%d: %s", i + 1, kAnimalArtCount, events::eventName(ev));
-    textCentered(0, SCREEN_W, 16, buf, 1);
-    if (art.bitmap) {
-      epd.drawBitmap((SCREEN_W - art.w) / 2, 60, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
-    } else {
-      textCentered(0, SCREEN_W, 160, "(no sourced photo)", 1);
-    }
-    epd.endFrame(true);
-    return;
-  }
-  i -= kAnimalArtCount;
-
-  if (i < species_bitmaps::kSpeciesBitmapCount) {
-    // Deterministic shuffle (not a real per-boot random -- just a fixed
-    // coprime-multiplier permutation) so this review cycle doesn't walk the
-    // list in the same alphabetical order every time. 131 is coprime with
-    // every kSpeciesBitmapCount this project is realistically going to have
-    // (no shared factor of 2 or 5), so every index gets hit exactly once.
-    int shuffled = (i * 131) % species_bitmaps::kSpeciesBitmapCount;
-    const species_bitmaps::SpeciesBitmap& sb = species_bitmaps::kSpeciesBitmaps[shuffled];
-    epd.beginFrame();
-    char buf[48];
-    snprintf(buf, sizeof(buf), "Species %d/%d", i + 1, species_bitmaps::kSpeciesBitmapCount);
-    textCentered(0, SCREEN_W, 16, buf, 1);
-    textCentered(0, SCREEN_W, 36, sb.name, 1);
-    epd.drawBitmap((SCREEN_W - sb.w) / 2, 66, sb.bitmap, sb.w, sb.h, C_BLACK, C_WHITE);
-    epd.endFrame(true);
-    return;
-  }
-  i -= species_bitmaps::kSpeciesBitmapCount;
-
-  if (i < kDebugMiscCount) {
-    renderDebugMisc(i);
-    return;
-  }
-  i -= kDebugMiscCount;
-
-  // These all manage their own beginFrame()/endFrame() already.
-  switch (i) {
-    case 0:
-      renderBirth();
-      return;
-    case 1:
-      renderTransition(Stage::Juvenile);
-      return;
-    case 2:
-      renderTransition(Stage::Adult);
-      return;
-    case 3:
-      renderRanAway();
-      return;
-    case 4:
-      renderPowerOff();
-      return;
-    case 5:
-      renderSleep();
-      return;
-    case 6:
-      renderSettings(0, false);
-      return;
-    case 7:
-      renderSettings(1, false);
-      return;
-    case 8:
-      renderSettings(1, true);
-      return;
-    default:
-      return;
-  }
-}
 
 void hibernate() { epd.sleep(); }
 

@@ -1,4 +1,4 @@
-// Western Hemlock Cambium -- v4, 130x130 canvas
+// Western Hemlock Cambium -- v7 fix
 #pragma once
 
 #include <pgmspace.h>

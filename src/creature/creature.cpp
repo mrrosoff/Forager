@@ -16,13 +16,13 @@ void load(CreatureState& s) {
   p.begin(NVS_NS, /*readOnly=*/true);
   s.hunger = p.getUChar("hunger", 30);
   s.happiness = p.getUChar("happy", 60);
+  s.energy = p.getUChar("energy", 70);
   s.lastFed = (time_t)p.getULong64("lastFed", 0);
   s.lastPlayed = (time_t)p.getULong64("lastPlayed", 0);
   s.birthDate = (time_t)p.getULong64("birthDate", 0);
   s.feedStreakDays = p.getUShort("streak", 0);
   s.lastStreakDay = (time_t)p.getULong64("streakDay", 0);
   s.lastSeenStage = p.getUChar("lastStage", 0);
-  s.neglectSince = (time_t)p.getULong64("neglectSince", 0);
   strncpy(s.name, "Marmot", sizeof(s.name) - 1);  // default if never named yet
   s.name[sizeof(s.name) - 1] = '\0';
   p.getString("name", s.name, sizeof(s.name));
@@ -35,13 +35,13 @@ void save(const CreatureState& s) {
   p.begin(NVS_NS, /*readOnly=*/false);
   p.putUChar("hunger", s.hunger);
   p.putUChar("happy", s.happiness);
+  p.putUChar("energy", s.energy);
   p.putULong64("lastFed", (uint64_t)s.lastFed);
   p.putULong64("lastPlayed", (uint64_t)s.lastPlayed);
   p.putULong64("birthDate", (uint64_t)s.birthDate);
   p.putUShort("streak", s.feedStreakDays);
   p.putULong64("streakDay", (uint64_t)s.lastStreakDay);
   p.putUChar("lastStage", s.lastSeenStage);
-  p.putULong64("neglectSince", (uint64_t)s.neglectSince);
   p.putString("name", s.name);
   p.end();
 }
@@ -74,9 +74,22 @@ static void agingBoredom(CreatureState& s, time_t now) {
   if (ceiling < s.happiness) s.happiness = ceiling;
 }
 
+// Same ceiling-clamp shape as agingBoredom(), same lastPlayed trigger, but
+// its own (longer) decay period -- energy and happiness both track neglect
+// since the last interaction, just at different rates.
+static void agingEnergy(CreatureState& s, time_t now) {
+  if (s.lastPlayed == 0 || now <= s.lastPlayed) return;
+  double hrs = (double)(now - s.lastPlayed) / 3600.0;
+  double frac = hrs / (double)ENERGY_PERIOD_HOURS;
+  frac = std::max(0.0, std::min(1.0, frac));
+  uint8_t ceiling = (uint8_t)((1.0 - frac) * 100.0);
+  if (ceiling < s.energy) s.energy = ceiling;
+}
+
 Mood evaluate(CreatureState& s, const struct tm& now, const WeatherData& weather) {
   time_t nowEpoch = mktime(const_cast<struct tm*>(&now));
   agingHunger(s, nowEpoch);
+  agingEnergy(s, nowEpoch);
   agingBoredom(s, nowEpoch);
 
   int month = now.tm_mon + 1;  // 1..12
@@ -109,12 +122,32 @@ Mood evaluate(CreatureState& s, const struct tm& now, const WeatherData& weather
 // good enough for a streak counter, no need for exact local-midnight math.
 static int64_t dayIndex(time_t t) { return (int64_t)t / 86400; }
 
-void feedForaged(CreatureState& s, time_t now, bool inSeason) {
+// Sweet/treat kinds lean toward happiness, protein/hearty kinds lean toward
+// energy, and everything else (staple greens, fungi) gives a smaller amount
+// of both -- every food still fills hunger the same regardless of kind (see
+// feedForaged() below), this only varies the secondary boost.
+FeedEffect feedEffectForKind(const char* kind) {
+  static const char* const kTreatKinds[] = {"berry", "sap", "nut", "pine nut"};
+  static const char* const kProteinKinds[] = {"shellfish", "crab", "shrimp",
+                                               "snail",     "chiton", "urchin"};
+  for (const char* k : kTreatKinds) {
+    if (strcmp(kind, k) == 0) return {20, 5};
+  }
+  for (const char* k : kProteinKinds) {
+    if (strcmp(kind, k) == 0) return {5, 20};
+  }
+  return {8, 8};
+}
+
+void feedForaged(CreatureState& s, time_t now, bool inSeason, const char* kind) {
   s.hunger = s.hunger > 25 ? s.hunger - 25 : 0;
-  int h = (int)s.happiness + (inSeason ? 15 : 10);
+  FeedEffect effect = feedEffectForKind(kind);
+  int h = (int)s.happiness + (inSeason ? 15 : 10) + effect.happinessBoost;
   s.happiness = (uint8_t)(h > 100 ? 100 : h);
+  int e = (int)s.energy + effect.energyBoost;
+  s.energy = (uint8_t)(e > 100 ? 100 : e);
   s.lastFed = now;
-  s.lastPlayed = now;  // eating counts as play -- resets the boredom clock too
+  s.lastPlayed = now;  // eating counts as play -- resets the boredom/energy clocks too
 
   int64_t today = dayIndex(now);
   int64_t lastDay = dayIndex(s.lastStreakDay);
@@ -133,27 +166,23 @@ void feedForaged(CreatureState& s, time_t now, bool inSeason) {
 }
 
 /**
- * Growth stage from real elapsed time since birth (see BABY_STAGE_DAYS /
- * JUVENILE_STAGE_DAYS in config.h).
+ * Growth stage from distinct species foraged (see BABY_STAGE_SPECIES /
+ * ADULT_STAGE_SPECIES in config.h).
  */
-Stage computeStage(time_t birthDate, time_t now) {
-  if (birthDate == 0 || now <= birthDate) return Stage::Baby;
-  double days = (double)(now - birthDate) / 86400.0;
-  if (days < (double)BABY_STAGE_DAYS) return Stage::Baby;
-  if (days < (double)JUVENILE_STAGE_DAYS) return Stage::Juvenile;
+Stage computeStage(int speciesEaten) {
+#if DEV_MODE_SKIP_GROWTH
+  return Stage::Adult;
+#endif
+  if (speciesEaten < BABY_STAGE_SPECIES) return Stage::Baby;
+  if (speciesEaten < ADULT_STAGE_SPECIES) return Stage::Juvenile;
   return Stage::Adult;
 }
 
-bool updateNeglect(CreatureState& s, time_t now) {
-  bool neglected =
-      s.hunger >= NEGLECT_HUNGER_THRESHOLD && s.happiness <= NEGLECT_HAPPINESS_THRESHOLD;
-  if (!neglected) {
-    s.neglectSince = 0;
-    return false;
-  }
-  if (s.neglectSince == 0) s.neglectSince = now;
-  double days = (double)(now - s.neglectSince) / 86400.0;
-  return days >= (double)NEGLECT_DAYS;
+DeathCause checkDeath(const CreatureState& s) {
+  if (s.hunger >= DEATH_HUNGER_THRESHOLD) return DeathCause::Starved;
+  if (s.happiness <= DEATH_HAPPINESS_THRESHOLD) return DeathCause::Heartbroken;
+  if (s.energy <= DEATH_ENERGY_THRESHOLD) return DeathCause::Exhausted;
+  return DeathCause::None;
 }
 
 const char* moodName(Mood m) {
@@ -170,6 +199,8 @@ const char* moodName(Mood m) {
       return "annoyed";
     case Mood::Dormant:
       return "dormant";
+    case Mood::Scared:
+      return "scared";
   }
   return "content";
 }

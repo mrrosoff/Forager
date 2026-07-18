@@ -21,7 +21,13 @@ const Forageable& speciesAt(int index);
 // Rebuilds the Foraging view's browse order: relevance-ranked (in-season
 // species first, a rain bonus for mushrooms) with per-wake randomization so
 // it's not the same order every time. Call once per wake, before browsing.
+// Only includes discovered species (see journal::isDiscovered()) -- the
+// full reference isn't handed over on day one, see events::EventType::Discovery.
 void rebuildBrowseOrder(int month, bool postRain);
+
+// Number of discovered/browsable species, 0..speciesCount(). May be 0
+// early on, before any Discovery encounters have resolved.
+int browsableCount();
 
 // Species at a browse-order rank (0..speciesCount()-1), after
 // rebuildBrowseOrder(). Distinct from speciesAt(), which is raw array order

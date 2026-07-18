@@ -27,6 +27,13 @@ class EpdGFX : public Adafruit_GFX {
     firstFrame_ = true;
     return epd_.Init();
   }
+
+  // Re-runs the panel reset/register config for a clean forced full
+  // refresh mid-session, without begin()'s SPI.begin()/beginTransaction()
+  // -- those aren't safe to call twice in one session (wedges the bus,
+  // hangs the next ReadBusy()).
+  void reinitPanel() { epd_.ResetAndConfigure(); }
+
   void clearPanel() { epd_.Clear(); }
   void sleep() { epd_.Sleep(); }
 

@@ -1,4 +1,4 @@
-// fly_agaric -- v5 fix, correct content
+// Fly Agaric -- v7 fix
 #pragma once
 
 #include <pgmspace.h>

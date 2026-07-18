@@ -1,4 +1,4 @@
-// Whitebark Pine Nuts -- v4, 130x130 canvas
+// Whitebark Pine Nuts -- v6 fix
 #pragma once
 
 #include <pgmspace.h>

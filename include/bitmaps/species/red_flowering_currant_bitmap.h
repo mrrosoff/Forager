@@ -1,4 +1,4 @@
-// Red Flowering Currant -- v5, 130x130
+// Red Flowering Currant -- v7 fix
 #pragma once
 
 #include <pgmspace.h>

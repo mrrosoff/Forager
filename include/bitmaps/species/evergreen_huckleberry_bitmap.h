@@ -1,4 +1,4 @@
-// Evergreen Huckleberry -- v5, 130x130
+// Evergreen Huckleberry -- v7 fix
 #pragma once
 
 #include <pgmspace.h>

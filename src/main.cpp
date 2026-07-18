@@ -27,25 +27,31 @@ static uint32_t lastActivityMs = 0;
 static bool pendingTransition = false;
 static Stage transitionToStage = Stage::Baby;
 
-// Set by buildContext() when creature::updateNeglect() reports the marmot
-// has wandered off for good -- setup() shows display::renderRanAway() and
-// resets the whole game once acknowledged.
-static bool marmotRanAway = false;
+// Set by buildContext() when creature::checkDeath() reports a bar has
+// bottomed out -- setup() shows display::renderDeath() and resets the
+// whole game once acknowledged. None means still alive.
+static DeathCause marmotDeathCause = DeathCause::None;
 
 struct Btn {
   int pin;
   bool prev;
   uint32_t lastEdge;
+  // LEFT/RIGHT/ENTER are dedicated buttons wired to 3V3 through the power
+  // switch (INPUT_PULLDOWN, reads HIGH when pressed). SETTINGS instead
+  // rides the e-ink display module's own onboard KEY1 button (Waveshare
+  // Pico-ePaper-4.2), which is wired switch-to-GND like every Waveshare
+  // board button -- INPUT_PULLUP, reads LOW when pressed.
+  bool activeHigh;
 };
-static Btn bLeft{PIN_BTN_LEFT, false, 0};
-static Btn bRight{PIN_BTN_RIGHT, false, 0};
-static Btn bEnter{PIN_BTN_ENTER, false, 0};
-static Btn bSettings{PIN_BTN_SETTINGS, false, 0};
+static Btn bLeft{PIN_BTN_LEFT, false, 0, true};
+static Btn bRight{PIN_BTN_RIGHT, false, 0, true};
+static Btn bEnter{PIN_BTN_ENTER, false, 0, true};
+static Btn bSettings{PIN_BTN_SETTINGS, false, 0, false};
 
 /**
  * Settings overlay state (see loop()) -- not part of the View cycle, since
  * it's triggered by its own dedicated button rather than LEFT/RIGHT paging.
- * selectedOption: 0 = Power Off, 1 = Reset Game, 2 = WiFi Networks.
+ * selectedOption: 0 = WiFi Networks, 1 = Reset Game, 2 = Power Off.
  */
 static bool inSettings = false;
 static int selectedOption = 0;
@@ -77,9 +83,53 @@ static char pendingWifiSsid[32];  // holds the SSID while its password is typed 
 static bool rightHeld = false;
 static uint32_t rightNextStepMs = 0;
 static int rightHoldSteps = 0;
-static const uint32_t RIGHT_HOLD_INITIAL_MS = 450;
-static const uint32_t RIGHT_HOLD_FLOOR_MS = 60;
-static const uint32_t RIGHT_HOLD_ACCEL_MS = 40;
+static const uint32_t RIGHT_HOLD_INITIAL_MS = 350;
+static const uint32_t RIGHT_HOLD_FLOOR_MS = 20;
+static const uint32_t RIGHT_HOLD_ACCEL_MS = 60;
+
+// Same accelerating hold-to-scroll shape as Foraging's RIGHT above, factored
+// out so other views can reuse it without their own copy of the state
+// machine. Returns true once per step that should fire: immediately on a
+// fresh press, then repeatedly with a shrinking interval (down to `floorMs`)
+// while held. Takes its own curve rather than sharing Foraging's
+// RIGHT_HOLD_* constants -- a redraw-bound context (like the text-entry
+// keyboard, which measures every key's text bounds on every frame, unlike
+// Foraging's simpler card) can saturate at "however fast the panel
+// physically redraws" well before a 20ms floor is ever reached, making the
+// ramp invisible; a higher floor keeps the whole curve inside a range where
+// speeding up is actually perceptible against that redraw cost.
+struct HoldAccel {
+  bool held = false;
+  uint32_t nextStepMs = 0;
+  int steps = 0;
+};
+
+static bool holdAccelStep(HoldAccel& s, bool down, uint32_t initialMs, uint32_t floorMs,
+                           uint32_t accelMs) {
+  if (down && !s.held) {
+    s.held = true;
+    s.steps = 0;
+    s.nextStepMs = millis() + initialMs;
+    return true;
+  }
+  if (down && s.held && millis() >= s.nextStepMs) {
+    s.steps++;
+    uint32_t interval =
+        initialMs > (uint32_t)s.steps * accelMs ? initialMs - s.steps * accelMs : floorMs;
+    if (interval < floorMs) interval = floorMs;
+    s.nextStepMs = millis() + interval;
+    return true;
+  }
+  if (!down) s.held = false;
+  return false;
+}
+
+// Text-entry's keyboard redraw is heavier than Foraging's card (measures
+// every key's text bounds every frame), so it needs a slower ramp and a
+// much higher floor -- see HoldAccel's doc comment above.
+static const uint32_t TE_HOLD_INITIAL_MS = 400;
+static const uint32_t TE_HOLD_FLOOR_MS = 150;
+static const uint32_t TE_HOLD_ACCEL_MS = 25;
 
 static void goToSleep() {
 #if DEV_MODE_NO_SLEEP
@@ -89,9 +139,15 @@ static void goToSleep() {
   // the bistable e-ink panel keeps displaying whatever we draw here,
   // unpowered, until the next wake redraws it.
   currentView = View::Main;
-  display::renderSleep();
+  display::renderSleep((Stage)ctx.stage);
   display::hibernate();
-  esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BTN_ENTER, 1);
+  // ext1 (not ext0) so all three buttons wake the board, not just ENTER --
+  // ext0 only supports a single GPIO. All three pins are RTC-capable
+  // (LEFT=1, RIGHT=2, ENTER=4) and read HIGH when pressed (INPUT_PULLDOWN),
+  // so ANY_HIGH wakes on whichever one is pressed.
+  uint64_t wakeMask =
+      (1ULL << PIN_BTN_LEFT) | (1ULL << PIN_BTN_RIGHT) | (1ULL << PIN_BTN_ENTER);
+  esp_sleep_enable_ext1_wakeup(wakeMask, ESP_EXT1_WAKEUP_ANY_HIGH);
   esp_sleep_enable_timer_wakeup(FORCE_REFRESH_INTERVAL_US);
   esp_deep_sleep_start();
 #endif
@@ -143,7 +199,7 @@ static bool buildContext() {
 
   journal::load();
 
-  Stage stage = creature::computeStage(ctx.creature.birthDate, nowUtc);
+  Stage stage = creature::computeStage(journal::totalEaten());
   ctx.stage = (uint8_t)stage;
 
   // A stage advance since the last acknowledged wake gets a one-time
@@ -157,19 +213,25 @@ static bool buildContext() {
   }
   ctx.creature.lastSeenStage = (uint8_t)stage;
 
-  // Prolonged neglect (hunger and happiness both critical, continuously,
-  // for NEGLECT_DAYS) is terminal -- see setup(). Persisted via
-  // neglectSince regardless of outcome, so this keeps re-evaluating
-  // correctly across wakes even if the player never sees the result yet.
-  if (creature::updateNeglect(ctx.creature, nowUtc)) marmotRanAway = true;
+  // Any bar bottoming out (fully starved, or happiness/energy hitting 0) is
+  // terminal -- see setup(). Those extremes only happen after multiple days
+  // of zero feeding (see checkDeath()'s doc comment), so this is a real
+  // neglect consequence, not a one-bad-wake gotcha.
+  marmotDeathCause = creature::checkDeath(ctx.creature);
   creature::save(ctx.creature);
 
   // Spawn-check runs exactly once per wake, here -- there's no live
   // background timer since the device is asleep the rest of the time.
-  events::PendingEvent ev = events::checkForEvent(nowUtc, month, stage);
-  ctx.eventType = (uint8_t)ev.type;
-  ctx.eventDataId = ev.dataId;
-  ctx.eventExact = ev.exact ? 1 : 0;
+  // Skipped entirely on firstBoot: checkForEvent() treats a never-set
+  // evLastAt as "cooldown already elapsed" (there's nothing to measure
+  // from yet), so without this guard a newborn marmot could roll straight
+  // into a pending event before the player's even finished naming it.
+  if (!firstBoot) {
+    events::PendingEvent ev = events::checkForEvent(nowUtc, month, stage);
+    ctx.eventType = (uint8_t)ev.type;
+    ctx.eventDataId = ev.dataId;
+    ctx.eventExact = ev.exact ? 1 : 0;
+  }
 
   // Foraging browse order is relevance-ranked (season + rain) with per-wake
   // randomization, so it's not the same order every time either.
@@ -179,7 +241,8 @@ static bool buildContext() {
 }
 
 static bool pressed(Btn& b) {
-  bool now = digitalRead(b.pin) == HIGH;
+  bool raw = digitalRead(b.pin) == HIGH;
+  bool now = b.activeHigh ? raw : !raw;
   bool fired = false;
   if (now && !b.prev && (millis() - b.lastEdge) > BTN_DEBOUNCE_MS) {
     fired = true;
@@ -190,14 +253,49 @@ static bool pressed(Btn& b) {
 }
 
 // LEFT/RIGHT step backward/forward through Achievements <-> Status <-> Main
-// <-> Foraging, clamped at each end (no wraparound). Foraging is hidden
-// during Baby stage (nothing to eat there could be resolved yet) -- treat
-// Main as if it were the rightmost boundary in that case. Achievements is
-// hidden entirely until Adult (see renderAchievements()'s old "Locked"
-// message, replaced by just not navigating there at all).
+// <-> Foraging, clamped at each end (no wraparound). Foraging is reachable
+// from birth now (growth is gated by species foraged, so a Baby has to be
+// able to forage). Achievements is hidden entirely until Adult (see
+// renderAchievements()'s old "Locked" message, replaced by just not
+// navigating there at all).
 static bool viewReachable(View v) {
-  if (v == View::Foraging && (Stage)ctx.stage == Stage::Baby) return false;
   if (v == View::Achievements && (Stage)ctx.stage != Stage::Adult) return false;
+  return true;
+}
+
+// Rewards an actively-browsing session with a guaranteed event instead of
+// making it wait on the same background odds as an idle device: hitting
+// SCREEN_CHANGE_EVENT_TRIGGER view changes within SCREEN_CHANGE_WINDOW_MS
+// of each other spawns one on the spot, as long as one wasn't already
+// pending or just resolved within EVENT_RECENCY_GATE_SECONDS (see
+// config.h). A gap longer than the window resets the count instead of
+// letting it accumulate across a slow, sparse session. Returns true if it
+// spawned one, so the caller can force a full refresh for the new art.
+static int screenChangeCount = 0;
+static uint32_t screenChangeWindowStart = 0;
+
+static bool bumpScreenChangeAndMaybeSpawn() {
+  uint32_t now = millis();
+  if (screenChangeCount == 0 || now - screenChangeWindowStart > SCREEN_CHANGE_WINDOW_MS) {
+    screenChangeCount = 1;
+    screenChangeWindowStart = now;
+  } else {
+    screenChangeCount++;
+  }
+  if (screenChangeCount < SCREEN_CHANGE_EVENT_TRIGGER) return false;
+  screenChangeCount = 0;
+  if (ctx.eventType != 0) return false;  // already have a pending event
+  if (events::recentlyResolved(time(nullptr), EVENT_RECENCY_GATE_SECONDS)) return false;
+
+  events::PendingEvent ev = events::spawnNow((Stage)ctx.stage);
+  ctx.eventType = (uint8_t)ev.type;
+  ctx.eventDataId = ev.dataId;
+  ctx.eventExact = ev.exact ? 1 : 0;
+  // The encounter screen only shows/resolves as a takeover of Main -- force
+  // the player there so the new event is actually visible and ENTER can
+  // acknowledge it, instead of leaving them on whatever view they were
+  // navigating to with the event silently pending underneath.
+  currentView = View::Main;
   return true;
 }
 
@@ -206,7 +304,8 @@ static void retreatView() {
   View prev = (View)((int)currentView - 1);
   if (!viewReachable(prev)) return;
   currentView = prev;
-  display::renderView(currentView, ctx, forageIdx);
+  bool spawned = bumpScreenChangeAndMaybeSpawn();
+  display::renderView(currentView, ctx, forageIdx, spawned);
 }
 
 static void advanceView() {
@@ -215,7 +314,8 @@ static void advanceView() {
   View next = (View)((int)currentView + 1);
   if (!viewReachable(next)) return;
   currentView = next;
-  display::renderView(currentView, ctx, forageIdx);
+  bool spawned = bumpScreenChangeAndMaybeSpawn();
+  display::renderView(currentView, ctx, forageIdx, spawned);
 }
 
 // ENTER's action depends on the current view: resolve a pending sighting/
@@ -232,6 +332,19 @@ static void onEnter() {
       ev.dataId = ctx.eventDataId;
       ev.exact = ctx.eventExact != 0;
       if (ev.type != events::EventType::None && ev.type != events::EventType::ForagingFind) {
+        if (ev.type == events::EventType::Discovery) {
+          journal::markDiscovered(ev.dataId);
+          journal::save();
+          foraging::rebuildBrowseOrder(ctx.now.tm_mon + 1, ctx.weather.postRain);
+        } else if (ev.type == events::EventType::AnimalSighting) {
+          journal::bumpAnimalSightings();
+        } else if (ev.type == events::EventType::WeatherEvent) {
+          journal::bumpWeatherEvents();
+        } else if (ev.type == events::EventType::TrailMishap ||
+                   ev.type == events::EventType::TrailTreasure ||
+                   ev.type == events::EventType::MarmotEncounter) {
+          journal::bumpOtherEvents();
+        }
         events::resolve(ev, ctx.creature, time(nullptr));
         creature::evaluate(ctx.creature, ctx.now, ctx.weather);
         creature::save(ctx.creature);
@@ -241,13 +354,14 @@ static void onEnter() {
       break;
     }
     case View::Foraging: {
+      if (foraging::browsableCount() == 0) break;  // nothing discovered yet, nothing to eat
       events::PendingEvent ev;
       ev.type = (events::EventType)ctx.eventType;
       ev.dataId = ctx.eventDataId;
       ev.exact = ctx.eventExact != 0;
       const Forageable& current = foraging::speciesAtRank(forageIdx);
       int month = ctx.now.tm_mon + 1;
-      creature::feedForaged(ctx.creature, time(nullptr), foraging::inSeason(current, month));
+      creature::feedForaged(ctx.creature, time(nullptr), foraging::inSeason(current, month), current.kind);
       journal::markEaten(foraging::indexAtRank(forageIdx));
       journal::save();
       if (events::eventMatchesSpecies(ev, current)) {
@@ -267,7 +381,7 @@ static void onEnter() {
 // Foraging-view species stepping, shared by a plain RIGHT tap and the
 // accelerating hold-to-scroll in loop().
 static void advanceForageIdx() {
-  int maxIdx = foraging::speciesCount() - 1;
+  int maxIdx = std::max(foraging::browsableCount() - 1, 0);
   forageIdx = std::min(forageIdx + 1, maxIdx);
   display::renderView(View::Foraging, ctx, forageIdx);
 }
@@ -285,9 +399,7 @@ static const char* textEntryPrompt(TextEntryPurpose p) {
   }
 }
 
-static void renderCurrentTextEntry() {
-  display::renderTextEntry(textEntryPrompt(tePurpose), teState.buffer, textentry::current(teState));
-}
+static void renderCurrentTextEntry() { display::renderTextEntry(textEntryPrompt(tePurpose), teState); }
 
 // Begins the shared text-entry overlay for one purpose. initial pre-fills
 // the buffer (e.g. re-showing an in-progress SSID isn't needed today, but
@@ -337,21 +449,53 @@ static void finishTextEntry() {
   }
 }
 
+// Accelerating hold-to-scroll state for the text-entry keyboard's LEFT/
+// RIGHT -- see HoldAccel above. Separate from Foraging's rightHeld/etc.
+// since the two are never active at the same time but shouldn't share
+// state (a hold carried over from one context into the other would fire a
+// stray step).
+static HoldAccel teRightAccel, teLeftAccel;
+
 // Returns true if any button press was handled -- callers use this to reset
 // their own idle/timeout tracking (see setup()'s birth-naming block, which
 // runs before the normal loop() idle machinery is active).
 static bool handleTextEntryInput() {
   bool activity = false;
-  if (pressed(bRight)) {
+
+  // SETTINGS/KEY1: immediate-enter while naming the marmot (commits
+  // whatever's typed without needing to scroll the picker to DONE first),
+  // or back-out-to-WiFi-menu while entering an SSID/password -- same
+  // "KEY1 = back" convention as the rest of Settings, just abandoning the
+  // whole add-network flow in one press rather than stepping field by
+  // field.
+  if (pressed(bSettings)) {
+    if (tePurpose == TextEntryPurpose::MarmotName) {
+      finishTextEntry();
+    } else {
+      tePurpose = TextEntryPurpose::None;
+      display::renderWifiMenu(wifiSelected, false);
+    }
+    return true;
+  }
+
+  bool rightDown = digitalRead(PIN_BTN_RIGHT) == HIGH;
+  if (holdAccelStep(teRightAccel, rightDown, TE_HOLD_INITIAL_MS, TE_HOLD_FLOOR_MS,
+                     TE_HOLD_ACCEL_MS)) {
     textentry::moveNext(teState);
     renderCurrentTextEntry();
     activity = true;
   }
-  if (pressed(bLeft)) {
+  bRight.prev = rightDown;
+
+  bool leftDown = digitalRead(PIN_BTN_LEFT) == HIGH;
+  if (holdAccelStep(teLeftAccel, leftDown, TE_HOLD_INITIAL_MS, TE_HOLD_FLOOR_MS,
+                     TE_HOLD_ACCEL_MS)) {
     textentry::movePrev(teState);
     renderCurrentTextEntry();
     activity = true;
   }
+  bLeft.prev = leftDown;
+
   if (pressed(bEnter)) {
     activity = true;
     if (textentry::commit(teState)) {
@@ -367,6 +511,11 @@ static bool handleTextEntryInput() {
 // network plus a trailing "Add Network" row, ENTER acts (confirm-delete for
 // a network, start SSID entry for "Add Network"), LEFT exits back to the
 // main Settings menu (or cancels a pending delete-confirm).
+// LEFT/RIGHT/ENTER only cycle and select within these menus now -- "back"
+// (to the previous screen, at whatever nesting depth) is the dedicated
+// SETTINGS/KEY1 button instead, handled once in loop() rather than
+// duplicated as a LEFT case in every handler (see the settings-button
+// dispatch at the top of loop()).
 static void handleWifiMenuInput() {
   int addRow = wifistore::count();
   if (wifiRemoveConfirm) {
@@ -376,14 +525,14 @@ static void handleWifiMenuInput() {
       wifiSelected = 0;
       display::renderWifiMenu(wifiSelected, false);
     }
-    if (pressed(bLeft)) {
-      wifiRemoveConfirm = false;
-      display::renderWifiMenu(wifiSelected, false);
-    }
     return;
   }
   if (pressed(bRight)) {
     wifiSelected = (wifiSelected + 1) % (addRow + 1);
+    display::renderWifiMenu(wifiSelected, false);
+  }
+  if (pressed(bLeft)) {
+    wifiSelected = (wifiSelected - 1 + addRow + 1) % (addRow + 1);
     display::renderWifiMenu(wifiSelected, false);
   }
   if (pressed(bEnter)) {
@@ -394,30 +543,7 @@ static void handleWifiMenuInput() {
       display::renderWifiMenu(wifiSelected, true);
     }
   }
-  if (pressed(bLeft)) {
-    inWifiMenu = false;
-    display::renderSettings(selectedOption, false);
-  }
 }
-
-#if DEV_MODE_SCREEN_CYCLE
-// TEMPORARY review build (see DEV_MODE_SCREEN_CYCLE in config.h): replaces
-// the whole state machine with a free-running gallery of every screen and
-// every sourced bitmap, no WiFi/buttons/sleep/persistence involved.
-void setup() {
-  Serial.begin(115200);
-  display::begin();
-  int count = display::debugScreenCount();
-  log_i("Screen cycle: %d screens, 1s each", count);
-  int idx = 0;
-  while (true) {
-    display::renderDebugScreen(idx);
-    idx = (idx + 1) % count;
-    delay(1000);
-  }
-}
-void loop() {}
-#else
 
 void setup() {
   Serial.begin(115200);
@@ -425,8 +551,67 @@ void setup() {
   pinMode(PIN_BTN_LEFT, INPUT_PULLDOWN);
   pinMode(PIN_BTN_RIGHT, INPUT_PULLDOWN);
   pinMode(PIN_BTN_ENTER, INPUT_PULLDOWN);
-  pinMode(PIN_BTN_SETTINGS, INPUT_PULLDOWN);
+  pinMode(PIN_BTN_SETTINGS, INPUT_PULLUP);
   log_i("Woke");
+
+#if DEV_MODE_EVENT_CYCLE
+  // Review-only loop -- see DEV_MODE_EVENT_CYCLE's doc comment in config.h.
+  // Bypasses WiFi/game state entirely; ENTER advances to the next event,
+  // wrapping back to the first after the last. Reuses the real
+  // encounter-screen renderer (Main view takeover) by just populating ctx
+  // the way a real spawned event would.
+  display::begin();
+  ctx.stage = (uint8_t)Stage::Adult;
+  strncpy(ctx.creature.name, "Marmot", sizeof(ctx.creature.name) - 1);
+  ctx.creature.mood = Mood::Excited;
+
+  // One (EventType, count) bucket per demo group, in display order -- a
+  // flat demo index walks through each bucket's dataId range in turn
+  // before moving to the next bucket, so every distinct entry in the small
+  // curated pools gets its own screen while AnimalSighting/Discovery/
+  // ForagingFind (tied to the much larger animal/species tables) just get
+  // one representative each.
+  struct DemoBucket {
+    events::EventType type;
+    int count;
+  };
+  const DemoBucket kBuckets[] = {
+      {events::EventType::AnimalSighting, 1},
+      {events::EventType::Discovery, 1},
+      {events::EventType::TrailMishap, events::mishapCount()},
+      {events::EventType::WeatherEvent, events::weatherCount()},
+      {events::EventType::BabyCare, events::babyCareCount()},
+      {events::EventType::TrailTreasure, events::treasureCount()},
+      {events::EventType::MarmotEncounter, events::encounterCount()},
+      {events::EventType::ForagingFind, 2},  // category find, then an exact-species find
+  };
+  const int kBucketCount = sizeof(kBuckets) / sizeof(kBuckets[0]);
+  int kTotal = 0;
+  for (int b = 0; b < kBucketCount; b++) kTotal += kBuckets[b].count;
+
+  int demoIdx = 0;
+  while (true) {
+    int remaining = demoIdx;
+    int bucket = 0;
+    while (remaining >= kBuckets[bucket].count) {
+      remaining -= kBuckets[bucket].count;
+      bucket++;
+    }
+    ctx.eventType = (uint8_t)kBuckets[bucket].type;
+    ctx.eventDataId = (uint8_t)remaining;
+    // ForagingFind's second demo entry (bucket count == 2) is the
+    // exact-species variant; everything else is never exact.
+    ctx.eventExact =
+        (kBuckets[bucket].type == events::EventType::ForagingFind && remaining == 1) ? 1 : 0;
+
+    display::renderView(View::Main, ctx, 0);
+    log_i("Showing event %d/%d (type %d, dataId %d) -- press ENTER for next", demoIdx + 1, kTotal,
+          ctx.eventType, ctx.eventDataId);
+    while (digitalRead(PIN_BTN_ENTER) != HIGH) delay(15);
+    while (digitalRead(PIN_BTN_ENTER) == HIGH) delay(15);  // wait for release
+    demoIdx = (demoIdx + 1) % kTotal;
+  }
+#endif
 
   ctx.netOk = net::connectStrongest();
   if (ctx.netOk) {
@@ -442,11 +627,11 @@ void setup() {
 
   display::begin();
 
-  if (marmotRanAway) {
+  if (marmotDeathCause != DeathCause::None) {
     // Terminal -- preempts birth/transition/normal-view entirely. Blocks on
     // ENTER (with the same battery-safety timeout as the transition screen
     // below) before wiping everything and rebooting into a fresh birth.
-    display::renderRanAway();
+    display::renderDeath(marmotDeathCause);
     uint32_t waitStart = millis();
     while (digitalRead(PIN_BTN_ENTER) != HIGH) {
       if (millis() - waitStart > INACTIVITY_SLEEP_MS) goToSleep();
@@ -457,6 +642,15 @@ void setup() {
 
   if (firstBoot) {
     display::renderBirth();
+    // Require an explicit ENTER before jumping into naming -- otherwise the
+    // reveal flashes by and the player's straight into text entry with no
+    // chance to actually look at it. Same bounded-wait shape as the
+    // transition screen below.
+    uint32_t birthWaitStart = millis();
+    while (digitalRead(PIN_BTN_ENTER) != HIGH) {
+      if (millis() - birthWaitStart > INACTIVITY_SLEEP_MS) goToSleep();
+      delay(15);
+    }
     // Name the marmot right after the birth reveal, before the normal loop()
     // idle machinery exists yet -- so this uses its own bounded wait rather
     // than lastActivityMs, resetting the timeout on every keypress
@@ -477,7 +671,7 @@ void setup() {
     }
   }
   if (pendingTransition) {
-    display::renderTransition(transitionToStage);
+    display::renderTransition(transitionToStage, ctx.creature.name);
     // Block here until acknowledged -- this is a rare, celebratory
     // one-time screen, not the normal interactive loop, so a plain wait is
     // simplest. Bounded by INACTIVITY_SLEEP_MS so walking away mid-screen
@@ -503,11 +697,11 @@ void setup() {
 static void handleSettingsInput() {
   if (confirmPending) {
     if (pressed(bEnter)) {
-      doResetGame();  // never returns -- esp_restart()
-    }
-    if (pressed(bLeft)) {
-      confirmPending = false;
-      display::renderSettings(selectedOption, confirmPending);
+      if (selectedOption == 1) {
+        doResetGame();  // never returns -- esp_restart()
+      } else {
+        doPowerOff();  // never returns -- deep sleep with no wake source
+      }
     }
     return;
   }
@@ -515,22 +709,22 @@ static void handleSettingsInput() {
     selectedOption = (selectedOption + 1) % 3;
     display::renderSettings(selectedOption, confirmPending);
   }
+  if (pressed(bLeft)) {
+    selectedOption = (selectedOption + 2) % 3;
+    display::renderSettings(selectedOption, confirmPending);
+  }
   if (pressed(bEnter)) {
     if (selectedOption == 0) {
-      doPowerOff();  // never returns -- deep sleep with no wake source
-    } else if (selectedOption == 1) {
-      confirmPending = true;
-      display::renderSettings(selectedOption, confirmPending);
-    } else {
       inWifiMenu = true;
       wifiSelected = 0;
       wifiRemoveConfirm = false;
       display::renderWifiMenu(wifiSelected, false);
+    } else {
+      // Reset Game and Power Off are both destructive/hard-to-undo, so both
+      // go through the same yes/no confirm sub-screen before acting.
+      confirmPending = true;
+      display::renderSettings(selectedOption, confirmPending);
     }
-  }
-  if (pressed(bLeft)) {
-    inSettings = false;
-    display::renderView(currentView, ctx, forageIdx);
   }
 }
 
@@ -538,11 +732,31 @@ void loop() {
   if (tePurpose != TextEntryPurpose::None) {
     handleTextEntryInput();
     lastActivityMs = millis();
-  } else if (pressed(bSettings) && !inSettings) {
-    inSettings = true;
-    selectedOption = 0;
-    confirmPending = false;
-    display::renderSettings(selectedOption, confirmPending);
+  } else if (pressed(bSettings)) {
+    // SETTINGS/KEY1 is "back" at whatever depth we're currently at, one
+    // level per press -- confirm sub-screen -> its parent menu -> Settings
+    // itself -> exit Settings entirely. Pressing it from outside Settings
+    // enters it fresh, same as before.
+    if (!inSettings) {
+      inSettings = true;
+      selectedOption = 0;
+      confirmPending = false;
+      display::renderSettings(selectedOption, confirmPending);
+    } else if (inWifiMenu) {
+      if (wifiRemoveConfirm) {
+        wifiRemoveConfirm = false;
+        display::renderWifiMenu(wifiSelected, false);
+      } else {
+        inWifiMenu = false;
+        display::renderSettings(selectedOption, false);
+      }
+    } else if (confirmPending) {
+      confirmPending = false;
+      display::renderSettings(selectedOption, confirmPending);
+    } else {
+      inSettings = false;
+      display::renderView(currentView, ctx, forageIdx);
+    }
     lastActivityMs = millis();
   } else if (inWifiMenu) {
     handleWifiMenuInput();
@@ -607,7 +821,7 @@ void loop() {
     lastEnter = enter;
   }
   if (settings != lastSettings) {
-    log_i("SETTINGS (GPIO%d) = %d", PIN_BTN_SETTINGS, settings);
+    log_i("SETTINGS (GPIO%d) = %d (active-low: 0 = pressed)", PIN_BTN_SETTINGS, settings);
     lastSettings = settings;
   }
 #endif
@@ -625,5 +839,3 @@ void loop() {
 
   delay(15);
 }
-
-#endif  // DEV_MODE_SCREEN_CYCLE

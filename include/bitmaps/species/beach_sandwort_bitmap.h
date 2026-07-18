@@ -1,4 +1,4 @@
-// Beach Sandwort -- v5 fix
+// Beach Sandwort -- v7 fix
 #pragma once
 
 #include <pgmspace.h>

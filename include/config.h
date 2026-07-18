@@ -10,15 +10,22 @@
 
 // Dev-mode: disable deep sleep entirely so the board stays on USB serial
 // while iterating. Flip to 0 before shipping.
-#define DEV_MODE_NO_SLEEP 0
+#define DEV_MODE_NO_SLEEP 1
 
-// TEMPORARY review mode: replaces the normal state machine entirely with a
-// free-running cycle through every screen and every sourced bitmap (marmot
-// poses, animal sightings, foraging species), 3s each, ignoring buttons and
-// sleep. No WiFi, no persisted state touched. Flip back to 0 and reflash for
-// normal operation -- this is a one-off visual review tool, not shipped
-// behavior.
-#define DEV_MODE_SCREEN_CYCLE 0
+// Dev-mode: creature::computeStage() always returns Adult, skipping the
+// real-time Baby/Juvenile wait so Adult-only content (Foraging,
+// Achievements, the full adult pose pool) can be tested immediately. Flip
+// to 0 before shipping.
+#define DEV_MODE_SKIP_GROWTH 0
+
+// Dev-mode: setup() shows every wake-time event's encounter screen
+// back-to-back in a loop instead of the normal wake flow -- one
+// representative AnimalSighting/Discovery/ForagingFind plus every distinct
+// entry in the small curated pools (mishaps, weather, treasures,
+// encounters, baby care), so the flavor text/layout can all be proofread
+// on real hardware. ENTER advances to the next one. Flip to 0 before
+// shipping.
+#define DEV_MODE_EVENT_CYCLE 0
 
 static const int PIN_EPD_SCK = 12;
 static const int PIN_EPD_MOSI = 11;
@@ -54,7 +61,7 @@ static const int PIN_BTN_ENTER = 4;
  */
 static const int PIN_BTN_SETTINGS = 5;
 
-static const uint32_t INACTIVITY_SLEEP_MS = 60UL * 1000UL;
+static const uint32_t INACTIVITY_SLEEP_MS = 120UL * 1000UL;
 static const uint32_t BTN_DEBOUNCE_MS = 40;
 static const uint32_t WIFI_TIMEOUT_MS = 12UL * 1000UL;
 
@@ -68,31 +75,62 @@ static const char* const NTP_SERVER = "pool.ntp.org";
 static const char* const TZ_SEATTLE = "PST8PDT,M3.2.0,M11.1.0";
 static const char* const WEATHER_URL = "https://wttr.in/Seattle?format=j1";
 
-static const uint32_t HUNGER_PERIOD_HOURS = 72;
+// 1 week -- see DEATH_* below: this is the outer edge of the death timeline,
+// not a "gets hungry" ramp on its own, so it needs to be genuinely long.
+static const uint32_t HUNGER_PERIOD_HOURS = 168;
 
 /**
  * Happiness decays toward 0 the longer it's been since the marmot was last
  * "played with" (fed, or had a wake-time event resolved) -- see
  * creature::evaluate()'s boredom-ceiling clamp. Separate from hunger: you
  * can keep the marmot fed and still neglect it by never resolving events.
+ * 1 week, same reasoning as HUNGER_PERIOD_HOURS.
  */
-static const uint32_t PLAY_PERIOD_HOURS = 48;
+static const uint32_t PLAY_PERIOD_HOURS = 168;
 
 /**
- * Growth-stage thresholds (real elapsed days since birth, see
- * creature::computeStage()): Baby for the first BABY_STAGE_DAYS, Juvenile
- * through JUVENILE_STAGE_DAYS, Adult after that.
+ * Growth-stage thresholds (distinct species foraged -- journal::totalEaten()
+ * -- not elapsed time; see creature::computeStage()): Baby until
+ * BABY_STAGE_SPECIES eaten, Juvenile until ADULT_STAGE_SPECIES eaten, Adult
+ * after that. Foraging is unlocked from birth so a Baby can actually reach
+ * the first threshold.
  */
-static const uint32_t BABY_STAGE_DAYS = 2;
-static const uint32_t JUVENILE_STAGE_DAYS = 7;
+static const int BABY_STAGE_SPECIES = 5;
+static const int ADULT_STAGE_SPECIES = 15;
 
 /**
- * Neglect consequence (see creature::updateNeglect()): if hunger stays at or
- * above NEGLECT_HUNGER_THRESHOLD *and* happiness stays at or below
- * NEGLECT_HAPPINESS_THRESHOLD continuously for NEGLECT_DAYS, the marmot
- * wanders off for good -- the player has to reset to start over with a new
- * baby. Real stakes for prolonged neglect, not just a mood change.
+ * Energy decays toward 0 the longer it's been since the marmot was last
+ * "played with" (same trigger as happiness's boredom clock -- see
+ * creature::evaluate()'s ceiling clamp) -- feeding restores it, with
+ * protein/fat-rich food kinds (see creature::feedEffectForKind()) restoring
+ * more than a plain green does. 1 week, same reasoning as
+ * HUNGER_PERIOD_HOURS.
  */
-static const uint8_t NEGLECT_HUNGER_THRESHOLD = 90;
-static const uint8_t NEGLECT_HAPPINESS_THRESHOLD = 10;
-static const uint32_t NEGLECT_DAYS = 3;
+static const uint32_t ENERGY_PERIOD_HOURS = 168;
+
+/**
+ * Death thresholds (see creature::checkDeath()): if hunger reaches
+ * DEATH_HUNGER_THRESHOLD (fully starved), or happiness or energy drops to
+ * DEATH_*_THRESHOLD (utterly miserable/exhausted), the marmot dies on the
+ * spot -- checked every wake, not a multi-day timer, so it's a direct
+ * consequence of a bar actually bottoming out rather than a separate
+ * neglect clock. Feeding restores all three (see feedForaged()), so normal
+ * play never approaches these -- only sustained neglect does.
+ */
+static const uint8_t DEATH_HUNGER_THRESHOLD = 100;
+static const uint8_t DEATH_HAPPINESS_THRESHOLD = 0;
+static const uint8_t DEATH_ENERGY_THRESHOLD = 0;
+
+/**
+ * Mid-session event trigger (see main.cpp's screen-change-count hook,
+ * separate from events::checkForEvent()'s once-per-wake background roll):
+ * SCREEN_CHANGE_EVENT_TRIGGER view changes (LEFT/RIGHT navigation, not
+ * Foraging's within-view species scroll) within SCREEN_CHANGE_WINDOW_MS of
+ * each other guarantee a new event, as long as one hasn't already been
+ * resolved in the last EVENT_RECENCY_GATE_SECONDS -- an actively-browsing
+ * session earns an event rather than waiting on the same odds as an idle
+ * device.
+ */
+static const int SCREEN_CHANGE_EVENT_TRIGGER = 8;
+static const uint32_t SCREEN_CHANGE_WINDOW_MS = 90UL * 1000UL;
+static const uint32_t EVENT_RECENCY_GATE_SECONDS = 180;
