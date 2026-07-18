@@ -36,26 +36,54 @@ static const char CHARSET_SYMBOLS[] =
     "\x04 \x02";    // SYMBOLS SPACE DONE
 static const int ROWLEN_SYMBOLS[] = {10, 10, 10, 7, 3};
 
+// Digit-free variants of the three pages above -- same rows minus the
+// leading "1234567890" row -- used for marmot naming (see State::noDigits),
+// where digits aren't wanted in a name.
+static const char CHARSET_LOWER_NODIGITS[] =
+    "qwertyuiop"
+    "asdfghjkl"
+    "\x03zxcvbnm\x01"
+    "\x04 \x02";
+static const char CHARSET_UPPER_NODIGITS[] =
+    "QWERTYUIOP"
+    "ASDFGHJKL"
+    "\x03ZXCVBNM\x01"
+    "\x04 \x02";
+static const char CHARSET_SYMBOLS_NODIGITS[] =
+    "!@#$%^&*()"
+    "-_=+;:'\",."
+    "/?\\|~`\x01"
+    "\x04 \x02";
+static const int ROWLEN_LETTERS_NODIGITS[] = {10, 9, 9, 3};
+static const int ROWLEN_SYMBOLS_NODIGITS[] = {10, 10, 7, 3};
+
 static const int CHARSET_LOWER_LEN = sizeof(CHARSET_LOWER) - 1;
 static const int CHARSET_UPPER_LEN = sizeof(CHARSET_UPPER) - 1;
 static const int CHARSET_SYMBOLS_LEN = sizeof(CHARSET_SYMBOLS) - 1;
+static const int CHARSET_LOWER_NODIGITS_LEN = sizeof(CHARSET_LOWER_NODIGITS) - 1;
+static const int CHARSET_UPPER_NODIGITS_LEN = sizeof(CHARSET_UPPER_NODIGITS) - 1;
+static const int CHARSET_SYMBOLS_NODIGITS_LEN = sizeof(CHARSET_SYMBOLS_NODIGITS) - 1;
 static const int ROW_COUNT_LETTERS = sizeof(ROWLEN_LETTERS) / sizeof(ROWLEN_LETTERS[0]);
 static const int ROW_COUNT_SYMBOLS = sizeof(ROWLEN_SYMBOLS) / sizeof(ROWLEN_SYMBOLS[0]);
+static const int ROW_COUNT_LETTERS_NODIGITS =
+    sizeof(ROWLEN_LETTERS_NODIGITS) / sizeof(ROWLEN_LETTERS_NODIGITS[0]);
+static const int ROW_COUNT_SYMBOLS_NODIGITS =
+    sizeof(ROWLEN_SYMBOLS_NODIGITS) / sizeof(ROWLEN_SYMBOLS_NODIGITS[0]);
 
 static const char* activePage(const State& s, int* outLen) {
   if (s.symbols) {
-    *outLen = CHARSET_SYMBOLS_LEN;
-    return CHARSET_SYMBOLS;
+    *outLen = s.noDigits ? CHARSET_SYMBOLS_NODIGITS_LEN : CHARSET_SYMBOLS_LEN;
+    return s.noDigits ? CHARSET_SYMBOLS_NODIGITS : CHARSET_SYMBOLS;
   }
   if (s.caps) {
-    *outLen = CHARSET_UPPER_LEN;
-    return CHARSET_UPPER;
+    *outLen = s.noDigits ? CHARSET_UPPER_NODIGITS_LEN : CHARSET_UPPER_LEN;
+    return s.noDigits ? CHARSET_UPPER_NODIGITS : CHARSET_UPPER;
   }
-  *outLen = CHARSET_LOWER_LEN;
-  return CHARSET_LOWER;
+  *outLen = s.noDigits ? CHARSET_LOWER_NODIGITS_LEN : CHARSET_LOWER_LEN;
+  return s.noDigits ? CHARSET_LOWER_NODIGITS : CHARSET_LOWER;
 }
 
-void init(State& s, const char* initial) {
+void init(State& s, const char* initial, bool noDigits) {
   s.len = 0;
   s.buffer[0] = '\0';
   if (initial && initial[0]) {
@@ -65,7 +93,8 @@ void init(State& s, const char* initial) {
   }
   s.caps = false;
   s.symbols = false;
-  s.pickerIndex = 10;  // 'q' -- index 0-9 is the digit row
+  s.noDigits = noDigits;
+  s.pickerIndex = noDigits ? 0 : 10;  // 'q' -- without digits it's already row 0
 }
 
 void moveNext(State& s) {
@@ -98,9 +127,15 @@ char charsetAt(const State& s, int index) {
   return page[index];
 }
 
-int rowCount(const State& s) { return s.symbols ? ROW_COUNT_SYMBOLS : ROW_COUNT_LETTERS; }
+int rowCount(const State& s) {
+  if (s.symbols) return s.noDigits ? ROW_COUNT_SYMBOLS_NODIGITS : ROW_COUNT_SYMBOLS;
+  return s.noDigits ? ROW_COUNT_LETTERS_NODIGITS : ROW_COUNT_LETTERS;
+}
 
-int rowLen(const State& s, int row) { return s.symbols ? ROWLEN_SYMBOLS[row] : ROWLEN_LETTERS[row]; }
+int rowLen(const State& s, int row) {
+  if (s.symbols) return s.noDigits ? ROWLEN_SYMBOLS_NODIGITS[row] : ROWLEN_SYMBOLS[row];
+  return s.noDigits ? ROWLEN_LETTERS_NODIGITS[row] : ROWLEN_LETTERS[row];
+}
 
 bool commit(State& s) {
   char c = current(s);

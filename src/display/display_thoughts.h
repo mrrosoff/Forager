@@ -79,3 +79,51 @@ static const char* const kThoughtsAdult[] = {
     "Living the burrow life",
 };
 static const int kThoughtsAdultCount = sizeof(kThoughtsAdult) / sizeof(kThoughtsAdult[0]);
+
+// Stat-reactive adult pools -- picked instead of kThoughtsAdult whenever
+// hunger/happiness/energy is in a bad place (see pickThoughtPool() in
+// display.cpp), so the thought bubble reflects what's actually wrong rather
+// than always sounding content.
+static const char* const kThoughtsAdultHungry[] = {
+    "So hungry...",
+    "Need food now",
+    "Stomach's growling",
+    "When's dinner?",
+    "Starving over here",
+    "Just one berry, please",
+    "Can't stop thinking about snacks",
+    "Empty belly blues",
+    "Foraging sounds great right now",
+    "Anything to eat?",
+};
+static const int kThoughtsAdultHungryCount =
+    sizeof(kThoughtsAdultHungry) / sizeof(kThoughtsAdultHungry[0]);
+
+static const char* const kThoughtsAdultSad[] = {
+    "So lonely",
+    "Nobody visits anymore",
+    "Feeling forgotten",
+    "Wish someone would play",
+    "Everything feels grey",
+    "Missing the attention",
+    "Just want to be noticed",
+    "Heavy heart today",
+    "Days blur together",
+    "Nobody checks on me",
+};
+static const int kThoughtsAdultSadCount = sizeof(kThoughtsAdultSad) / sizeof(kThoughtsAdultSad[0]);
+
+static const char* const kThoughtsAdultTired[] = {
+    "So exhausted",
+    "Can barely keep my eyes open",
+    "Need real rest",
+    "Running on empty",
+    "Every step feels heavy",
+    "Just want to collapse",
+    "Worn all the way out",
+    "Too tired to move",
+    "Dragging myself along",
+    "Desperate for a nap",
+};
+static const int kThoughtsAdultTiredCount =
+    sizeof(kThoughtsAdultTired) / sizeof(kThoughtsAdultTired[0]);
