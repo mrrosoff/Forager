@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(~/.platformio/penv/bin/pio:*)",
+      "Read(//Users/mrosoff/.platformio/**)",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git show:*)",
+      "Bash(git stash:*)"
+    ]
+  }
+}
