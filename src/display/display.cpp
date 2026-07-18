@@ -3,6 +3,8 @@
 #include <SPI.h>
 #include <math.h>
 
+#include <cstring>
+
 #include "config.h"
 #include "creature.h"
 #include "epd_adapter.h"
@@ -478,7 +480,7 @@ static void renderEncounter(const AppContext& ctx, const events::PendingEvent& e
   y = textWrapped(16, y, 40, events::eventNote(ev), 1) + 8;
   if (negative) textCentered(0, SCREEN_W, y, "Stay alert!", 1);
 
-  drawNavBar("", "Acknowledge", "Foraging");
+  drawNavBar("Status", "Acknowledge", "Foraging");
 }
 
 static void renderMain(const AppContext& ctx) {
@@ -501,7 +503,7 @@ static void renderMain(const AppContext& ctx) {
   int stageGroundY = STAGE_Y + STAGE_H - 24;
   drawCreature(stageCx, stageGroundY, ctx.creature.mood);
 
-  drawNavBar("", "", "Foraging");
+  drawNavBar("Status", "", "Foraging");
 }
 
 static const char* const MONTH_ABBR[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -534,9 +536,15 @@ static void seasonText(const Forageable& f, char* buf, size_t bufSize) {
 }
 
 static void renderForaging(const AppContext& ctx, int speciesIdx) {
-  const Forageable& f = foraging::speciesAt(speciesIdx);
+  const Forageable& f = foraging::speciesAtRank(speciesIdx);
   int month = ctx.now.tm_mon + 1;
   bool active = foraging::inSeason(f, month);
+
+  events::PendingEvent ev;
+  ev.type = (events::EventType)ctx.eventType;
+  ev.dataId = ctx.eventDataId;
+  bool isMatch =
+      ev.type == events::EventType::ForagingFind && strcmp(f.kind, events::eventCategory(ev)) == 0;
 
   char posBuf[16];
   snprintf(posBuf, sizeof(posBuf), "%d/%d", speciesIdx + 1, foraging::speciesCount());
@@ -587,7 +595,9 @@ static void renderForaging(const AppContext& ctx, int speciesIdx) {
   snprintf(seasonLine, sizeof(seasonLine), "SEASON: %s", seasonBuf);
   textAt(8, y, seasonLine, 1);
 
-  drawNavBar("Main", "Next", "Status");
+  if (isMatch) textCentered(0, SCREEN_W, y + 16, "MATCHES ACTIVE FIND!", 1);
+
+  drawNavBar("Main", isMatch ? "Feed!" : "Next", "+10");
 }
 
 // Energy: derived from time of day, not persisted -- low overnight, ramps
@@ -636,7 +646,7 @@ static void renderStatus(const AppContext& ctx) {
     textAt(20, 364, buf, 1);
   }
 
-  drawNavBar("Foraging", "", "");
+  drawNavBar("", "", "Main");
 }
 
 void begin() {

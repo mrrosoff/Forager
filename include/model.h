@@ -59,7 +59,9 @@ struct CreatureState {
   time_t lastFed;     // epoch, 0 = never
 };
 
-enum class View : uint8_t { Main = 0, Foraging, Status, COUNT };
+// Status sits LEFT of Main, Foraging sits RIGHT of Main -- the numeric
+// order here is what LEFT(-1)/RIGHT(+1) step through in main.cpp.
+enum class View : uint8_t { Status = 0, Main, Foraging, COUNT };
 
 struct AppContext {
   struct tm now;  // local time

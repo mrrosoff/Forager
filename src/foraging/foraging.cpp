@@ -1,6 +1,7 @@
 #include "foraging.h"
 
 #include <algorithm>
+#include <cstring>
 
 #include "sprites.h"
 
@@ -11,7 +12,6 @@ namespace foraging {
 // Master PNW / Seattle species reference. monthMask bits mark active months
 // (1=Jan .. 12=Dec). caution is "" when there's no meaningful look-alike risk.
 static const Forageable kSpecies[] = {
-    // ---- Forest / lowland (river bottoms, conifer duff, urban edges) ----
     {"Hedgehog Mushroom", "mushroom", "Toothed underside, no true gills. Lingers after frost.",
      "No toxic lookalikes -- teeth instead of gills make ID easy.",
      "Look under conifers in duff after fall rains.", MO(1) | MO(10) | MO(11) | MO(12),
@@ -93,7 +93,6 @@ static const Forageable kSpecies[] = {
      "Fruits on hardwood stumps during cold snaps.", MO(12) | MO(1), SPR_MUSHROOM_CAP,
      Biome::Forest},
 
-    // ---- Mountain (subalpine/alpine slopes, high conifer country) ----
     {"Huckleberry", "berry", "Subalpine slopes. Ripens as you gain elevation.", "",
      "Higher elevation = later ripening; chase the season uphill.", MO(7) | MO(8),
      SPR_BERRY_CLUSTER, Biome::Mountain},
@@ -130,7 +129,6 @@ static const Forageable kSpecies[] = {
      "Pinch only the pale new candle growth, not old needles.", MO(4) | MO(5), SPR_FLOWER_CLUSTER,
      Biome::Mountain},
 
-    // ---- Coast (beaches, tidepools, estuaries, dunes) ----
     {"Bull Kelp", "seaweed", "Long whip stipe with a bulb float; drifts up after storms.",
      "Harvest drift only, or cut blade above the holdfast to regrow.",
      "Gather fresh drift kelp on the tideline after a blow.", MO(6) | MO(7) | MO(8) | MO(9),
@@ -180,681 +178,849 @@ static const Forageable kSpecies[] = {
      "Look for a 'show' dimple in the sand, then dig fast.",
      MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), SPR_MOREL, Biome::Coast},
 
-    // ---- Additional Forest species ----
     {"Shaggy Mane", "mushroom", "Tall shaggy cap, self-digests to ink within hours.",
      "Do not pair with alcohol -- some report Coprine-like reactions; eat fresh only.",
      "Pick young, still-white caps in lawns and disturbed soil.", MO(9) | MO(10) | MO(11),
      SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Death Cap", "mushroom", "Deadly amanita. White gills, skirt ring, sac at base.",
      "Deadly poisonous -- responsible for most fatal mushroom poisonings; know it to avoid it, "
      "never eat.",
      "Do not harvest -- learn to spot the white gills and basal cup under oaks and ornamentals.",
      MO(9) | MO(10) | MO(11), SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Destroying Angel", "mushroom", "Pure white amanita with a sac at the base.",
      "Deadly poisonous -- pure white all over is a red flag, not a green light; never eat.",
      "Do not harvest -- if you dig one up for ID, check for the volva sac at the buried base.",
      MO(9) | MO(10) | MO(11), SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Fly Agaric", "mushroom", "Iconic red cap with white warts, under birch and pine.",
      "Toxic and psychoactive -- causes serious GI distress and neurotoxic effects; not a food.",
      "Admire, don't pick -- easy to ID by the red cap and white flecks.", MO(9) | MO(10) | MO(11),
      SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Turkey Tail", "mushroom", "Thin banded fan-shelves in rainbow stripes on logs.",
      "Too tough to eat -- simmered for tea or tincture, not chewed.",
      "Snap off firm, colorful shelves from dead hardwood; dry for tea.",
      MO(9) | MO(10) | MO(11) | MO(12) | MO(1), SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Artist's Conk", "mushroom",
      "Woody hoof-shaped bracket, white pore surface takes a scratch drawing.",
      "Too woody to eat fresh -- used dried for tea, not as food.",
      "Look for shelf brackets on standing or fallen conifers year-round.",
      MO(1) | MO(9) | MO(10) | MO(11) | MO(12), SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Chicken of the Woods", "mushroom",
      "Bright orange-yellow shelving on wounds of oak, conifer stumps.",
      "Cook thoroughly; some people react with GI upset, especially conifer-grown ones -- try a "
      "small amount first.",
      "Cut only the tender outer edge of a fresh shelf, leave the tough base.",
      MO(8) | MO(9) | MO(10), SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Hen of the Woods", "mushroom", "Ruffled grey-brown rosette at the base of old oaks.", "",
      "Check the base of mature oaks in the same spot every fall -- it returns for years.",
      MO(9) | MO(10), SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Shrimp Russula", "mushroom", "Reddish-pink cap, brittle white gills, mild in conifer duff.",
      "Russulas vary widely -- taste a tiny raw bit and spit it out; peppery ones are inedible.",
      "Look for brittle, chalky-snapping stems under Douglas fir.", MO(9) | MO(10), SPR_MUSHROOM_CAP,
      Biome::Forest},
+
     {"Cauliflower Coral", "mushroom", "Pale branching coral clusters at conifer bases.",
      "Distinguish from thin, brittle toxic corals -- this one is thick and fleshy.",
      "Cut the whole clump at the base; check for grubs in the crevices.", MO(9) | MO(10) | MO(11),
      SPR_CORAL, Biome::Forest},
+
     {"Golden Chanterelle", "mushroom",
      "Deep egg-yolk color, wavy cap, distinct from the paler common chanterelle.",
      "False chanterelle (jack-o'-lantern) has true, sharp gills and glows faintly -- check for the "
      "blunt false ridges.",
      "Search mossy Douglas fir slopes a week after a warm rain.", MO(9) | MO(10), SPR_MUSHROOM_CAP,
      Biome::Forest},
+
     {"White Chanterelle", "mushroom",
      "Pale ivory cousin of the golden chanterelle, same false gills.", "",
      "Look in the same duff patches as goldens, slightly earlier in the season.", MO(8) | MO(9),
      SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Jack-o'-Lantern Mushroom", "mushroom",
      "Bright orange clusters on buried roots, true sharp gills.",
      "Toxic -- causes severe vomiting; the classic chanterelle lookalike, ID by true blade-like "
      "gills.",
      "Do not pick -- note the clustered growth on wood, not soil, as a warning sign.",
      MO(9) | MO(10), SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Cortinarius (Deadly Webcap)", "mushroom",
      "Rusty-brown cap with a cobwebby veil, common in conifer duff.",
      "Deadly poisonous -- causes delayed, irreversible kidney failure; never eat any brown "
      "Cortinarius.",
      "Do not harvest -- the whole genus is best left alone by beginners.", MO(9) | MO(10) | MO(11),
      SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Angel Wings", "mushroom",
      "Small white shelving fungus on conifer logs, resembles oyster mushroom.",
      "Linked to rare fatal poisonings in susceptible people -- avoid entirely despite resembling "
      "oysters.",
      "Do not harvest -- if it's growing on conifer wood, it isn't the true oyster.",
      MO(10) | MO(11), SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Puffball (Giant)", "mushroom", "Basketball-sized white puffball in fields and forest edges.",
      "Slice in half first -- must be solid white inside with no gill outline or you may have a "
      "young amanita.",
      "Pick while still firm and pure white before it yellows and turns to spore dust.",
      MO(9) | MO(10), SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Pig's Ear (Violet Chanterelle)", "mushroom",
      "Dark purple-brown trumpet, thin flesh, blends into duff.", "",
      "Scan closely -- the dark color camouflages it against wet soil.", MO(9) | MO(10) | MO(11),
      SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Black Trumpet", "mushroom",
      "Thin, funnel-shaped, nearly black -- 'trumpet of death' in name only.", "",
      "Search mossy hardwood-conifer mix slopes; they hide in shadow and leaf litter.",
      MO(9) | MO(10) | MO(11), SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Admirable Bolete", "mushroom", "Reddish-brown cap, yellow pores, firm flesh under conifers.",
      "Bruises blue when cut -- harmless, but confirm pore color stays yellow, not red-orange.",
      "Check firm, dry-capped boletes on well-drained forest slopes.", MO(9) | MO(10), SPR_PORCINI,
      Biome::Forest},
+
     {"Slippery Jack", "mushroom", "Sticky brown-capped bolete under pines, glue-like when wet.",
      "Peel the slimy cap skin -- it can upset sensitive stomachs.",
      "Look under planted pines; the slick cap is diagnostic.", MO(9) | MO(10) | MO(11), SPR_PORCINI,
      Biome::Forest},
+
     {"Short-Stemmed Slippery Jack", "mushroom",
      "Squat bolete with a stubby stem, common under introduced pines.",
      "Peel the cap skin before cooking.",
      "Common in planted pine groves and urban conifer plantings.", MO(10) | MO(11), SPR_PORCINI,
      Biome::Forest},
+
     {"Boletus edulis (King Bolete flush)", "mushroom",
      "Second porcini flush after early fall rain, fatter and firmer.",
      "Avoid any bolete with red pores or blue-staining flesh.",
      "Check the same porcini patches again after a second rain event.", MO(10) | MO(11),
      SPR_PORCINI, Biome::Forest},
+
     {"Angel's Wing Bolete (Suillus lakei)", "mushroom",
      "Orange-brown scaly cap, yellow pores, grows under Douglas fir only.", "",
      "Search specifically under Douglas fir needles, its only host tree.", MO(9) | MO(10),
      SPR_PORCINI, Biome::Forest},
+
     {"Meadow Mushroom", "mushroom",
      "Wild cousin of the grocery button mushroom, in grassy clearings.",
      "Confirm pink-to-brown gills and no basal sac -- rules out deadly Amanita.",
      "Check the base for a volva sac before eating any lookalike field mushroom.", MO(9) | MO(10),
      SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Horse Mushroom", "mushroom", "Large, anise-scented relative of the meadow mushroom.",
      "Confirm no basal sac and a pleasant anise smell, not a chemical/inky one.",
      "Sniff the flesh -- a sweet anise smell is the giveaway.", MO(9) | MO(10), SPR_MUSHROOM_CAP,
      Biome::Forest},
+
     {"Destroying Angel's cousin (Panther Cap)", "mushroom",
      "Brown-capped amanita with white warts and a basal bulb.",
      "Toxic, causes neurological symptoms -- another reason to skip all warty amanitas.",
      "Do not harvest -- note the ring and bulb as amanita warning signs.", MO(9) | MO(10) | MO(11),
      SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Wood Blewit", "mushroom", "Lilac-tinted cap and gills, fruits late into cold weather.",
      "Must be cooked -- causes GI upset raw, and can resemble toxic Cortinarius; confirm the lilac "
      "gill color.",
      "Check leaf litter piles and compost edges after the first frosts.", MO(10) | MO(11) | MO(12),
      SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Fried Chicken Mushroom (Lyophyllum decastes)", "mushroom",
      "Grey-brown clustered caps pushing up through hard-packed soil or gravel.",
      "Cook well; a few similar Lyophyllum species have caused rare poisonings.",
      "Look for tight clusters breaking through compacted trail edges.", MO(9) | MO(10),
      SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Man on Horseback", "mushroom", "Yellow-capped Tricholoma, sandy soil under pine.",
      "Linked to rare rhabdomyolysis with repeated heavy meals -- eat only occasionally, in "
      "moderation.",
      "Look in sandy soil under pines; cap and gills are both yellow.", MO(10) | MO(11),
      SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Deer Mushroom", "mushroom", "Grey-brown cap on decaying wood, common but forgettable.",
      "Must be cooked; raw specimens have caused mild GI upset.",
      "Common on rotting logs but rarely worth harvesting -- a good beginner ID practice species.",
      MO(9) | MO(10), SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Woolly Chanterelle (Scaly Vase)", "mushroom",
      "Shaggy grey-brown trumpet with a hollow center, under conifers.",
      "Best cooked well; some find it mildly bitter raw.",
      "Check shaded conifer duff for the scaly, funnel-shaped cap.", MO(9) | MO(10) | MO(11),
      SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Indigo Milk Cap", "mushroom", "Slate-blue mushroom that bleeds indigo latex when cut.", "",
      "Slice the gills -- true blue milk oozing out confirms the ID.", MO(9) | MO(10),
      SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Old Man of the Woods", "mushroom",
      "Shaggy black-scaled bolete, easy to spot on the forest floor.", "",
      "Look for the distinctive shaggy black scales against pale flesh underneath.", MO(9) | MO(10),
      SPR_PORCINI, Biome::Forest},
+
     {"Western Giant Puffball", "mushroom",
      "Softball to volleyball-sized puffball in forest clearings and edges.",
      "Cut in half before eating -- interior must be uniformly white with no embryonic mushroom "
      "shape.",
      "Harvest while firm and snow-white; skip any turning yellow or brown inside.", MO(9) | MO(10),
      SPR_MUSHROOM_CAP, Biome::Forest},
+
     {"Lung Lichen (Lobaria)", "lichen",
      "Broad lettuce-like green-brown lichen draping maple branches.",
      "Edible in small amounts once processed -- traditionally used more as medicine than food.",
      "Gather fallen pieces from big-leaf maple branches rather than stripping live bark.",
      MO(1) | MO(2) | MO(11) | MO(12), SPR_LEAFY_GREEN, Biome::Forest},
+
     {"Witch's Butter", "mushroom",
      "Bright orange gelatinous blob on dead conifer branches after rain.", "",
      "Pick plump, jelly-firm blobs right after a soaking rain; they shrivel when dry.",
      MO(11) | MO(12) | MO(1) | MO(2), SPR_CORAL, Biome::Forest},
+
     {"Oregon White Truffle", "mushroom",
      "Aromatic underground fungus near Douglas fir roots, found by scent or rake.", "",
      "Rake gently through duff near young Douglas fir where the soil smells earthy-ripe.",
      MO(10) | MO(11) | MO(12) | MO(1), SPR_PORCINI, Biome::Forest},
+
     {"Thimbleberry", "berry", "Maple-like leaf, soft red thimble-shaped fruit.", "",
      "Pick berries that crumble off the cap easily.", MO(7) | MO(8), SPR_BERRY_CLUSTER,
      Biome::Forest},
+
     {"Salal", "berry", "Evergreen leathery leaf, dark blue-black berry.", "",
      "Strip ripe dark berries off the flower spike.", MO(8) | MO(9), SPR_BERRY_CLUSTER,
      Biome::Forest},
+
     {"Red Huckleberry", "berry", "Bright red berry on angled green twigs on stumps.", "",
      "Check old nurse logs and stumps in shade.", MO(7) | MO(8), SPR_BERRY_CLUSTER, Biome::Forest},
+
     {"Blue Elderberry", "berry", "Powdery blue-black clusters on tall shrubs.",
      "Raw berries, seeds, leaves, and stems cause nausea -- cook and discard stems.",
      "Cut whole clusters, then cook before eating.", MO(8) | MO(9), SPR_BERRY_CLUSTER,
      Biome::Forest},
+
     {"Serviceberry", "berry", "Saskatoon. Sweet purple fruit in loose clusters.", "",
      "Strip ripe purple berries into a bag by hand.", MO(6) | MO(7), SPR_BERRY_CLUSTER,
      Biome::Forest},
+
     {"Kinnikinnick", "berry", "Bearberry. Mealy red fruit on trailing mats.",
      "Mealy and bland raw -- best cooked or dried, not a toxicity risk.",
      "Best simmered into syrup; raw fruit is dry.", MO(9) | MO(10) | MO(11), SPR_BERRY_CLUSTER,
      Biome::Forest},
+
     {"Trailing Blackberry", "berry", "Native bramble, low vines, smaller sweeter fruit.", "",
      "Search low along the ground, not tall canes.", MO(7) | MO(8), SPR_BERRY_CLUSTER,
      Biome::Forest},
+
     {"Indian Plum", "berry", "Earliest native bloom; bitter-to-sweet oval fruit.",
      "Seeds/pits contain cyanogenic compounds -- eat the flesh, not the pit.",
      "Wait for fruit to turn dark blue-black.", MO(6) | MO(7), SPR_BERRY_CLUSTER, Biome::Forest},
+
     {"Wild Strawberry", "berry", "Tiny intensely sweet fruit in forest openings.", "",
      "Search sunny forest-edge clearings and old trails.", MO(6) | MO(7), SPR_BERRY_CLUSTER,
      Biome::Forest},
+
     {"Bunchberry", "berry", "Dwarf dogwood, tight red berry cluster on the floor.",
      "Bland and seedy but not toxic -- mostly a trailside nibble.",
      "Look on mossy forest floor for the red cluster.", MO(8) | MO(9), SPR_BERRY_CLUSTER,
      Biome::Forest},
+
     {"Wild Ginger", "root", "Heart-shaped leaf, gingery smell when crushed.",
      "Contains aristolochic-acid relatives -- a trailside sniff, not regular eating.",
      "Crush a leaf to confirm the ginger scent first.", MO(9) | MO(10), SPR_RAMP, Biome::Forest},
+
     {"Sheep Sorrel", "green", "Arrow-shaped leaf, sharp lemony bite.",
      "High in oxalic acid -- a trailside nibble, not a meal.",
      "Pinch young leaves from sunny disturbed ground.", MO(4) | MO(5) | MO(6), SPR_LEAFY_GREEN,
      Biome::Forest},
+
     {"Curly Dock", "green", "Wavy-edged dock leaf, tangy cooked green.",
      "High in oxalic acid; cook young leaves and eat in moderation.",
      "Take young spring leaves before they toughen.", MO(3) | MO(4), SPR_LEAFY_GREEN,
      Biome::Forest},
+
     {"Cleavers", "green", "Sticky, hooked stems that cling to clothing.",
      "Fine hooked hairs make it rough raw -- steep as tea instead.",
      "Snip young tips for tea before flowers form.", MO(3) | MO(4) | MO(5), SPR_LEAFY_GREEN,
      Biome::Forest},
+
     {"Dandelion", "green", "Toothed leaf rosette, bitter green, yellow bloom.", "",
      "Pick young leaves before the flower stalk rises.", MO(2) | MO(3) | MO(4) | MO(5),
      SPR_LEAFY_GREEN, Biome::Forest},
+
     {"Plantain", "green", "Ribbed oval leaf in every lawn and trail edge.", "",
      "Pick tender young leaves from unsprayed ground.", MO(5) | MO(6) | MO(7), SPR_LEAFY_GREEN,
      Biome::Forest},
+
     {"Watercress", "green", "Peppery green mat rooted in cold running water.",
      "Harvest only from clean, fast-flowing water -- can carry liver fluke from livestock runoff.",
      "Gather from clean, fast-flowing streams only.", MO(4) | MO(5) | MO(10), SPR_LEAFY_GREEN,
      Biome::Forest},
+
     {"Wild Mint", "green", "Square stem, minty scent, streamside patches.", "",
      "Crush a leaf to confirm the mint scent first.", MO(6) | MO(7) | MO(8), SPR_LEAFY_GREEN,
      Biome::Forest},
+
     {"Self-heal", "flower", "Small purple flower spike in lawns and trailsides.", "",
      "Snip the flowering tops for tea or salad.", MO(6) | MO(7) | MO(8), SPR_FLOWER_CLUSTER,
      Biome::Forest},
+
     {"Cow Parsnip", "green", "Giant celery-like shoot, umbrella flower heads.",
      "Sap causes severe light-triggered burns -- confusable with deadly poison hemlock and "
      "hogweed.",
      "Peel young stalks fast; avoid skin contact with sap.", MO(4) | MO(5), SPR_FIDDLEHEAD,
      Biome::Forest},
+
     {"Salmonberry Shoots", "green", "Peeled spring shoots, mild cucumber-like crunch.",
      "Peel the fibrous outer skin before eating raw.",
      "Snap tender new shoots before leaves unfurl.", MO(3) | MO(4), SPR_FIDDLEHEAD, Biome::Forest},
+
     {"Licorice Fern", "root", "Small fern on mossy maple limbs, sweet rhizome.", "",
      "Peel the rhizome off maple bark and chew raw.", MO(10) | MO(11) | MO(12) | MO(1), SPR_RAMP,
      Biome::Forest},
+
     {"Camas", "root", "Blue-flowered lily bulb, a traditional root staple.",
      "Only dig bulbs you watched bloom blue -- dormant ones resemble deadly death camas.",
      "Mark plants at bloom, then dig after flowers fade.", MO(6) | MO(7), SPR_RAMP, Biome::Forest},
+
     {"Wapato", "root", "Arrowhead-leaf pond plant, starchy tuber.", "",
      "Tread mud with bare feet until tubers float up.", MO(9) | MO(10) | MO(11), SPR_RAMP,
      Biome::Forest},
+
     {"Biscuitroot", "root", "Feathery carrot-family leaf, starchy taproot.",
      "Carrot-family lookalikes include deadly poison hemlock and water hemlock -- confirm ID "
      "carefully.",
      "Dig in open rocky soil; confirm by smell and leaf.", MO(3) | MO(4) | MO(5), SPR_RAMP,
      Biome::Forest},
+
     {"Oregon Grape Root", "root", "Bright yellow woody root under holly-like leaves.",
      "Contains berberine -- use as a tonic in small amounts, not a food.",
      "Dig a side root, leave the main plant rooted.", MO(10) | MO(11) | MO(12), SPR_RAMP,
      Biome::Forest},
+
     {"Beaked Hazelnut", "nut", "Native filbert in a bristly beaked husk.",
      "Husks have irritating fine bristles -- wear gloves when hulling.",
      "Gather husked nuts once they drop to the ground.", MO(8) | MO(9), SPR_BERRY_CLUSTER,
      Biome::Forest},
+
     {"Garry Oak Acorn", "nut", "Oak acorn needing leaching before eating.",
      "Raw acorns are bitter with tannins -- must be leached in water before eating.",
      "Shell, chop, and soak in changed water to leach tannin.", MO(9) | MO(10), SPR_BERRY_CLUSTER,
      Biome::Forest},
+
     {"Cascara Bark", "bark", "Chittam bark, historic mild-laxative remedy.",
      "Potent natural laxative -- bark must be aged or dried before use, in small doses only.",
      "Strip small bark sections, then dry or age before use.", MO(4) | MO(5) | MO(6), SPR_CORAL,
      Biome::Forest},
+
     {"Bigleaf Maple Sap", "sap", "Late-winter sap, boils down like maple syrup.", "",
      "Tap trunks during a cold snap before buds break.", MO(1) | MO(2), SPR_LEAFY_GREEN,
      Biome::Forest},
+
     {"Cottonwood Buds", "bud", "Resinous balm-of-Gilead bud, sweet balsam scent.",
      "Sticky resin can irritate sensitive skin -- for salves, not raw eating.",
      "Pinch sticky buds before leaves unfurl for salve.", MO(1) | MO(2) | MO(3), SPR_FLOWER_CLUSTER,
      Biome::Forest},
+
     {"Red Flowering Currant Blossom", "flower", "Pink-red spring bloom, hummingbird favorite.", "",
      "Snip open clusters for a mild sweet garnish.", MO(3) | MO(4), SPR_FLOWER_CLUSTER,
      Biome::Forest},
+
     {"Nodding Onion", "root", "Wild onion, pink drooping flower umbel.",
      "Confirm the onion smell -- toxic death camas grows in the same meadows without it.",
      "Confirm the onion smell, then pull the small bulb.", MO(6) | MO(7), SPR_RAMP, Biome::Forest},
+
     {"Common Yarrow", "flower", "Feathery leaf, flat white flower clusters.",
      "Avoid large medicinal doses in pregnancy; can irritate sensitive skin.",
      "Cut flowering tops in full bloom for drying.", MO(6) | MO(7) | MO(8), SPR_FLOWER_CLUSTER,
      Biome::Forest},
+
     {"Oxeye Daisy", "green", "White-petaled daisy, edible bitter young leaf.", "",
      "Pick basal leaves before the flower stalk bolts.", MO(4) | MO(5), SPR_LEAFY_GREEN,
      Biome::Forest},
 
-    // ---- Additional Mountain species ----
     {"Wax Currant", "berry", "Tart orange-red berries on dry, rocky mountain slopes.", "",
      "Pick plump translucent berries; sticky sap on the bush is normal.", MO(7) | MO(8),
      SPR_BERRY_CLUSTER, Biome::Mountain},
+
     {"Red-Flowering Currant", "berry", "Bland blue-black fruit follows the pink spring bloom.", "",
      "Best cooked into jam -- raw berries are mealy and mild.", MO(7) | MO(8), SPR_BERRY_CLUSTER,
      Biome::Mountain},
+
     {"Oregon Grape", "berry", "Holly-like leaves, sour blue berries for jelly.",
      "Very tart and seedy raw -- best cooked and strained.",
      "Strip clusters once berries turn deep dusty blue.", MO(8) | MO(9), SPR_BERRY_CLUSTER,
      Biome::Mountain},
+
     {"Fireweed", "green", "Tall pink spikes on burns; shoots taste like asparagus.", "",
      "Snap young shoots under 8 inches before they toughen.", MO(5) | MO(6) | MO(7), SPR_FIDDLEHEAD,
      Biome::Mountain},
+
     {"American Bistort", "root", "Pink bottlebrush flowers over a chestnut-like root.", "",
      "Dig roots in alpine turf after the flower spike fades; roast like chestnuts.",
      MO(8) | MO(9) | MO(10), SPR_LEAFY_GREEN, Biome::Mountain},
+
     {"Spring Beauty", "root", "Tiny pink-veined flowers over a marble-sized corm.", "",
      "Dig right at the snowmelt edge; corms are shallow and easy to lift.", MO(5) | MO(6) | MO(7),
      SPR_LEAFY_GREEN, Biome::Mountain},
+
     {"Glacier Lily", "root", "Nodding yellow bloom right at the snow's retreating edge.", "",
      "Dig sparingly -- corms take years to form; take only a few per patch.", MO(6) | MO(7),
      SPR_FLOWER_CLUSTER, Biome::Mountain},
+
     {"Labrador Tea", "green", "Fuzzy-backed leaves in subalpine bogs, brewed as tea.",
      "Contains toxic compounds in quantity -- steep weak, small amounts only, skip if pregnant.",
      "Pick a few leathery leaves, dry them before brewing.", MO(6) | MO(7) | MO(8), SPR_LEAFY_GREEN,
      Biome::Mountain},
+
     {"Yarrow", "flower", "Feathery leaves, flat white flower heads in dry meadows.",
      "Mild in tea, but can irritate skin or upset stomach in large doses.",
      "Snip flower heads in full bloom; leaves work fresh or dried.", MO(6) | MO(7) | MO(8),
      SPR_FLOWER_CLUSTER, Biome::Mountain},
+
     {"Indian Rhubarb", "green", "Umbrella-leaf plant along mountain streambanks.",
      "High in oxalic acid -- a trailside nibble, not a meal.",
      "Peel young stalks before the leaf fully unfurls; cook like rhubarb.", MO(5) | MO(6),
      SPR_LEAFY_GREEN, Biome::Mountain},
+
     {"Aspen Bolete", "mushroom", "Orange-capped bolete under eastside aspen groves.",
      "Pores, not gills, confirm it's a bolete -- cook thoroughly, flesh darkens when cut.",
      "Look in aspen stands after August rain; check the stem base for grubs.", MO(8) | MO(9),
      SPR_PORCINI, Biome::Mountain},
+
     {"Delicious Milk Cap", "mushroom", "Orange latex weeps when cut -- a clear, safe ID.",
      "Confirm the orange latex turns green-ish on exposure; that's the key ID trait.",
      "Look under pine at mid-elevation after fall rain; nick the gills to check the latex.",
      MO(9) | MO(10), SPR_MUSHROOM_CAP, Biome::Mountain},
+
     {"Hawk's Wing", "mushroom", "Scaly cap, toothed underside, in conifer duff.",
      "Teeth instead of gills make ID easy; older caps turn bitter -- pick young.",
      "Look on mossy conifer slopes; younger, paler specimens taste best.", MO(9) | MO(10),
      SPR_MUSHROOM_TOOTH, Biome::Mountain},
+
     {"Bear's Head Tooth", "mushroom", "Cascading white icicle spines on conifer logs.",
      "No toxic lookalikes -- shape and spines make ID easy.",
      "Check dead or dying conifer trunks and stumps at mid-elevation.", MO(9) | MO(10),
      SPR_MUSHROOM_TOOTH, Biome::Mountain},
+
     {"Wila (Horsehair Lichen)", "lichen", "Black hair-lichen draped on subalpine conifer limbs.",
      "Must be pit-cooked long and slow -- raw or underprepared it's inedible and some lookalikes "
      "are toxic.",
      "Gather only dark blackish-brown strands, never yellow-green ones.",
      MO(10) | MO(11) | MO(12) | MO(1), SPR_CORAL, Biome::Mountain},
+
     {"Rock Tripe", "lichen", "Leathery lichen patches clinging to alpine boulders.",
      "Bitter acids must be boiled or soaked out before eating.",
      "Peel dry, brittle patches off sun-exposed rock faces.", MO(7) | MO(8) | MO(9), SPR_CORAL,
      Biome::Mountain},
+
     {"Old Man's Beard", "lichen", "Pale green strands draping subalpine conifer branches.",
      "Confirm the stretchy white inner core -- toxic lookalike lichens lack it.",
      "Gather fallen strands off the ground after wind, no need to strip branches.",
      MO(6) | MO(7) | MO(8) | MO(9), SPR_CORAL, Biome::Mountain},
+
     {"Grouse Whortleberry", "berry", "Pea-sized red berries carpeting ground right at treeline.",
      "", "Comb low mats with fingers -- tedious, but the berries are intensely sweet.",
      MO(8) | MO(9), SPR_BERRY_CLUSTER, Biome::Mountain},
+
     {"Black Raspberry", "berry", "Blackcap. Purple-black cap pulls free of a dry cup.", "",
      "Found in mountain clearcuts and burns; ripe caps detach clean, leaving the core behind.",
      MO(7) | MO(8), SPR_BERRY_CLUSTER, Biome::Mountain},
+
     {"Twisted Stalk", "berry", "Watermelon berry. Red drops hang singly under the leaves.",
      "Mildly laxative in quantity -- a trailside treat, not a basketful.",
      "Check under the zigzag stem in moist subalpine forest for single hanging berries.",
      MO(8) | MO(9), SPR_BERRY_CLUSTER, Biome::Mountain},
+
     {"Soapberry", "berry", "Bitter red berries traditionally whipped into a froth.",
      "Sharp, bitter raw and mildly upsetting in quantity -- best whipped and sweetened.",
      "Strip clusters off dry eastside mountain shrubs after they turn translucent red.",
      MO(8) | MO(9), SPR_BERRY_CLUSTER, Biome::Mountain},
+
     {"Whitebark Pine Nuts", "pine nut", "Fat, buttery seed from a threatened high-elevation pine.",
      "Endangered tree -- gather only from fallen cones, never harm live trees.",
      "Look for cones already dropped below snags near ridgelines.", MO(8) | MO(9),
      SPR_BERRY_CLUSTER, Biome::Mountain},
+
     {"Western White Pine Nuts", "pine nut",
      "Long cones with small, sweet seeds tucked under each scale.", "",
      "Collect fresh-fallen cones and pry the scales open for seeds.", MO(9) | MO(10),
      SPR_BERRY_CLUSTER, Biome::Mountain},
+
     {"Lodgepole Pine Cambium", "cambium", "Sweet inner bark, peeled in a short spring window only.",
      "Strip only a small patch of bark -- girdling kills the tree.",
      "Peel a narrow strip of outer bark, scrape the white cambium beneath.", MO(5) | MO(6),
      SPR_FIDDLEHEAD, Biome::Mountain},
+
     {"Western Hemlock Cambium", "cambium",
      "Inner bark once dried and pounded into cakes by coastal peoples.",
      "Only take from downed trees or a narrow strip, never a full ring.",
      "Scrape cambium from a fallen trunk rather than a live one.", MO(4) | MO(5), SPR_FIDDLEHEAD,
      Biome::Mountain},
+
     {"Western Larch Gum", "sap", "Hardened sap chewed like gum -- a subalpine forest treat.", "",
      "Look for amber globs on trunk wounds and scrape off clean bits.",
      MO(6) | MO(7) | MO(8) | MO(9), SPR_FIDDLEHEAD, Biome::Mountain},
+
     {"Engelmann Spruce Tips", "tree tip",
      "Bright citrus-flavored new growth at high-elevation branch ends.",
      "Confirm true spruce -- flat single needles rule out toxic yew.",
      "Pinch only the pale, papery new tips, a few per branch.", MO(5) | MO(6), SPR_FLOWER_CLUSTER,
      Biome::Mountain},
+
     {"Subalpine Fir Tips", "tree tip", "Balsam-scented new growth right at the treeline.",
      "Don't confuse with Pacific yew -- yew needles are toxic.",
      "Pinch pale new candle growth from lower, reachable branches.", MO(5) | MO(6),
      SPR_FLOWER_CLUSTER, Biome::Mountain},
+
     {"Grand Fir Tips", "tree tip", "Glossy needles with a bright orange-citrus scent when crushed.",
      "Don't confuse with Pacific yew -- yew needles are toxic.",
      "Take a few soft new tips per branch and leave the rest.", MO(4) | MO(5), SPR_FLOWER_CLUSTER,
      Biome::Mountain},
+
     {"Glacier Lily Corm", "root", "Yellow snowmelt bloom hiding a once-staple corm below.",
      "Slow to mature -- dig only a few per patch, it takes years to regrow.",
      "Dig gently right at the melting snowline where blooms cluster.", MO(6) | MO(7), SPR_RAMP,
      Biome::Mountain},
+
     {"Spring Beauty Corm", "root", "Tiny 'mountain potato' corm beneath an early pink flower.", "",
      "Dig just after snowmelt wherever the small pink flowers carpet the ground.", MO(6) | MO(7),
      SPR_RAMP, Biome::Mountain},
+
     {"Bitterroot", "root", "Fleshy taproot in rocky openings; peel away the bitter skin.", "",
      "Dig before the flower opens, when the root is plumpest.", MO(5) | MO(6), SPR_RAMP,
      Biome::Mountain},
+
     {"Biscuitroot (Cous)", "root", "Parsnip-like root historically ground into a trail flour.",
      "Carrot-family root -- easy to confuse with toxic hemlock roots without expert ID.",
      "Dig on dry rocky slopes before the flowering stalks dry out.", MO(5) | MO(6), SPR_RAMP,
      Biome::Mountain},
+
     {"Yampah", "root", "Sweet carrot-family tuber found in damp mountain meadows.",
      "Grows near deadly water hemlock -- confirm ID with an expert before digging.",
      "Dig moist meadow clumps only once flowers confirm the true plant.", MO(7) | MO(8), SPR_RAMP,
      Biome::Mountain},
+
     {"Balsamroot", "root", "Big yellow sunflower on dry slopes; root needs long, slow cooking.", "",
      "Dig deep, fibrous taproots in fall after the seeds have set.", MO(9) | MO(10), SPR_RAMP,
      Biome::Mountain},
+
     {"Camas Bulb", "root", "Blue-flowered meadow bulb, historically pit-roasted for weeks.",
      "Deadly death camas looks identical once flowers fade -- dig only while in bloom.",
      "Dig only when the blue flowers are visible, never past bloom.", MO(5) | MO(6), SPR_RAMP,
      Biome::Mountain},
+
     {"Osha Root", "root", "Aromatic 'bear root,' a prized alpine medicinal with a dark twin.",
      "Carrot-family root that closely resembles deadly hemlock -- expert ID only.",
      "Snap the root and check for a strong celery-spice smell before harvesting.",
      MO(7) | MO(8) | MO(9), SPR_RAMP, Biome::Mountain},
+
     {"Angelica Root", "root",
      "Aromatic streamside root and another carrot-family hemlock look-alike.",
      "Grows beside deadly water hemlock in wet ground -- misidentification can be fatal.",
      "Dig streamside clumps only after confirming ID with a local expert.", MO(7) | MO(8), SPR_RAMP,
      Biome::Mountain},
+
     {"Valerian Root", "root", "Pungent subalpine meadow root brewed into a calming tea.",
      "Mild sedative -- avoid combining with alcohol or sedating medication.",
      "Dig damp meadow clumps in fall once the leaves start to yellow.", MO(9) | MO(10), SPR_RAMP,
      Biome::Mountain},
+
     {"Pearly Everlasting", "herb", "Papery white everlasting bloom, dried for a mild herbal tea.",
      "", "Cut flowering stalks and hang them to dry before storing.", MO(7) | MO(8) | MO(9),
      SPR_LEAFY_GREEN, Biome::Mountain},
+
     {"Cow Parsnip Shoots", "shoot",
      "Celery-like stalk peeled young; a genuine carrot-family risk plant.",
      "Sap causes severe sun blistering, and it resembles deadly poison hemlock.",
      "Peel young stalks fully and wear gloves, avoiding sun on bare skin.", MO(5) | MO(6),
      SPR_FIDDLEHEAD, Biome::Mountain},
+
     {"Fireweed Shoots", "shoot", "Asparagus-like spring shoot from the tall pink-flowered burns.",
      "", "Snap tender shoots under 8 inches before they toughen.", MO(4) | MO(5), SPR_FIDDLEHEAD,
      Biome::Mountain},
+
     {"Fireweed Flowers", "flower",
      "Tall pink flower spike that fills mountain burns and clearings.", "",
      "Strip petals for jelly or tea before the seed fluff appears.", MO(7) | MO(8),
      SPR_FLOWER_CLUSTER, Biome::Mountain},
+
     {"Kinnikinnick Berries", "berry", "Mealy red berry in low evergreen mats on dry alpine ground.",
      "", "Pick red berries late season; best simmered, they're bland raw.", MO(9) | MO(10),
      SPR_BERRY_CLUSTER, Biome::Mountain},
+
     {"Juniper Berries", "berry", "Blue-black cone scale used whole as a savory mountain spice.",
      "Confirm true common juniper -- don't confuse with toxic yew berries nearby.",
      "Pick fully blue-black cones and skip any still green.", MO(9) | MO(10) | MO(11),
      SPR_BERRY_CLUSTER, Biome::Mountain},
+
     {"Mountain Ash Berries", "berry",
      "Orange berry cluster on subalpine shrubs, bitter until cooked.",
      "Mildly toxic raw -- cook or freeze before eating any quantity.",
      "Pick after frost, then cook; raw berries upset the stomach.", MO(9) | MO(10),
      SPR_BERRY_CLUSTER, Biome::Mountain},
+
     {"Red Elderberry", "berry",
      "Red berry cluster by mountain streams, riskier than blue elderberry.",
      "Raw berries, seeds, and stems are toxic -- must be cooked and strained.",
      "Cook thoroughly and strain out seeds; never eat raw.", MO(6) | MO(7), SPR_BERRY_CLUSTER,
      Biome::Mountain},
+
     {"Pipsissewa", "herb", "Waxy evergreen leaf whorl used to flavor a traditional root tea.", "",
      "Snip a few leathery leaves per plant from the shaded forest floor.",
      MO(6) | MO(7) | MO(8) | MO(9), SPR_LEAFY_GREEN, Biome::Mountain},
 
-    // ---- Additional Coast species ----
     {"Nori (Laver)", "seaweed", "Purple-black sheets on rocks. Dries paper-thin in sun.", "",
      "Peel thin sheets off high rocks at the lowest winter tides.",
      MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), SPR_CORAL, Biome::Coast},
+
     {"Bladderwrack", "seaweed", "Forked brown fronds with paired air bladders.", "",
      "Snip fronds above the holdfast; the bladders pop when ripe.",
      MO(4) | MO(5) | MO(6) | MO(7) | MO(8), SPR_LEAFY_GREEN, Biome::Coast},
+
     {"Winged Kelp", "seaweed", "Long brown blade with a pale edible midrib.",
      "Strip the tough wing from the midrib before eating.",
      "Cut young blades before the midrib turns fibrous.", MO(5) | MO(6) | MO(7) | MO(8),
      SPR_LEAFY_GREEN, Biome::Coast},
+
     {"Sea Palm", "seaweed", "Palm-like stipe braced in the crashing surf zone.",
      "Grows only where waves are heaviest -- footing is the real risk.",
      "Cut a few fronds per holdfast so the cluster regrows.", MO(6) | MO(7) | MO(8),
      SPR_LEAFY_GREEN, Biome::Coast},
+
     {"Feather Boa Kelp", "seaweed", "Long feathered blade strand, chewy and briny.", "",
      "Gather fresh drift strands rather than tearing live fronds.", MO(6) | MO(7) | MO(8) | MO(9),
      SPR_LEAFY_GREEN, Biome::Coast},
+
     {"Turkish Towel", "seaweed", "Thick rubbery red blade, rough like a washcloth.", "",
      "Peel whole blades from low rocks at a minus tide.", MO(6) | MO(7) | MO(8) | MO(9), SPR_CORAL,
      Biome::Coast},
+
     {"Turkish Washcloth", "seaweed", "Dark curled red-black blades, papery when dry.", "",
      "Pinch fronds above the holdfast on mid-tide rocks.", MO(4) | MO(5) | MO(6) | MO(7) | MO(8),
      SPR_CORAL, Biome::Coast},
+
     {"Sea Sac", "seaweed", "Golf-ball brown blobs stuck fast to low rocks.", "",
      "Twist whole sacs free at the lowest summer tides.", MO(6) | MO(7) | MO(8), SPR_CORAL,
      Biome::Coast},
+
     {"Iridescent Seaweed", "seaweed", "Blue-green shimmer on wine-red blades underwater.", "",
      "Look in tidepools for the telltale iridescent sheen.", MO(5) | MO(6) | MO(7) | MO(8),
      SPR_CORAL, Biome::Coast},
+
     {"Sea Cabbage", "seaweed", "Ruffled golden blade, milder cousin of sugar kelp.", "",
      "Cut blades an inch above the holdfast at low tide.", MO(4) | MO(5) | MO(6) | MO(7),
      SPR_LEAFY_GREEN, Biome::Coast},
+
     {"Sea Hair", "seaweed", "Hollow bright-green tubes tangled on tidepool rocks.",
      "Rinse thoroughly -- traps fine sand inside the tube.",
      "Pull loose green tangles from mid-tide rocks and pools.", MO(4) | MO(5) | MO(6) | MO(7),
      SPR_LEAFY_GREEN, Biome::Coast},
+
     {"Giant Kelp", "seaweed", "Towering brown kelp forest off the open coast.", "",
      "Gather fresh blades adrift after a swell, not the holdfast.",
      MO(6) | MO(7) | MO(8) | MO(9) | MO(10), SPR_LEAFY_GREEN, Biome::Coast},
+
     {"Beach Sandwort", "green", "Succulent dune leaves in low mats above the tideline.", "",
      "Pinch tender tips before the plant flowers and toughens.", MO(4) | MO(5) | MO(6),
      SPR_LEAFY_GREEN, Biome::Coast},
+
     {"American Searocket", "green", "Fleshy dune plant, peppery like arugula.", "",
      "Pick young leaves and green pods before they woodify.", MO(6) | MO(7) | MO(8) | MO(9),
      SPR_LEAFY_GREEN, Biome::Coast},
+
     {"Orache", "green", "Silvery-green spinach relative on the upper beach.", "",
      "Snip young top leaves before the seed heads form.", MO(5) | MO(6) | MO(7) | MO(8),
      SPR_LEAFY_GREEN, Biome::Coast},
+
     {"Springbank Clover", "root", "Traditional root vegetable from tidal marsh meadows.",
      "Historically cultivated garden plots -- ask before digging.",
      "Dig slender roots in fall once the leaves die back.", MO(9) | MO(10) | MO(11), SPR_RAMP,
      Biome::Coast},
+
     {"Scurvy Grass", "green", "Small round leaves, peppery like watercress.", "",
      "Pick tender rosettes from rocky splash-zone crevices.", MO(3) | MO(4) | MO(5),
      SPR_LEAFY_GREEN, Biome::Coast},
+
     {"Sea Coast Angelica", "green", "Celery-scented stalks in coastal meadows and bluffs.",
      "Apiaceae family -- confirm ID carefully, hemlock lookalikes kill.",
      "Peel young spring stalks before the flower stem hardens.", MO(4) | MO(5) | MO(6),
      SPR_FLOWER_CLUSTER, Biome::Coast},
+
     {"Beach Lovage", "green", "Wild celery leaf, glossy and salty-sweet.",
      "Apiaceae family -- confirm ID carefully, hemlock lookalikes kill.",
      "Snip young leaves from low bluff-top patches in spring.", MO(4) | MO(5) | MO(6),
      SPR_LEAFY_GREEN, Biome::Coast},
+
     {"Pacific Oyster", "shellfish", "Rock-cemented bivalve on sheltered tideflat beaches.",
      "Check PSP/biotoxin closures before eating any raw shellfish.",
      "Pry from rock clusters at a minus tide, shuck fresh.",
      MO(9) | MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3) | MO(4), SPR_MOREL, Biome::Coast},
+
     {"Bay Mussel", "shellfish", "Blue-black shells clustered on pilings and rocks.",
      "Avoid summer months -- biotoxin quarantines run roughly Jul-Oct.",
      "Twist clusters free from rocks at the lowest tides.",
      MO(11) | MO(12) | MO(1) | MO(2) | MO(3) | MO(4) | MO(5) | MO(6), SPR_MOREL, Biome::Coast},
+
     {"Manila Littleneck Clam", "shellfish", "Small ridged clam just under the sand surface.",
      "Check state biotoxin/PSP closures before digging.",
      "Dig 2-4 inches down in gravelly sand at low tide.",
      MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3) | MO(4), SPR_MOREL, Biome::Coast},
+
     {"Butter Clam", "shellfish", "Deep-digging clam, thick chalky-white shell.",
      "Holds PSP toxin longest of any local clam -- check closures.",
      "Dig a foot down in firm sand-gravel beaches.",
      MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), SPR_MOREL, Biome::Coast},
+
     {"Geoduck", "shellfish", "Giant burrowing clam with a long siphon neck.",
      "Check state biotoxin closures and permit rules before digging.",
      "Follow the siphon 'show' straight down with a tube and shovel.",
      MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3) | MO(4), SPR_MOREL, Biome::Coast},
+
     {"Gooseneck Barnacle", "shellfish", "Leathery stalked barnacle clumped on surf-battered rock.",
      "Harvest only where locally legal -- some areas restrict picking.",
      "Twist clusters from wave-exposed rock at the lowest tides.", MO(3) | MO(4) | MO(5) | MO(6),
      SPR_MOREL, Biome::Coast},
+
     {"Dungeness Crab", "shellfish", "Iconic sweet-meat crab of eelgrass and sandy flats.",
      "Check size, sex, and season limits before keeping any crab.",
      "Set rings baited with fish near eelgrass at high tide.",
      MO(7) | MO(8) | MO(9) | MO(10) | MO(11) | MO(12), SPR_MOREL, Biome::Coast},
+
     {"Red Rock Crab", "shellfish", "Smaller, chunky-clawed crab under low-tide rocks.",
      "Check size and daily limits before keeping any crab.",
      "Flip low-tide rocks and boulders to find them hiding.",
      MO(4) | MO(5) | MO(6) | MO(7) | MO(8) | MO(9), SPR_MOREL, Biome::Coast},
+
     {"Black Katy Chiton", "shellfish", "Leathery black armor-plated grazer on open rock.",
      "Tough and strong-flavored -- tenderize well before eating.",
      "Pry gently from open rock faces at the lowest tides.", MO(4) | MO(5) | MO(6) | MO(7) | MO(8),
      SPR_MOREL, Biome::Coast},
+
     {"Red Sea Urchin", "shellfish", "Long-spined purple-red urchin, prized for its roe.",
      "Handle spines with care; roe quality varies by season.",
      "Look in subtidal rock crevices at the lowest minus tides.", MO(5) | MO(6) | MO(7) | MO(8),
      SPR_MOREL, Biome::Coast},
+
     {"Limpet", "shellfish", "Cone-shelled grazer clamped tight to open rock.", "",
      "Pop them loose fast with a knife before they clamp down.",
      MO(4) | MO(5) | MO(6) | MO(7) | MO(8), SPR_MOREL, Biome::Coast},
+
     {"Pacific Basket Cockle", "shellfish", "Ribbed round shell resting just under sandy gravel.",
      "Check state biotoxin/PSP closures before digging.",
      "Rake shallow sand-gravel flats a few inches down.",
      MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), SPR_MOREL, Biome::Coast},
+
     {"Horse Clam", "shellfish", "Large gaping clam with a leathery siphon tip.",
      "Check biotoxin closures; remove the tough siphon skin.",
      "Dig deep and fast once you spot its wide neck-hole.",
      MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), SPR_MOREL, Biome::Coast},
+
     {"Giant Red Sea Cucumber", "shellfish", "Warty red-orange grazer on subtidal rock and sand.",
      "Only the muscular body wall is eaten -- clean thoroughly.",
      "Hand-pick from subtidal rock at the lowest minus tides.", MO(5) | MO(6) | MO(7) | MO(8),
      SPR_MOREL, Biome::Coast},
+
     {"Moon Snail", "shellfish", "Large round predator snail plowing through tide-flat sand.",
      "Tough meat needs long tenderizing -- an acquired harvest.",
      "Follow its smooth plow-trail across exposed sand flats.", MO(5) | MO(6) | MO(7) | MO(8),
      SPR_MOREL, Biome::Coast},
+
     {"Purple Varnish Clam", "shellfish", "Shiny purple-brown shell, shallow in sandy beaches.",
      "Check state biotoxin/PSP closures before digging.",
      "Rake the top few inches of sand at any minus tide.",
      MO(3) | MO(4) | MO(5) | MO(6) | MO(7) | MO(8) | MO(9) | MO(10), SPR_MOREL, Biome::Coast},
+
     {"Manila Clam", "shellfish", "Ridged shell, common on protected bay tideflats.",
      "Check state shellfish biotoxin closures before digging.",
      "Dig 6-8 inches down at low tide with a rake or fork.",
      MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3) | MO(4), SPR_MOREL, Biome::Coast},
+
     {"Pacific Littleneck Clam", "shellfish", "Native littleneck, deeper-ridged than the Manila.",
      "Check state shellfish biotoxin closures before digging.",
      "Found a bit deeper than Manila clams in gravelly sand.",
      MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3) | MO(4), SPR_MOREL, Biome::Coast},
+
     {"Pacific Gaper Clam", "shellfish", "Big clam, siphon too large to fully retract.",
      "Trim and discard the dark rubbery siphon skin before eating.",
      "Look for a squirting hole in sand at an extreme low tide.",
      MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), SPR_MOREL, Biome::Coast},
+
     {"Basket Cockle", "shellfish", "Ribbed round shell, sits shallow in sand and mud.", "",
      "Rake the top few inches of sand near eelgrass beds.",
      MO(9) | MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), SPR_MOREL, Biome::Coast},
+
     {"Softshell Clam", "shellfish", "Thin brittle shell common in estuary mudflats.", "",
      "Dig soft mud near creek mouths; the shell breaks easily.",
      MO(9) | MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), SPR_MOREL, Biome::Coast},
+
     {"Varnish Clam", "shellfish", "Glossy purple-brown shell, an abundant newcomer.", "",
      "Shallow digging in mixed sand often fills a limit fastest.",
      MO(9) | MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3) | MO(4), SPR_MOREL, Biome::Coast},
+
     {"California Mussel", "shellfish", "Large ridged mussel on wave-battered outer rocks.",
      "Skip harvest in warm months when biotoxin risk peaks.",
      "Pry from exposed surf rocks only on a good minus tide.",
      MO(9) | MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3) | MO(4), SPR_MOREL, Biome::Coast},
+
     {"Olympia Oyster", "shellfish", "Tiny native oyster, coin-sized and slow-growing.",
      "Native beds are limited -- take only where restoration allows.",
      "Look on quiet bay shell substrate below the mussel line.",
      MO(9) | MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3) | MO(4), SPR_MOREL, Biome::Coast},
+
     {"Kelp Crab", "crab", "Olive, spider-legged crab living in kelp beds.", "",
      "Hand-pick from kelp holdfasts at a low tide.", MO(6) | MO(7) | MO(8) | MO(9), SPR_MOREL,
      Biome::Coast},
+
     {"Graceful Crab", "crab", "Smaller cousin of Dungeness, a common bycatch.", "",
      "Found in the same pots and pools as Dungeness crab.", MO(7) | MO(8) | MO(9), SPR_MOREL,
      Biome::Coast},
+
     {"Purple Sea Urchin", "urchin", "Spiny purple test; the roe is the harvested part.",
      "Handle spines with gloves; check season and daily limits.",
      "Pry loose from low rocky tidepools at a minus tide.",
      MO(10) | MO(11) | MO(12) | MO(1) | MO(2) | MO(3), SPR_CORAL, Biome::Coast},
+
     {"Gumboot Chiton", "chiton", "Football-sized, rust-red 'wandering meatloaf.'",
      "Take only the muscular foot; harvest sparingly, population-sensitive.",
      "Pry gently from rock faces on the lowest spring tides.", MO(4) | MO(5) | MO(6) | MO(7),
      SPR_MOREL, Biome::Coast},
+
     {"Blue Top Snail", "snail", "Small conical shell grazing low tidepool rocks.", "",
      "Hand-pick from tidepools; boil briefly to free the foot.",
      MO(4) | MO(5) | MO(6) | MO(7) | MO(8) | MO(9), SPR_MOREL, Biome::Coast},
+
     {"Spot Prawn", "shrimp", "Sweet pink shrimp with a very short spring season.",
      "WA's recreational season is brief -- confirm exact open dates.",
      "Drop baited pots into deep water off the outer coast.", MO(5), SPR_MOREL, Biome::Coast},
+
     {"Pinto Abalone", "shellfish", "Ear-shaped shell snail, now critically depleted.",
      "Harvest is illegal in WA waters -- look, photograph, don't take.",
      "Spot clinging to subtidal rock; leave every one in place.",
      MO(4) | MO(5) | MO(6) | MO(7) | MO(8) | MO(9), SPR_MOREL, Biome::Coast},
+
     {"Evergreen Huckleberry", "berry", "Glossy coastal shrub, small dark berries into winter.", "",
      "Comb dense coastal understory shrubs after other berries fade.",
      MO(9) | MO(10) | MO(11) | MO(12), SPR_BERRY_CLUSTER, Biome::Coast},
+
     {"American Sea Rocket", "green", "Peppery succulent leaves on the driftwood line.", "",
      "Pick young leaves and pods before the stem toughens.", MO(5) | MO(6) | MO(7), SPR_LEAFY_GREEN,
      Biome::Coast},
+
     {"Common Camas", "root", "Blue-flowered bulb in coastal prairie meadows.",
      "Deadly death camas looks similar -- confirm blue flowers only.",
      "Dig bulbs after bloom in old Garry oak prairie meadows.", MO(5) | MO(6), SPR_FLOWER_CLUSTER,
      Biome::Coast},
+
     {"Chocolate Lily", "root", "Checkered maroon flower over a rice-grain bulb cluster.", "",
      "Dig bulbs in open coastal meadows just after bloom.", MO(4) | MO(5), SPR_FLOWER_CLUSTER,
      Biome::Coast},
+
     {"Sea Beach Sandwort", "green", "Succulent trailing leaves on open sand foredunes.", "",
      "Pinch fleshy leaf tips from mats just above the tideline.", MO(5) | MO(6) | MO(7),
      SPR_LEAFY_GREEN, Biome::Coast},
-    // ---- Content-expansion batch ----
 
     {"Gem-Studded Puffball", "mushroom", "Warty white ball in duff; cut in half to check.",
      "Interior must be pure white throughout -- yellow or gill shadow means don't eat.",
@@ -1062,916 +1228,6 @@ static const Forageable kSpecies[] = {
      "Bag the pollen spike and shake into a bag on a still morning.", MO(6) | MO(7),
      SPR_FLOWER_CLUSTER, Biome::Forest},
 
-    {"Yellow Pond Lily", "root", "Wokas -- floating pond lily with a starchy rootstock and seeds.",
-     "Raw rhizome is acrid; must be cooked or roasted before eating.",
-     "Pull rhizomes from shallow mud, or gather ripe seed pods that split at the surface.",
-     MO(8) | MO(9), SPR_RAMP, Biome::Forest},
-
-    {"Skunk Cabbage Root", "root", "Broad-leafed swamp plant, pungent smell, emergency root food.",
-     "Raw plant burns from calcium oxalate crystals -- must be dried or long-cooked first.",
-     "Dig root only from mature stands after marking the leaf shape.", MO(2) | MO(3) | MO(4),
-     SPR_RAMP, Biome::Forest},
-
-    {"Common Horsetail Shoots", "green",
-     "Jointed, ribbed spring shoots pushing up before the fronds.",
-     "Only eat young cooked shoots occasionally -- mature plant carries a thiamine-blocking "
-     "compound.",
-     "Snap tender unbranched shoots close to the ground in early spring.", MO(3) | MO(4),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Lamb's Quarters", "green", "Mealy-dusted leaves on disturbed soil, mild spinach flavor.", "",
-     "Pinch the top few inches of leaves before the plant flowers.", MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Purslane", "green", "Fleshy, low-growing succulent green in gardens and gravel edges.", "",
-     "Snip stems above the root so the mat keeps spreading.", MO(7) | MO(8) | MO(9),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Wild Carrot Root", "root",
-     "Queen Anne's lace -- lacy white umbel over a carrot-scented taproot.",
-     "Deadly poison hemlock and water hemlock look nearly identical -- confirm the carrot smell "
-     "and hairy stem before digging.",
-     "Crush a leaf to check for true carrot scent, then dig the taproot.", MO(7) | MO(8) | MO(9),
-     SPR_RAMP, Biome::Forest},
-
-    {"Poison Hemlock", "green", "Tall roadside umbel with purple-blotched smooth stems.",
-     "Deadly -- every part is toxic; mistaken for wild carrot, parsley, or cow parsnip. Never eat.",
-     "Do not harvest -- learn the purple-blotched hairless stem to avoid it.",
-     MO(5) | MO(6) | MO(7), SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Water Hemlock", "root",
-     "Wetland umbel with chambered roots, North America's deadliest plant.",
-     "Fatal in small amounts -- often confused with edible wapato or wild carrot roots. Never eat.",
-     "Do not harvest -- learn the chambered root cross-section to avoid it.", MO(6) | MO(7) | MO(8),
-     SPR_RAMP, Biome::Forest},
-
-    {"False Hellebore", "green",
-     "Broad-pleated leaves in wet forest clearings, resembles false lookalikes.",
-     "Highly toxic in all parts -- shoots are sometimes mistaken for wild greens or corn lily "
-     "forage. Never eat.",
-     "Do not harvest -- learn the deeply pleated, corn-like leaves to avoid it.", MO(5) | MO(6),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Baneberry", "berry", "Glossy red or white 'doll's eye' berries on forest understory stalks.",
-     "Berries and roots are toxic to the heart -- never eat, even in small amounts.",
-     "Do not harvest -- note the white-eyed berry for identification only.", MO(7) | MO(8),
-     SPR_BERRY_CLUSTER, Biome::Forest},
-
-    {"Death Camas", "root", "Cream-flowered lily with a bulb nearly identical to edible camas.",
-     "Deadly -- only distinguishable from edible camas by its cream-colored (not blue) bloom. "
-     "Never eat.",
-     "Do not harvest -- confirm blue bloom on edible camas before digging any bulb.", MO(5) | MO(6),
-     SPR_RAMP, Biome::Forest},
-
-    {"False Solomon's Seal", "berry",
-     "Arching stalk of leaves ending in a cluster of speckled red berries.",
-     "Berries are bitter and mildly laxative -- eat only a few, well ripe.",
-     "Pick fully red, soft berries in small handfuls in early fall.", MO(8) | MO(9),
-     SPR_BERRY_CLUSTER, Biome::Forest},
-
-    {"Solomon's Seal", "root", "Arching forest lily with a knobby, jointed rhizome.",
-     "Cook the rhizome; raw shoots can upset the stomach in quantity.",
-     "Dig a rhizome section from a dense colony, leave the growing tip.", MO(4) | MO(5), SPR_RAMP,
-     Biome::Forest},
-
-    {"Sweet Cicely", "root", "Fern-like forest herb with an anise-sweet root and leaves.",
-     "Confirm the licorice smell -- some carrot-family relatives nearby are toxic.",
-     "Crush a leaf for anise scent, then dig the young taproot.", MO(4) | MO(5) | MO(6), SPR_RAMP,
-     Biome::Forest},
-
-    {"Wild Licorice", "root", "Prairie-edge legume with a sweet, licorice-flavored taproot.", "",
-     "Dig deeply for the long taproot, then peel and chew or dry.", MO(8) | MO(9) | MO(10),
-     SPR_RAMP, Biome::Forest},
-
-    {"Golden Chinquapin", "nut",
-     "Spiny burr nut from an evergreen tree, tastes like mild chestnut.",
-     "Handle ripe burrs carefully -- spines are sharp until fully dried.",
-     "Gather fallen burrs after first frost and pry open when dry.", MO(9) | MO(10), SPR_RAMP,
-     Biome::Forest},
-
-    {"Coastal Black Gooseberry", "berry",
-     "Spiny understory shrub bearing dark, translucent berries.",
-     "Watch for thorns on the stem when picking.",
-     "Pick fully dark, soft berries; leave green ones to ripen.", MO(7) | MO(8), SPR_BERRY_CLUSTER,
-     Biome::Forest},
-
-    {"Bog Cranberry", "berry", "Trailing vine in sphagnum bogs with tart, small red berries.", "",
-     "Pick after first light frost, when berries turn deep red.", MO(9) | MO(10), SPR_BERRY_CLUSTER,
-     Biome::Forest},
-
-    {"Paper Birch Sap", "sap", "Thin, faintly sweet sap tapped from white-barked birches.",
-     "Tap only mature trees and plug the hole after to prevent rot.",
-     "Tap trunks as nights still freeze but days warm, before leaf-out.", MO(3) | MO(4), SPR_RAMP,
-     Biome::Forest},
-
-    {"Vine Maple Sap", "sap", "Understory maple with a light, subtly sweet late-winter sap.", "",
-     "Tap low branches on sunny late-winter days when sap starts running.", MO(2) | MO(3), SPR_RAMP,
-     Biome::Forest},
-
-    {"Bigleaf Maple Seeds", "nut",
-     "Winged samaras eaten young and green, sauteed like a vegetable.",
-     "Only eat while still green and soft; mature seeds are tough and fibrous.",
-     "Pick whole green seed clusters before the wings turn papery brown.", MO(6) | MO(7), SPR_RAMP,
-     Biome::Forest},
-
-    {"Sitka Spruce Tips", "tree tip", "Bright citrusy new growth on the coast's signature conifer.",
-     "", "Pinch pale green tips just as papery bud scales fall away.", MO(4) | MO(5),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Nootka Rose Petals", "flower",
-     "Wild pink rose with fragrant, edible petals along forest edges.", "",
-     "Pluck fully open petals, leaving the hip to develop for fall.", MO(5) | MO(6),
-     SPR_FLOWER_CLUSTER, Biome::Forest},
-
-    {"Red Clover Flowers", "flower",
-     "Common pink-purple meadow flower, sweet when fresh or dried for tea.", "",
-     "Pick fresh, fully open blossoms in the cool morning.", MO(6) | MO(7) | MO(8),
-     SPR_FLOWER_CLUSTER, Biome::Forest},
-
-    {"Bog Blueberry", "berry", "Waxy blue berries in wet alpine bogs and heath.", "",
-     "Pick from matted heath in boggy alpine basins after the first frost sweetens them.",
-     MO(8) | MO(9), SPR_BERRY_CLUSTER, Biome::Mountain},
-
-    {"Black Crowberry", "berry", "Tiny black berries in mats on windswept ridges.", "",
-     "Strip low heath-like mats above treeline; flavor improves after frost.",
-     MO(8) | MO(9) | MO(10), SPR_BERRY_CLUSTER, Biome::Mountain},
-
-    {"Alpine Wintergreen", "berry", "Minty red berries hugging rocky alpine ground.", "",
-     "Pinch ripe red berries from low creeping mats near snowmelt edges.", MO(8) | MO(9),
-     SPR_BERRY_CLUSTER, Biome::Mountain},
-
-    {"Avalanche Lily", "root", "White bloom follows snowmelt; mild pea-like corm.",
-     "Dig only after flowering fades -- corms take years to regrow.",
-     "Dig a few scattered corms lightly, leaving most of the patch to reseed.", MO(7) | MO(8),
-     SPR_RAMP, Biome::Mountain},
-
-    {"Alpine Bistort", "root", "Tiny bulbils replace seeds on this high pink spike.", "",
-     "Collect fallen bulbils and small roots from turf above treeline.", MO(7) | MO(8), SPR_RAMP,
-     Biome::Mountain},
-
-    {"Olympic Onion", "root", "Pink alpine onion in rocky scree and talus fields.",
-     "Confirm the onion smell -- odorless lookalikes can be toxic.",
-     "Crush a leaf to check for onion scent before digging the bulb.", MO(6) | MO(7), SPR_RAMP,
-     Biome::Mountain},
-
-    {"Sitka Mountain Wormwood", "herb", "Silvery, pineapple-scented leaf on high talus slopes.", "",
-     "Snip aromatic leaf tips for tea; avoid stripping whole plants.", MO(7) | MO(8) | MO(9),
-     SPR_LEAFY_GREEN, Biome::Mountain},
-
-    {"Mountain Hemlock Tips", "herb", "Lemony new needle growth from high-elevation hemlock.", "",
-     "Pinch soft pale-green tips before they harden by midsummer.", MO(6) | MO(7), SPR_LEAFY_GREEN,
-     Biome::Mountain},
-
-    {"Alpine Larch Needles", "herb", "Needles from the only conifer that golds and drops.", "",
-     "Gather needle clusters from krummholz larch near treeline.", MO(7) | MO(8) | MO(9),
-     SPR_LEAFY_GREEN, Biome::Mountain},
-
-    {"Reindeer Lichen", "lichen", "Pale branching lichen carpeting open subalpine ground.",
-     "Soak and boil to remove bitter acids before eating.",
-     "Gather loose, dry clumps rather than pulling rooted mats.", MO(7) | MO(8) | MO(9), SPR_CORAL,
-     Biome::Mountain},
-
-    {"Iceland Lichen", "lichen", "Brown leafy lichen on exposed alpine tundra rock.",
-     "Soak out bitter acids through several water changes before use.",
-     "Pick dry, curled lobes off open ground after they've cured in the sun.",
-     MO(7) | MO(8) | MO(9), SPR_CORAL, Biome::Mountain},
-
-    {"Wolf Lichen", "lichen", "Neon yellow lichen crusting dead subalpine snags.",
-     "Toxic -- contains vulpinic acid, historically used as poison, not food.",
-     "Admire and photograph only; once used for dye, never for eating.",
-     MO(6) | MO(7) | MO(8) | MO(9), SPR_CORAL, Biome::Mountain},
-
-    {"Broadleaf Arnica", "flower", "Cheerful yellow daisy of subalpine meadows and seeps.",
-     "Toxic if swallowed -- traditionally a topical liniment only.",
-     "Snip flower heads only for external tinctures, never for eating.", MO(7) | MO(8),
-     SPR_FLOWER_CLUSTER, Biome::Mountain},
-
-    {"False Hellebore (Corn Lily)", "green", "Pleated toxic leaves in wet subalpine meadows.",
-     "All parts are highly toxic -- fatal poisonings occur most springs.",
-     "Learn its pleated leaves so you never mistake it for a spring green.", MO(5) | MO(6) | MO(7),
-     SPR_LEAFY_GREEN, Biome::Mountain},
-
-    {"Western Monkshood", "flower", "Hooded deep-purple bloom of wet subalpine meadows.",
-     "Highly toxic -- can poison through skin contact with sap.",
-     "Handle only with gloves if at all; best left completely untouched.", MO(7) | MO(8),
-     SPR_FLOWER_CLUSTER, Biome::Mountain},
-
-    {"False Azalea (Fool's Huckleberry)", "berry",
-     "Dry capsule fruit mimicking true huckleberry shrubs.",
-     "Not edible -- sparse dry fruit, unlike juicy true huckleberries.",
-     "Check for a juicy true berry before picking any subalpine huckleberry.", MO(8) | MO(9),
-     SPR_BERRY_CLUSTER, Biome::Mountain},
-
-    {"Marsh Marigold", "green", "White buttercup of snowmelt seeps; toxic raw.",
-     "Contains irritant toxins -- needs repeated boiling before eating.",
-     "Boil young leaves through several water changes if preparing at all.", MO(6) | MO(7),
-     SPR_LEAFY_GREEN, Biome::Mountain},
-
-    {"Snowbank False Morel", "mushroom", "Brain-like cap fruiting right at melting snowbanks.",
-     "Contains a toxin related to rocket fuel -- avoid despite local lore.",
-     "Leave brain-like caps alone; true morels are honeycombed, not folded.", MO(5) | MO(6),
-     SPR_MUSHROOM_CAP, Biome::Mountain},
-
-    {"Beargrass", "herb", "Tall white plume grass prized for basketry leaves.", "",
-     "Strip a few outer leaves per plant, never the central bud.", MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Mountain},
-
-    {"Trailing Black Currant", "berry", "Sprawling subalpine currant with tart black berries.", "",
-     "Pick fully black berries from shaded forest-edge clumps.", MO(7) | MO(8), SPR_BERRY_CLUSTER,
-     Biome::Mountain},
-
-    {"Black Twinberry", "berry", "Shiny black berries cupped in red bracts -- skip them.",
-     "Bitter and mildly toxic -- birds eat it, people shouldn't.",
-     "Note the red bract 'wings' as the warning sign to leave it alone.", MO(7) | MO(8),
-     SPR_BERRY_CLUSTER, Biome::Mountain},
-
-    {"Subalpine Spiraea", "herb", "Pink-clustered shrub whose leaf steeps into mild tea.", "",
-     "Snip young leaves before the flower clusters open.", MO(7) | MO(8), SPR_LEAFY_GREEN,
-     Biome::Mountain},
-
-    {"Sitka Burnet", "green", "Cucumber-scented leaflets in wet subalpine meadows.", "",
-     "Snip young leaflets for salads before the white flower spikes rise.", MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Mountain},
-
-    {"Elk Thistle", "root", "Thistle stalk that peels and tastes like celery.",
-     "Peel the fibrous, spiny rind fully before eating the core.",
-     "Cut stalks low before flowering and peel away all the spiny skin.", MO(6) | MO(7), SPR_RAMP,
-     Biome::Mountain},
-
-    {"Subalpine Lupine", "flower", "Iconic purple meadow spikes with toxic seeds and pods.",
-     "Seeds and pods contain alkaloids -- toxic if eaten in quantity.",
-     "Enjoy the meadow color; leave the seed pods for wildlife.", MO(7) | MO(8), SPR_FLOWER_CLUSTER,
-     Biome::Mountain},
-
-    {"Indian Paintbrush", "flower", "Scarlet-bracted wildflower best left untouched.",
-     "Can concentrate selenium from soil -- skip eating entirely.",
-     "Photograph the brushy red bracts instead of tasting them.", MO(7) | MO(8), SPR_FLOWER_CLUSTER,
-     Biome::Mountain},
-
-    {"White Rhododendron", "flower", "Subalpine shrub in the toxic heath family.",
-     "All parts contain grayanotoxins -- never brew or nibble.",
-     "ID the drooping white blooms and hairy twigs, then move on.", MO(7) | MO(8),
-     SPR_FLOWER_CLUSTER, Biome::Mountain},
-
-    {"Mountain Balm (Snowbrush Ceanothus)", "herb",
-     "Sticky, glossy leaf brewed into a minty mountain tea.", "",
-     "Pick shiny resin-coated leaves from sun-facing mountain slopes.", MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Mountain},
-
-    {"Rockweed", "seaweed", "Forked olive-brown fronds with round bladders on mid-tide rock.", "",
-     "Snip fronds above the holdfast at mid-tide, leave the base.",
-     MO(4) | MO(5) | MO(6) | MO(7) | MO(8) | MO(9), SPR_LEAFY_GREEN, Biome::Coast},
-
-    {"Wireweed", "seaweed", "Introduced beaded brown seaweed now common in PNW bays.",
-     "Edible but invasive -- harvest freely, it will not run out.",
-     "Cut fronds where it crowds eelgrass beds and tidepools.", MO(6) | MO(7) | MO(8) | MO(9),
-     SPR_LEAFY_GREEN, Biome::Coast},
-
-    {"Ogo", "seaweed", "Thin red-brown branching strands, crisp and mildly briny.", "",
-     "Pull loose tangles from calm tideflat channels at low tide.", MO(6) | MO(7) | MO(8) | MO(9),
-     SPR_CORAL, Biome::Coast},
-
-    {"Acid Kelp", "seaweed", "Feathery brown kelp that turns to acid soon after picking.",
-     "Do not harvest -- releases sulfuric acid as it decays, can burn skin.",
-     "Learn its fine feathery branches so you can leave it alone.", MO(5) | MO(6) | MO(7) | MO(8),
-     SPR_CORAL, Biome::Coast},
-
-    {"Dead Man's Fingers", "seaweed",
-     "Spongy dark-green branching fingers on rocky low-tide beaches.",
-     "Tough and rubbery -- edible only finely chopped and well cooked.",
-     "Cut branch tips from rock at the lowest minus tides.", MO(6) | MO(7) | MO(8) | MO(9),
-     SPR_LEAFY_GREEN, Biome::Coast},
-
-    {"Yellow Sand Verbena", "root", "Fragrant yellow dune flower over a starchy taproot.",
-     "Traditionally roasted, not eaten raw -- root is fibrous.",
-     "Dig deep sandy dune roots after the flowers fade in fall.", MO(9) | MO(10), SPR_RAMP,
-     Biome::Coast},
-
-    {"Beach Silvertop", "root", "Silvery-leaved dune carrot relative with a sweet taproot.",
-     "Carrot-family lookalikes include deadly hemlock -- confirm ID carefully.",
-     "Dig sandy dune roots in fall once the flower umbels fade.", MO(8) | MO(9) | MO(10), SPR_RAMP,
-     Biome::Coast},
-
-    {"Sea Milkwort", "green", "Tiny succulent leaves in salt marsh turf, mild and salty.", "",
-     "Snip low mats from the upper marsh at any low tide.", MO(5) | MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Coast},
-
-    {"Jaumea", "green", "Fleshy yellow-flowered succulent carpeting salt marsh mud.", "",
-     "Pinch tender young leaves from firm marsh hummocks.", MO(5) | MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Coast},
-
-    {"Seaside Arrowgrass", "green", "Grass-like salt marsh plant that can turn cyanide-toxic.",
-     "Can develop deadly cyanogenic compounds under stress -- do not eat.",
-     "Learn its grassy look so you can avoid it near edible marsh greens.",
-     MO(5) | MO(6) | MO(7) | MO(8), SPR_LEAFY_GREEN, Biome::Coast},
-
-    {"Sea Blite", "green", "Reddish-green succulent stems in salt marsh, salty and crisp.", "",
-     "Snip young top shoots before the plant reddens with age.", MO(6) | MO(7) | MO(8) | MO(9),
-     SPR_LEAFY_GREEN, Biome::Coast},
-
-    {"Gumweed", "herb", "Sticky yellow daisy on coastal bluffs, brewed as a bitter tea.",
-     "Resinous and bitter -- traditionally a medicinal tea, not a food.",
-     "Snip resinous flower buds before they fully open.", MO(7) | MO(8) | MO(9), SPR_FLOWER_CLUSTER,
-     Biome::Coast},
-
-    {"Piddock Clam", "shellfish", "Long clam that bores its own burrow into soft clay or rock.",
-     "Check state biotoxin closures; shell is fragile so dig carefully.",
-     "Chip soft clay banks at a minus tide to expose burrows.",
-     MO(1) | MO(2) | MO(3) | MO(10) | MO(11) | MO(12), SPR_MOREL, Biome::Coast},
-
-    {"Bent-nose Clam", "shellfish", "Thin oval clam with a telltale bent, twisted siphon.",
-     "Check state biotoxin/PSP closures before digging.",
-     "Dig shallow black mud a few inches down at low tide.",
-     MO(1) | MO(2) | MO(3) | MO(9) | MO(10) | MO(11) | MO(12), SPR_MOREL, Biome::Coast},
-
-    {"Ghost Shrimp", "shrimp", "Pale burrowing shrimp riddling sandy-mud tideflats with holes.",
-     "Check harvest rules; often gathered for fishing bait.",
-     "Pump a yabby pump into a burrow hole at low tide.",
-     MO(4) | MO(5) | MO(6) | MO(7) | MO(8) | MO(9), SPR_MOREL, Biome::Coast},
-
-    {"Blue Mud Shrimp", "shrimp", "Stouter mud shrimp sharing tideflat burrows with ghost shrimp.",
-     "Check local shellfish regulations before digging.",
-     "Follow the wider, mucus-lined burrow opening straight down.",
-     MO(4) | MO(5) | MO(6) | MO(7) | MO(8) | MO(9), SPR_MOREL, Biome::Coast},
-
-    {"Black Turban Snail", "snail", "Dark conical snail grazing thick on mid-tide rocks.",
-     "Boil briefly, then twist the foot free of the tough operculum.",
-     "Hand-pick clusters off shaded rock at low tide.",
-     MO(4) | MO(5) | MO(6) | MO(7) | MO(8) | MO(9), SPR_MOREL, Biome::Coast},
-
-    {"Frilled Dogwinkle", "snail", "Ruffled-shell predatory whelk common on rocky shorelines.",
-     "Small meat yield -- traditionally a minor, occasional food.",
-     "Pry whelks from rock crevices at the lowest tides.", MO(4) | MO(5) | MO(6) | MO(7) | MO(8),
-     SPR_MOREL, Biome::Coast},
-
-    {"Dock Shrimp", "shrimp", "Striped pink shrimp often caught near docks and pilings.",
-     "Check WA recreational shrimping season dates and limits.",
-     "Drop a baited trap near pilings at dusk or dawn.", MO(4) | MO(5) | MO(6), SPR_MOREL,
-     Biome::Coast},
-
-    {"Rock Scallop", "shellfish", "Large scallop permanently cemented into a rock crevice.",
-     "Check size and harvest limits; needs a strong pry to remove.",
-     "Pry gently from subtidal rock at the lowest minus tides.", MO(5) | MO(6) | MO(7) | MO(8),
-     SPR_MOREL, Biome::Coast},
-
-    {"Pink Scallop", "shellfish", "Small ridged swimming scallop found on subtidal gravel.",
-     "Mostly a diver's harvest -- check local season and limits.",
-     "Look on current-swept gravel patches just below the tideline.", MO(6) | MO(7) | MO(8) | MO(9),
-     SPR_MOREL, Biome::Coast},
-
-    {"Acorn Barnacle", "shellfish", "Volcano-shaped barnacle crusting nearly every mid-tide rock.",
-     "Small meat yield -- more a survival food than a meal.",
-     "Crack clusters off rock and pick the tiny meat out.",
-     MO(4) | MO(5) | MO(6) | MO(7) | MO(8) | MO(9), SPR_MOREL, Biome::Coast},
-
-    {"Weathervane Scallop", "shellfish",
-     "Washington's largest scallop, found in deeper offshore water.",
-     "Mostly a boat or dive harvest -- check sport and commercial rules.",
-     "Look for washed-up shells after storms as a sign they're near.",
-     MO(6) | MO(7) | MO(8) | MO(9), SPR_MOREL, Biome::Coast},
-
-    {"Green Sea Urchin", "urchin", "Smaller, short-spined northern cousin of the red sea urchin.",
-     "Handle spines with care; check season and daily limits.",
-     "Pry from cool subtidal rock crevices at the lowest tides.",
-     MO(1) | MO(2) | MO(3) | MO(10) | MO(11) | MO(12), SPR_CORAL, Biome::Coast},
-
-    {"Pacific Mole Crab", "crab", "Egg-shaped 'sand crab' that surfs the swash on sandy beaches.",
-     "Mostly used as fishing bait -- small meat yield.",
-     "Scoop wet sand fast as a wave retreats to catch them.", MO(6) | MO(7) | MO(8) | MO(9),
-     SPR_MOREL, Biome::Coast},
-
-    {"Giant Green Anemone", "anemone",
-     "Bright green tidepool anemone, historically eaten by coastal peoples.",
-     "Needs thorough cleaning and long cooking -- expert preparation only.",
-     "Best left alone unless you have traditional guidance to prepare it.",
-     MO(4) | MO(5) | MO(6) | MO(7) | MO(8), SPR_CORAL, Biome::Coast},
-
-    {"Surf Smelt", "fish", "Silvery schooling fish that spawns right on sandy-gravel beaches.",
-     "Check WA/OR dip-net seasons, license, and gear rules.",
-     "Dip-net the surf line right at a spawning high tide.", MO(6) | MO(7) | MO(8) | MO(9) | MO(10),
-     SPR_MOREL, Biome::Coast},
-
-    {"Herring Spawn on Kelp", "roe",
-     "Herring eggs coating kelp blades during spring spawning runs.",
-     "Harvest only where and when local herring spawn openings allow.",
-     "Cut roe-laden kelp blades right after a spawning event.", MO(3) | MO(4), SPR_CORAL,
-     Biome::Coast},
-
-    {"Eulachon", "fish", "Oily 'candlefish' smelt that runs up coastal rivers each spring.",
-     "Populations are depleted in many rivers -- check closures first.",
-     "Dip-net river mouths during the brief spring spawning run.", MO(3) | MO(4) | MO(5), SPR_MOREL,
-     Biome::Coast},
-
-    {"European Searocket", "green", "Fleshy invasive dune plant, peppery like its native cousin.",
-     "", "Pick young leaves and pods before the driftwood-line stems toughen.",
-     MO(6) | MO(7) | MO(8) | MO(9), SPR_LEAFY_GREEN, Biome::Coast},
-
-    {"Common Mallow", "green", "Round scalloped leaf, mild mucilaginous texture cooked.", "",
-     "Pick young leaves and green seed 'cheeses' from lawns.", MO(5) | MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Hairy Bittercress", "green", "Tiny basal rosette, peppery like mild watercress.", "",
-     "Snip whole rosettes from damp pavement edges in early spring.", MO(2) | MO(3) | MO(4),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Shepherd's Purse", "green", "Heart-shaped seed pods on a thin flowering stalk.",
-     "Avoid large medicinal doses in pregnancy.", "Pull whole rosettes before pods dry and rattle.",
-     MO(3) | MO(4) | MO(5), SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Wild Chicory", "green", "Sky-blue roadside flower, bitter leaf and a coffee-like root.",
-     "Bitter leaves best blanched or cooked; can worsen gallstones.",
-     "Dig the taproot in fall for roasting as a coffee substitute.", MO(7) | MO(8) | MO(9),
-     SPR_FLOWER_CLUSTER, Biome::Forest},
-
-    {"Field Sow Thistle", "green", "Soft-spined dandelion lookalike with milky sap.",
-     "Milky latex can irritate sensitive skin.",
-     "Pick young tender leaves before the stem turns spiny and tough.", MO(5) | MO(6) | MO(7),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Wild Amaranth (Pigweed)", "green",
-     "Tall coarse weed with tiny seed clusters and edible greens.",
-     "High in oxalates -- cook before eating in quantity.",
-     "Take young leaves all summer; strip seed heads once they brown.", MO(7) | MO(8) | MO(9),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Wild Radish", "green", "Yellow-white four-petal flower on a peppery mustard weed.", "",
-     "Pick young pods and leaves before they turn fibrous.", MO(5) | MO(6) | MO(7),
-     SPR_FLOWER_CLUSTER, Biome::Forest},
-
-    {"Hedge Mustard", "green", "Tall wiry stalk with tiny yellow flowers, mustard-hot leaf.", "",
-     "Strip young leaves low on the stalk before it flowers fully.", MO(5) | MO(6) | MO(7),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Garlic Mustard", "green", "Invasive biennial; crushed leaf smells distinctly of garlic.", "",
-     "Pick first-year leaves; pulling helps control this invasive spread.", MO(3) | MO(4) | MO(5),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Burdock Root", "root", "Huge heart-shaped leaves over a long taproot, first-year plants.",
-     "Confirm first-year growth -- can resemble toxic foxglove leaves when young.",
-     "Dig the deep taproot of a first-year rosette before it bolts.", MO(9) | MO(10), SPR_RAMP,
-     Biome::Forest},
-
-    {"Japanese Knotweed Shoots", "shoot",
-     "Invasive bamboo-like cane; young shoots taste rhubarb-tart.",
-     "High in oxalates like rhubarb -- eat in moderation.",
-     "Snap hollow red-speckled shoots under a foot tall in spring.", MO(4) | MO(5), SPR_FIDDLEHEAD,
-     Biome::Forest},
-
-    {"Himalayan Blackberry Leaf Tea", "herb",
-     "Same rampant bramble; young leaves make a mild astringent tea.",
-     "Use only fresh or fully dried leaves -- wilted leaves can be mildly toxic.",
-     "Pick young leaves and dry them fully before steeping.", MO(6) | MO(7), SPR_LEAFY_GREEN,
-     Biome::Forest},
-
-    {"Field Bindweed Flower", "flower",
-     "Invasive morning-glory vine; flowers used sparingly in tea.",
-     "Roots and seeds are purgative -- only the flower is used, sparingly.",
-     "Pinch open trumpet blooms from fences and chain-link.", MO(6) | MO(7) | MO(8),
-     SPR_FLOWER_CLUSTER, Biome::Forest},
-
-    {"Wild Carrot (Queen Anne's Lace)", "root",
-     "Lacy white umbel over a thin carrot-scented taproot.",
-     "Deadly poison hemlock looks nearly identical -- confirm the carrot smell and hairy stem.",
-     "Confirm carrot smell and hairy stem before digging the young root.", MO(8) | MO(9),
-     SPR_FLOWER_CLUSTER, Biome::Forest},
-
-    {"Common Sowthistle Milk", "green", "Softer-leaved thistle cousin, mild cooked green.", "",
-     "Take the youngest inner leaves; older ones turn bitter and tough.", MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Bull Thistle Stalk", "stalk",
-     "Spiny purple-flowered thistle; peeled stalk is mild and crisp.",
-     "Wear gloves -- spines are sharp even on peeled stalks.",
-     "Peel the tough rind off young flowering stalks before cooking.", MO(6) | MO(7),
-     SPR_FLOWER_CLUSTER, Biome::Forest},
-
-    {"Common Mullein Leaf", "herb", "Tall felted grey-green rosette, leaves brewed for tea.",
-     "Strain tea well -- fine leaf hairs can irritate the throat.",
-     "Pick soft first-year rosette leaves and strain any tea well.", MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Red Clover Blossom", "flower", "Pink-purple clover head in every lawn and vacant lot.",
-     "Avoid large medicinal amounts if on blood thinners.",
-     "Snip fresh open blossom heads for tea or salad.", MO(6) | MO(7) | MO(8), SPR_FLOWER_CLUSTER,
-     Biome::Forest},
-
-    {"White Clover Blossom", "flower", "Small white lawn clover, mild sweet blossom.", "",
-     "Pick fully open heads; avoid any with a moldy smell.", MO(5) | MO(6) | MO(7),
-     SPR_FLOWER_CLUSTER, Biome::Forest},
-
-    {"Wild Violet", "flower", "Heart-shaped leaf, purple blossom tucked in shady lawns.", "",
-     "Pick both leaf and flower fresh; avoid look-alike lily leaves.", MO(3) | MO(4) | MO(5),
-     SPR_FLOWER_CLUSTER, Biome::Forest},
-
-    {"English Daisy", "flower", "Tiny white lawn daisy, mild edible petals and buds.", "",
-     "Pinch closed buds and open blooms straight from mowed turf.", MO(4) | MO(5) | MO(6),
-     SPR_FLOWER_CLUSTER, Biome::Forest},
-
-    {"Wild Fennel", "herb", "Feathery anise-scented escapee along roadsides and lots.", "",
-     "Snip fine fronds and crush to confirm the licorice scent.", MO(7) | MO(8) | MO(9),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Prickly Lettuce", "green", "Spiny-midribbed dandelion relative, milky sap when cut.",
-     "Bitter latex sap best avoided by sensitive skin.",
-     "Take only the youngest basal leaves before the stalk bolts.", MO(6) | MO(7), SPR_LEAFY_GREEN,
-     Biome::Forest},
-
-    {"Field Pennycress", "green", "Round-podded mustard-family weed in cracked pavement.", "",
-     "Pick young leaves and green pods before they toughen.", MO(4) | MO(5), SPR_LEAFY_GREEN,
-     Biome::Forest},
-
-    {"Wood Avens", "root", "Small yellow-flowered clove-root weed in shady yards.", "",
-     "Dig the small root and sniff for its clove scent.", MO(9) | MO(10), SPR_RAMP, Biome::Forest},
-
-    {"Hollyhock Leaf", "green", "Garden-escaped mallow cousin, soft mucilaginous leaf.", "",
-     "Pick young unblemished leaves from feral roadside clumps.", MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Redroot Amaranth Seed", "seed", "Same weedy pigweed, harvested for its tiny grain-like seed.",
-     "Winnow thoroughly -- chaff is unpleasant, not toxic.",
-     "Strip ripe seed heads into a bag once they shatter easily.", MO(9) | MO(10), SPR_LEAFY_GREEN,
-     Biome::Forest},
-
-    {"Broadleaf Dock Seed", "seed", "Rust-brown seed clusters on tall roadside dock stalks.",
-     "High in oxalates -- an occasional flour additive, not a staple.",
-     "Strip dry rust-colored seed clusters in late summer.", MO(8) | MO(9), SPR_LEAFY_GREEN,
-     Biome::Forest},
-
-    {"Common Nipplewort", "green", "Slim dandelion-family weed common in shady city borders.", "",
-     "Pick young basal leaves before the thin flower stalk rises.", MO(6) | MO(7), SPR_LEAFY_GREEN,
-     Biome::Forest},
-
-    {"Red Alder Bark", "bark", "Streamside pioneer tree; bark historically brewed as a tonic.",
-     "Fresh bark can be strongly emetic -- traditionally dried or aged before use.",
-     "Peel a small strip from a fallen or pruned branch, then dry it fully.", MO(4) | MO(5) | MO(6),
-     SPR_CORAL, Biome::Forest},
-
-    {"Wild Sarsaparilla", "root", "Woodland root historically simmered as a tonic tea.", "",
-     "Dig around the base of the compound leaf, taking only a few roots per patch.", MO(9) | MO(10),
-     SPR_RAMP, Biome::Forest},
-
-    {"Yellow Pond Lily Root", "root",
-     "Pond-margin root traditionally prepared as a wound poultice.",
-     "Raw root is acrid and can irritate skin and mucous membranes -- traditionally cooked or "
-     "dried first.",
-     "Pull rhizomes from shallow pond edges after the leaves die back.", MO(9) | MO(10), SPR_RAMP,
-     Biome::Forest},
-
-    {"Snowbrush (Ceanothus) Leaf Tea", "herb",
-     "Aromatic dry-slope shrub; leaves steeped as a pioneer tea substitute.", "",
-     "Snip young leaves from sunny cutover slopes and dry before steeping.", MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Mountain},
-
-    {"Western Redcedar Boughs", "herb",
-     "Fragrant conifer used ceremonially and in traditional steam baths.",
-     "Contains thujone -- traditionally used sparingly and briefly, not as a regular strong tea; "
-     "avoid in pregnancy.",
-     "Snip a few flat sprays from a low branch, leaving the tree unharmed.",
-     MO(1) | MO(2) | MO(3) | MO(4) | MO(5) | MO(6) | MO(7) | MO(8) | MO(9) | MO(10) | MO(11) |
-         MO(12),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Twinberry", "herb", "Paired black berries; leaves and bark used traditionally as a poultice.",
-     "Berries are mildly toxic and emetic -- traditionally not eaten, used only externally.",
-     "Clip a few leafy stems from moist thickets; leave the berries alone.", MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Red-osier Dogwood Bark", "bark",
-     "Red-stemmed shrub whose inner bark was dried for tea and smoking mixes.", "",
-     "Peel a thin strip of inner bark from a pruned stem, then dry it.", MO(9) | MO(10) | MO(11),
-     SPR_CORAL, Biome::Forest},
-
-    {"False Solomon's Seal Root", "root",
-     "Arching forest-floor plant; root dried for a traditional tea.", "",
-     "Dig the knobby rhizome in fall after the berries drop.", MO(9) | MO(10), SPR_RAMP,
-     Biome::Forest},
-
-    {"Vanilla Leaf", "herb",
-     "Sweet-scented understory leaf, dried and used as a traditional infusion.", "",
-     "Pick whole leaves after they fully unfurl, then dry them flat.", MO(5) | MO(6) | MO(7),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Yerba Buena", "herb", "Trailing native mint; leaves steeped as a mild traditional tea.", "",
-     "Snip trailing stems from shaded bluffs and forest edges.", MO(5) | MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Coast},
-
-    {"Devil's Club Bark", "bark",
-     "Widely used medicinal shrub bark, distinct from its edible spring shoots.",
-     "Stems are densely spined -- wear gloves; traditional remedies vary and aren't clinically "
-     "proven cures.",
-     "Scrape bark from a mature stalk with gloved hands, away from the spines.", MO(9) | MO(10),
-     SPR_CORAL, Biome::Forest},
-
-    {"Wild Licorice Root", "root", "Streamside legume with a mildly sweet, licorice-scented root.",
-     "", "Dig along damp streambanks; the root snaps with a sweet smell.", MO(9) | MO(10), SPR_RAMP,
-     Biome::Forest},
-
-    {"Horsetail", "herb", "Jointed, silica-rich stem historically brewed as a mild tea.",
-     "Contains thiaminase -- avoid large amounts or prolonged daily use.",
-     "Snip the green sterile stems from damp ditches and floodplains.", MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Mullein", "herb", "Tall fuzzy-leaved biennial, leaves dried for a traditional lung tea.",
-     "Fine leaf hairs can irritate the throat -- always strain the tea well.",
-     "Pick lower leaves from the first-year rosette and dry them.", MO(7) | MO(8) | MO(9),
-     SPR_LEAFY_GREEN, Biome::Mountain},
-
-    {"St. John's Wort", "flower", "Naturalized roadside herb; flowering tops dried for tea.",
-     "Can cause photosensitivity and interacts with several medications.",
-     "Cut flowering tops on a sunny day and dry them quickly.", MO(6) | MO(7) | MO(8),
-     SPR_FLOWER_CLUSTER, Biome::Mountain},
-
-    {"Red Clover", "flower",
-     "Naturalized meadow clover; blossoms dried for a mild traditional tea.", "",
-     "Pick fresh, fully open blossom heads and dry them on a screen.", MO(6) | MO(7) | MO(8),
-     SPR_FLOWER_CLUSTER, Biome::Mountain},
-
-    {"Pineappleweed", "flower", "Low roadside flower smelling of pineapple, brewed like chamomile.",
-     "", "Pinch the cone-shaped flower heads from trailside gravel patches.", MO(6) | MO(7) | MO(8),
-     SPR_FLOWER_CLUSTER, Biome::Forest},
-
-    {"Beach Wormwood", "herb",
-     "Silvery aromatic herb on coastal dunes, used in traditional remedies.",
-     "Aromatic compounds are strong -- traditionally used in small amounts.",
-     "Clip soft grey-green tips from stabilized dune grass.", MO(7) | MO(8) | MO(9),
-     SPR_LEAFY_GREEN, Biome::Coast},
-
-    {"Coastal Mugwort", "herb",
-     "Bluff-top sagewort used ceremonially and as a traditional infusion.",
-     "Related to wormwood -- use sparingly, avoid in pregnancy.",
-     "Snip aromatic leafy stems from coastal bluffs before flowering.", MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Coast},
-
-    {"Subalpine Fir Pitch", "sap", "Blistered bark pitch used traditionally as a wound dressing.",
-     "", "Press a resin blister on the trunk and catch the pitch on a stick.",
-     MO(6) | MO(7) | MO(8), SPR_CORAL, Biome::Mountain},
-
-    {"Western Teaberry", "herb",
-     "Low mountain-forest evergreen; leaves and berries make a wintergreen tea.",
-     "Contains a methyl salicylate-like compound -- avoid if sensitive to aspirin.",
-     "Pick a few leathery leaves and ripe red berries from low mats.", MO(8) | MO(9) | MO(10),
-     SPR_LEAFY_GREEN, Biome::Mountain},
-
-    {"Mountain Sagewort", "herb",
-     "Aromatic alpine sagebrush relative used traditionally for smudging and tea.",
-     "Related to wormwood -- use sparingly, avoid in pregnancy.",
-     "Snip silvery leafy tips from dry alpine rock gardens.", MO(7) | MO(8), SPR_LEAFY_GREEN,
-     Biome::Mountain},
-
-    {"Alumroot", "root", "Rocky-slope perennial; astringent root used traditionally for wounds.",
-     "", "Dig a small root from rock crevices, leaving most of the clump intact.", MO(8) | MO(9),
-     SPR_RAMP, Biome::Mountain},
-
-    {"Cattail", "root", "Marsh plant with many traditional uses: root starch, pollen, and fiber.",
-     "", "Dig starchy rhizomes from shallow marsh mud in late summer.", MO(8) | MO(9), SPR_RAMP,
-     Biome::Forest},
-
-    {"Chicory", "root",
-     "Naturalized blue-flowered roadside root, historically roasted as a coffee substitute.", "",
-     "Dig the deep taproot in fall, then roast before brewing.", MO(9) | MO(10), SPR_RAMP,
-     Biome::Mountain},
-
-    {"Willow Bark", "bark",
-     "Streamside tree whose inner bark was chewed traditionally for pain relief.",
-     "Avoid if sensitive to aspirin-like compounds.",
-     "Peel a thin strip of inner bark from a pruned streamside branch.", MO(4) | MO(5) | MO(6),
-     SPR_CORAL, Biome::Forest},
-
-    {"Bitter Cherry Bark", "bark",
-     "Streamside cherry whose inner bark was used in traditional cough remedies.",
-     "Seeds and pits contain cyanogenic compounds -- never eaten.",
-     "Strip a small section of inner bark from a pruned branch.", MO(5) | MO(6), SPR_CORAL,
-     Biome::Forest},
-
-    {"Douglas Maple Sap", "sap",
-     "Rocky Mountain maple, dry slopes, sap runs briefly in late winter.", "",
-     "Tap only mature trunks over 6 inches wide during a thaw.", MO(2) | MO(3), SPR_LEAFY_GREEN,
-     Biome::Mountain},
-
-    {"Western Redcedar Tips", "tree tip", "Scale-like fronds steeped for a traditional forest tea.",
-     "Contains thujone -- brew weak, occasional cups only, skip if pregnant.",
-     "Snip a few soft frond tips per tree, never strip a branch bare.", MO(3) | MO(4) | MO(5),
-     SPR_FLOWER_CLUSTER, Biome::Forest},
-
-    {"Noble Fir Tips", "tree tip",
-     "High-Cascade fir, soft blue-green new growth, resin-sweet scent.",
-     "Don't confuse with Pacific yew -- yew needles are toxic.",
-     "Take a few new candle tips per branch on lower limbs only.", MO(5) | MO(6),
-     SPR_FLOWER_CLUSTER, Biome::Mountain},
-
-    {"Pacific Yew Arils", "berry", "Only the sweet red flesh around the seed is safe -- ever.",
-     "Extremely toxic seed and needles -- eat only the soft red aril, never the pit.",
-     "Pinch ripe red arils and spit out the hard seed inside.", MO(8) | MO(9), SPR_BERRY_CLUSTER,
-     Biome::Forest},
-
-    {"Black Hawthorn Berries", "berry", "Thorny riverside tree, small dark-purple mealy fruit.",
-     "Avoid crunching the seeds; watch for long thorns while picking.",
-     "Wait until berries soften after early frost for best flavor.", MO(9) | MO(10),
-     SPR_BERRY_CLUSTER, Biome::Forest},
-
-    {"Pacific Crabapple", "berry", "Small tart apples on brackish tideflat edges and estuaries.",
-     "Seeds contain trace cyanogenic compounds -- don't eat the cores.",
-     "Pick after first frost softens the sharp acidity.", MO(9) | MO(10), SPR_BERRY_CLUSTER,
-     Biome::Coast},
-
-    {"Red Alder Cambium", "cambium", "Sweet inner bark, once dried into emergency travel food.",
-     "Strip only a narrow patch -- girdling a full ring kills the tree.",
-     "Peel outer bark from a downed limb and scrape the pale layer beneath.", MO(4) | MO(5),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Pacific Dogwood Bark", "bark",
-     "Showy spring bloomer; bark once steeped as a bitter tonic tea.",
-     "Medicinal-strength bitter -- small doses only, not a everyday food.",
-     "Take a small strip from a downed branch, never ring a living trunk.", MO(4) | MO(5),
-     SPR_FLOWER_CLUSTER, Biome::Forest},
-
-    {"Ocean Spray Wood", "wood", "Rock-hard shoots called ironwood, prized for tool handles.", "",
-     "Cut straight dormant-season shoots and cure them slowly indoors.", MO(1) | MO(11) | MO(12),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Red-Osier Dogwood Berries", "berry",
-     "White-stemmed wetland shrub, bitter waxy-white berries.",
-     "Bitter and mildly upsetting in quantity -- eat sparingly, mixed with sweeter fruit.",
-     "Pick fully white, soft berries; skip any still greenish.", MO(8) | MO(9), SPR_BERRY_CLUSTER,
-     Biome::Forest},
-
-    {"Baldhip Rose Hips", "berry", "Small forest-floor rose, slender orange hips on bare stems.",
-     "Scrape out the irritating seed hairs before eating.",
-     "Pick hips after the stems drop their prickles in fall.", MO(9) | MO(10), SPR_BERRY_CLUSTER,
-     Biome::Forest},
-
-    {"Chokecherry", "berry", "East-slope thicket fruit, deep red-black and puckeringly tart.",
-     "Pits contain cyanogenic compounds -- cook or dry fruit and discard seeds.",
-     "Harvest fully dark clusters and process the same day.", MO(8) | MO(9), SPR_BERRY_CLUSTER,
-     Biome::Mountain},
-
-    {"Highbush Cranberry", "berry", "Viburnum of wet thickets, glossy red and sharply tart.",
-     "Raw fruit is very sour -- best cooked into sauce or jelly.",
-     "Pick after a hard frost mellows the acidity.", MO(9) | MO(10), SPR_BERRY_CLUSTER,
-     Biome::Forest},
-
-    {"Wild Gooseberry", "berry", "Spiny coastal shrub, translucent amber-green berries.",
-     "Watch for sharp spines along the stems while picking.",
-     "Pick berries that have softened and turned translucent.", MO(7) | MO(8), SPR_BERRY_CLUSTER,
-     Biome::Forest},
-
-    {"Hardhack Flowers", "flower", "Pink plume clusters on wetland margins, steeped for tea.", "",
-     "Snip whole flower plumes just as they open.", MO(7) | MO(8), SPR_FLOWER_CLUSTER,
-     Biome::Forest},
-
-    {"Western Hemlock Tips", "tree tip",
-     "Soft new needle growth, high in vitamin C for spring tea.",
-     "Don't confuse with Pacific yew -- yew needles are toxic.",
-     "Pinch bright-green new tips from lower branches only.", MO(4) | MO(5), SPR_FLOWER_CLUSTER,
-     Biome::Forest},
-
-    {"Bigleaf Maple Blossoms", "flower",
-     "Hanging chartreuse flower clusters, mild and slightly sweet.", "",
-     "Snip whole dangling clusters just as they open, before leaf-out.", MO(4), SPR_FLOWER_CLUSTER,
-     Biome::Forest},
-
-    {"Hairy Manzanita Berries", "berry",
-     "Bluff-top shrub, dry mealy red berries like kinnikinnick's cousin.", "",
-     "Rub ripe berries between fingers to check for a mealy, not hard, texture.", MO(8) | MO(9),
-     SPR_BERRY_CLUSTER, Biome::Coast},
-
-    {"Cottonwood Pitch", "resin", "Sticky trunk resin used as waterproof glue and incense.",
-     "Sticky resin can irritate sensitive skin -- handle with care.",
-     "Scrape hardened amber globs from old wound scars on the trunk.", MO(6) | MO(7) | MO(8),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Douglas Fir Pitch", "resin", "Amber trunk resin, chewed like gum or used as fire starter.",
-     "", "Scrape fresh, clean globs from bark wounds, avoiding embedded bark bits.",
-     MO(6) | MO(7) | MO(8) | MO(9), SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Thimbleberry Shoots", "green", "Tender spring shoots peeled and eaten raw like wild celery.",
-     "", "Snap young unopened shoots and peel off the fuzzy outer skin.", MO(4) | MO(5),
-     SPR_FIDDLEHEAD, Biome::Forest},
-
-    {"Pacific Madrone Berries", "berry", "Peeling red-bark bluff tree, orange-red mealy berries.",
-     "", "Pick fully ripe, wrinkled berries; they're dry and mealy, not juicy.", MO(10) | MO(11),
-     SPR_BERRY_CLUSTER, Biome::Coast},
-
-    {"Mock Orange Wood", "wood", "Fragrant white-flowered shrub, dense wood for tool shafts.", "",
-     "Cut straight dormant shoots after the leaves drop for curing.", MO(11) | MO(12),
-     SPR_LEAFY_GREEN, Biome::Forest},
-
-    {"Blue-Staining Slippery Jack", "mushroom", "Sticky brown cap, pores bruise blue when cut.", "",
-     "Look under lodgepole and shore pine; peel the slimy cap skin.", MO(9) | MO(10), SPR_PORCINI,
-     Biome::Mountain},
-
-    {"Peppery Bolete", "mushroom", "Small rusty bolete, cinnamon pores, sharply peppery.",
-     "Edible but fiery raw -- use sparingly as a spice, not a main dish.",
-     "Find small rust-brown boletes near Suillus patches under pine.", MO(9) | MO(10), SPR_PORCINI,
-     Biome::Forest},
-
-    {"Manzanita Bolete", "mushroom", "Orange-brown cap, black-scaled stem under manzanita.",
-     "Cook thoroughly; flesh darkens fast when cut, that's normal.",
-     "Search coastal manzanita and madrone thickets after fall rain.", MO(9) | MO(10) | MO(11),
-     SPR_PORCINI, Biome::Coast},
-
-    {"Spring King Bolete", "mushroom", "Pale porcini look-alike that fruits at snowmelt.", "",
-     "Check high conifer duff at the snowmelt line in late spring.", MO(5) | MO(6), SPR_PORCINI,
-     Biome::Mountain},
-
-    {"Short-Stalked Russula", "mushroom", "Chunky white russula that often hosts lobster fungus.",
-     "Mild-tasting but bland; the orange lobster parasite is the real prize.",
-     "Look for white caps pushing up through conifer duff in fall.", MO(9) | MO(10),
-     SPR_MUSHROOM_CAP, Biome::Forest},
-
-    {"Sickener", "mushroom", "Cherry-red cap, brittle gills, burns the tongue.",
-     "Toxic and intensely peppery raw -- causes vomiting; leave it be.",
-     "Note the glossy red cap on wet moss; not worth the trouble.", MO(9) | MO(10),
-     SPR_MUSHROOM_CAP, Biome::Forest},
-
-    {"Green Russula", "mushroom", "Grass-green cap, white gills, under conifers.",
-     "Taste-test a raw crumb and spit it out; peppery ones are inedible.",
-     "Check mossy conifer duff for green caps after fall rain.", MO(9) | MO(10), SPR_MUSHROOM_CAP,
-     Biome::Forest},
-
-    {"Candy Cap", "mushroom", "Small orange milk cap, smells of maple syrup dried.", "",
-     "Dry overnight; the syrup smell develops as it loses moisture.", MO(10) | MO(11),
-     SPR_MUSHROOM_CAP, Biome::Forest},
-
-    {"Red Hot Milk Cap", "mushroom", "Dull red-brown cap, latex that burns like fire raw.",
-     "Toxic raw, causes GI distress -- needs long cooking, better to skip.",
-     "Snap the gills; peppery white latex means pass it by.", MO(9) | MO(10), SPR_MUSHROOM_CAP,
-     Biome::Forest},
-
-    {"Woolly Milk Cap", "mushroom", "Pink cap with a shaggy, fuzzy in-rolled margin.",
-     "Toxic raw, causes severe GI upset -- traditionally salted for weeks first.",
-     "Check birch stands for the fuzzy-edged pink cap in fall.", MO(9) | MO(10), SPR_MUSHROOM_CAP,
-     Biome::Forest},
-
-    {"Gemmed Amanita", "mushroom", "Pale yellow cap, patchy white warts, ring, no sac.",
-     "Toxic -- causes drowsiness and GI upset; skip all warted amanitas.",
-     "Note the loose white warts as another amanita red flag.", MO(9) | MO(10), SPR_MUSHROOM_CAP,
-     Biome::Forest},
-
-    {"Smith's Amanita", "mushroom", "Dingy white amanita that mimics young matsutake.",
-     "Toxic -- causes delayed kidney failure; smell alone won't rule it out.",
-     "Always slice matsutake candidates lengthwise to check for a sac and ring.", MO(9) | MO(10),
-     SPR_MUSHROOM_CAP, Biome::Forest},
-
-    {"American Blusher", "mushroom", "Reddish-blushing amanita, shaggy ring, warty cap.",
-     "Edible cooked only, but shares a genus with deadly look-alikes -- skip unless certain.",
-     "Look for flesh that slowly reddens where bruised or cut.", MO(9) | MO(10) | MO(11),
-     SPR_MUSHROOM_CAP, Biome::Forest},
-
-    {"Coccora", "mushroom", "Tan-capped amanita with a loose sac at the base.",
-     "Deadly amanitas share the sac -- do not harvest without expert confirmation.",
-     "Note the shaggy patch on the cap and the loose volva at the base.", MO(10) | MO(11),
-     SPR_MUSHROOM_CAP, Biome::Forest},
-
-    {"Witch's Hat", "mushroom", "Slender waxy cap that blackens with age or a bruise.",
-     "Reports of mild toxicity -- treat all blackening waxcaps as inedible.",
-     "Spot the sharp conical cap turning sooty black by midday.", MO(10) | MO(11), SPR_MUSHROOM_CAP,
-     Biome::Mountain},
-
-    {"Golden Waxy Cap", "mushroom", "White cap dusted gold at the margin, in conifer moss.", "",
-     "Look for the fine yellow granules along the cap edge.", MO(10) | MO(11), SPR_MUSHROOM_CAP,
-     Biome::Forest},
-
-    {"Scarlet Waxcap", "mushroom", "Slick blood-red cap in mossy subalpine meadow turf.", "",
-     "Spot the waxy scarlet caps low in short meadow grass.", MO(9) | MO(10), SPR_MUSHROOM_CAP,
-     Biome::Mountain},
-
-    {"Snowy Waxcap", "mushroom", "Pure white waxy cap in short subalpine meadow turf.", "",
-     "Check open subalpine grass after the first cool rains.", MO(9) | MO(10), SPR_MUSHROOM_CAP,
-     Biome::Mountain},
-
-    {"Parrot Waxcap", "mushroom", "Slimy green cap fading to yellow and pink with age.", "",
-     "Look low in mossy meadow turf; the green fades fast.", MO(9) | MO(10), SPR_MUSHROOM_CAP,
-     Biome::Mountain},
-
-    {"Slimy Gomphidius", "mushroom", "Purple-grey slimy cap over pale gills near pine.",
-     "Peel the slick skin; the black spore-stained flesh underneath is normal.",
-     "Search sandy pine duff alongside Suillus boletes.", MO(9) | MO(10), SPR_MUSHROOM_CAP,
-     Biome::Forest},
-
-    {"Pine Spike", "mushroom", "Dusty copper cap and orange flesh in sandy pine soil.", "",
-     "Check dune-edge pine plantings for the wine-copper cap.", MO(9) | MO(10) | MO(11),
-     SPR_MUSHROOM_CAP, Biome::Coast},
-
-    {"Lion's Mane", "mushroom", "Shaggy white icicle spines on hardwood wounds.", "",
-     "Look on maple and alder wounds, not conifer logs like its cousin.", MO(9) | MO(10) | MO(11),
-     SPR_MUSHROOM_TOOTH, Biome::Forest},
-
-    {"Wine Cap", "mushroom", "Burgundy cap, thick ring, grows in wood-chip beds.",
-     "Confirm the cottony ring and purple-brown spore print before eating.",
-     "Check wood-chip mulch at forest edges after warm rain.", MO(9) | MO(10), SPR_MUSHROOM_CAP,
-     Biome::Forest},
-
-    {"Wrinkled Thimble Cap", "mushroom", "Wrinkled thimble cap attached only at stem's top.",
-     "Contains a mild toxin and causes GI upset in some people -- best avoided.",
-     "Slice lengthwise -- the cap hangs free instead of fusing to the stem like a morel.",
-     MO(4) | MO(5), SPR_MOREL, Biome::Forest},
-
-    {"Field Mushroom", "mushroom", "Pink-gilled meadow mushroom in short coastal grass.",
-     "Confirm pink-to-brown gills and no basal sac to rule out deadly amanitas.",
-     "Check short grass on coastal bluffs after fall rain.", MO(9) | MO(10), SPR_MUSHROOM_CAP,
-     Biome::Coast},
-
 };
 
 static const int kSpeciesCount = sizeof(kSpecies) / sizeof(kSpecies[0]);
@@ -2007,6 +1263,42 @@ const Forageable& speciesAt(int index) {
   index = std::max(index, 0);
   if (index >= kSpeciesCount) index = kSpeciesCount - 1;
   return kSpecies[index];
+}
+
+static uint8_t browseOrder[kSpeciesCount];
+static bool browseOrderBuilt = false;
+
+void rebuildBrowseOrder(int month, bool postRain) {
+  month = clampMonth(month);
+  int scores[kSpeciesCount];
+  for (int i = 0; i < kSpeciesCount; i++) {
+    browseOrder[i] = (uint8_t)i;
+    int score = 0;
+    if (inSeason(kSpecies[i], month)) score += 100;
+    if (postRain && strcmp(kSpecies[i].kind, "mushroom") == 0) score += 30;
+    score += random(40);  // shuffles ties/near-ties so it's not the same order every wake
+    scores[i] = score;
+  }
+  // Insertion sort by score descending -- kSpeciesCount is small (~250), and
+  // this only runs once per wake.
+  for (int i = 1; i < kSpeciesCount; i++) {
+    uint8_t keyIdx = browseOrder[i];
+    int keyScore = scores[keyIdx];
+    int j = i - 1;
+    while (j >= 0 && scores[browseOrder[j]] < keyScore) {
+      browseOrder[j + 1] = browseOrder[j];
+      j--;
+    }
+    browseOrder[j + 1] = keyIdx;
+  }
+  browseOrderBuilt = true;
+}
+
+const Forageable& speciesAtRank(int rank) {
+  if (!browseOrderBuilt) rebuildBrowseOrder(1, false);
+  rank = std::max(rank, 0);
+  if (rank >= kSpeciesCount) rank = kSpeciesCount - 1;
+  return kSpecies[browseOrder[rank]];
 }
 
 Forageable featured(int month) {
