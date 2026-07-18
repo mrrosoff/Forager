@@ -463,21 +463,58 @@ static void renderEncounter(const AppContext& ctx, const events::PendingEvent& e
 // marmot's head about 2 in 3 wakes -- re-rolled once per wake (cached in a
 // function-local static, same pattern as pickVariant()) so it doesn't
 // flicker between renders of the same view.
-static void maybeDrawThoughtBubble(int headX, int headY, Stage stage) {
+// Picks which pool a thought should come from. Baby/Juvenile stay fixed
+// (their pools are already stage-flavored, not stat-flavored); Adult reacts
+// to whichever bar is worst so the marmot's inner monologue actually
+// reflects hunger/loneliness/exhaustion instead of always sounding content.
+// Thresholds mirror creature::evaluate()'s Mood cutoffs (s.hunger >= 70,
+// s.happiness < 20) plus a matching cutoff for energy, which Mood doesn't
+// otherwise consider.
+static void pickThoughtPool(Stage stage, const CreatureState& creature,
+                             const char* const** outPool, int* outCount) {
+  if (stage == Stage::Baby) {
+    *outPool = kThoughtsBaby;
+    *outCount = kThoughtsBabyCount;
+    return;
+  }
+  if (stage == Stage::Juvenile) {
+    *outPool = kThoughtsJuvenile;
+    *outCount = kThoughtsJuvenileCount;
+    return;
+  }
+  if (creature.hunger >= 70) {
+    *outPool = kThoughtsAdultHungry;
+    *outCount = kThoughtsAdultHungryCount;
+    return;
+  }
+  if (creature.happiness < 20) {
+    *outPool = kThoughtsAdultSad;
+    *outCount = kThoughtsAdultSadCount;
+    return;
+  }
+  if (creature.energy < 20) {
+    *outPool = kThoughtsAdultTired;
+    *outCount = kThoughtsAdultTiredCount;
+    return;
+  }
+  *outPool = kThoughtsAdult;
+  *outCount = kThoughtsAdultCount;
+}
+
+static void maybeDrawThoughtBubble(int headX, int headY, Stage stage,
+                                    const CreatureState& creature) {
   static int8_t roll = -1;
   static int8_t thoughtIdx = -1;
+  const char* const* pool;
+  int count;
+  pickThoughtPool(stage, creature, &pool, &count);
   if (roll < 0) {
     roll = (int8_t)random(3);
-    int count = stage == Stage::Baby       ? kThoughtsBabyCount
-                : stage == Stage::Juvenile ? kThoughtsJuvenileCount
-                                            : kThoughtsAdultCount;
     thoughtIdx = (int8_t)random(count);
   }
   if (roll == 0) return;
 
-  const char* thought = stage == Stage::Baby       ? kThoughtsBaby[thoughtIdx]
-                         : stage == Stage::Juvenile ? kThoughtsJuvenile[thoughtIdx]
-                                                     : kThoughtsAdult[thoughtIdx];
+  const char* thought = pool[thoughtIdx % count];
   int16_t bx, by;
   uint16_t bw, bh;
   epd.setFont(nullptr);
@@ -524,7 +561,7 @@ static void renderMain(const AppContext& ctx) {
   // before, but a shorter pose (more headroom above it) pulls the bubble
   // down closer to the creature instead of leaving a big empty gap.
   int bubbleY = std::max(topY + 30, STAGE_Y + 70);
-  maybeDrawThoughtBubble(STAGE_X + STAGE_W - 55, bubbleY, (Stage)ctx.stage);
+  maybeDrawThoughtBubble(STAGE_X + STAGE_W - 55, bubbleY, (Stage)ctx.stage, ctx.creature);
 
   drawNavBar("Status", "", "Foraging");
 }
@@ -996,10 +1033,9 @@ static const char* deathReasonLine(DeathCause cause) {
 void renderDeath(DeathCause cause) {
   epd.beginFrame();
   textCentered(0, SCREEN_W, 40, "Your marmot has died.", 2);
-  int bx = (SCREEN_W - MARMOT_DEATH_W) / 2, by = 76;
+  textCentered(0, SCREEN_W, 62, deathReasonLine(cause), 1);
+  int bx = (SCREEN_W - MARMOT_DEATH_W) / 2, by = 82;
   epd.drawBitmap(bx, by, MARMOT_DEATH_BITMAP, MARMOT_DEATH_W, MARMOT_DEATH_H, C_BLACK, C_WHITE);
-  int textY = by + MARMOT_DEATH_H + 20;
-  textCentered(0, SCREEN_W, textY, deathReasonLine(cause), 1);
   textCentered(0, SCREEN_W, SCREEN_H - 44, "Press ENTER to start over", 1);
   textCentered(0, SCREEN_W, SCREEN_H - 30, "with a new baby marmot.", 1);
   epd.endFrame(true);

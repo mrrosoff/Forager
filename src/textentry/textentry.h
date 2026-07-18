@@ -23,11 +23,15 @@ struct State {
   int pickerIndex;  // position in the active page's charset
   bool caps;         // SHIFT toggle -- uppercase letters when true
   bool symbols;       // SYMBOLS toggle -- symbols page instead of letters
+  bool noDigits;      // drops the digit row on every page -- for marmot naming
 };
 
 // initial may be "" for a blank entry, or a starting value (e.g. re-editing
 // an existing name). Always starts the picker on the first letter.
-void init(State& s, const char* initial);
+// noDigits drops the leading digit row from every keyboard page (letters and
+// symbols) -- used for marmot naming, where digits aren't wanted; WiFi
+// SSID/password entry passes false since credentials commonly need digits.
+void init(State& s, const char* initial, bool noDigits = false);
 
 void moveNext(State& s);  // RIGHT
 void movePrev(State& s);  // LEFT

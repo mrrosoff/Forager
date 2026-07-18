@@ -449,7 +449,7 @@ static void renderCurrentTextEntry() { display::renderTextEntry(textEntryPrompt(
 // keeps the helper general).
 static void startTextEntry(TextEntryPurpose purpose, const char* initial) {
   tePurpose = purpose;
-  textentry::init(teState, initial);
+  textentry::init(teState, initial, purpose == TextEntryPurpose::MarmotName);
   renderCurrentTextEntry();
 }
 
