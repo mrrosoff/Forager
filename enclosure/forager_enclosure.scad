@@ -1,32 +1,23 @@
 // Forager enclosure — 2-part (front bezel + rear tray), screwed together.
 //
 // PORTRAIT LAYOUT: the Waveshare display PCB is physically landscape
-// (93.5 x 78.5mm, wider than tall) but the software renders its UI rotated
-// 90 deg into a portrait 300x400 logical canvas (epd.setRotation(3), see
-// CLAUDE.md's "Display" section). This enclosure mounts the board rotated
-// 90 deg so the case itself is genuinely portrait (tall/narrow) to match
-// what's actually on screen — the board's long 93.5mm edge runs along the
-// case's Y (height) axis, its short 78.5mm edge runs along the case's X
-// (width) axis. See the "Display module" and "onboard buttons" sections
-// below for the full derivation, including exactly which board edge
-// (KEY0/KEY1 vs. the FPC connector) ends up on which new case edge.
+// (93.5 x 78.5mm) but the UI renders rotated 90 deg into a portrait
+// 300x400 canvas (epd.setRotation(3), see CLAUDE.md's "Display" section).
+// This enclosure mounts the board rotated 90 deg to match: the board's
+// long 93.5mm edge runs along the case's Y (height) axis, short 78.5mm
+// edge along X (width).
 //
 // Hardware fit (measured / vendor-spec):
-//   - Display: Waveshare 4.2" e-paper module (GDEY042T81), PCB 93.5 x 78.5mm,
-//     active area 84.8 x 63.6mm, mounted rotated 90 deg (see above). Board +
-//     FPC bump thickness measured at 12.0mm (was a 4.5mm placeholder before).
+//   - Display: Waveshare 4.2" e-paper (GDEY042T81), PCB 93.5x78.5mm, active
+//     area 84.8x63.6mm. Board + FPC bump thickness measured at 12.0mm.
 //   - MCU: ESP32-S3 Super Mini, 22.52 x 18mm.
-//   - Battery: 2000mAh LiPo pouch, 60 x 36 x 7mm (7mm thickness measured/
-//     confirmed).
-//   - Buttons: 3x standard 6x6mm tactile switches, mounted in the front bezel.
-//   - Slide switch: generic small SPST slide switch (assumed footprint below —
-//     confirm/adjust SWITCH_* before printing).
+//   - Battery: 2000mAh LiPo pouch, 60 x 36 x 7mm (measured).
+//   - Buttons: 3x 6x6mm tactile switches, in the front bezel.
+//   - Slide switch: generic small SPST (ASSUMPTION, no spec given).
 //
-// ASSUMPTIONS flagged inline with "ASSUMPTION:" — verify against real parts
-// before printing, especially the display's native top/bottom margin split
-// (6.0 / 8.9mm, never confirmed against a real board photo — now resolved
-// conservatively into a single symmetric left/right margin, see below) and
-// the slide switch footprint (no spec was given for that one).
+// ASSUMPTIONS flagged inline — verify against real parts before printing.
+// Several dimensions below were corrected against real-hardware photos
+// after a first print (marked "real-hardware photo" / "ASSUMPTION").
 //
 // Render one part at a time:
 //   openscad -D part=\"bezel\" -o stl/front_bezel.stl forager_enclosure.scad
@@ -41,68 +32,40 @@ wall      = 2.2;   // side-wall thickness
 clearance = 0.3;   // general fit clearance around boards
 
 // ---- Display module (Waveshare 4.2", GDEY042T81) ----
-// ROTATED 90 deg from the panel's native landscape PCB layout so the case
-// reads portrait (see top-of-file note). disp_w/disp_h/win_w/win_h below are
-// CASE-axis dimensions (X = width, Y = height), not the vendor's native
-// width/height labels — every dimension here is the native spec re-derived
-// onto the new axes, not just relabeled:
-//   native disp_w (93.5, long PCB edge)  -> now case-Y (disp_h below)
-//   native disp_h (78.5, short PCB edge) -> now case-X (disp_w below)
-//   native win_w  (84.8, active long axis)  -> now case-Y (win_h below)
-//   native win_h  (63.6, active short axis) -> now case-X (win_w below)
-disp_w = 78.5;  // = native disp_h (short PCB edge), now the case width
-disp_h = 93.5;  // = native disp_w (long PCB edge), now the case height
-disp_t = 12.0;  // CONFIRMED (measured): board + FPC connector bump thickness
-disp_wire_clearance = 3.0; // JUDGMENT CALL, not a spec: extra depth behind
-                            // the board (beyond disp_t + the general fit
-                            // `clearance`) so the FPC flex cable and its
-                            // connector have room to bend/route without
-                            // being pinched against the pocket floor. Revisit
-                            // if the real cable geometry needs more/less —
-                            // this is padding, not a measurement.
-win_h  = 84.8;  // = native win_w (active long axis), now vertical
+// Rotated 90 deg from native landscape PCB layout; disp_w/disp_h/win_w/
+// win_h are CASE-axis (X=width, Y=height), not the vendor's native labels:
+//   native disp_w (93.5, long edge)  -> case-Y (disp_h)
+//   native disp_h (78.5, short edge) -> case-X (disp_w)
+//   native win_w  (84.8, active long axis)  -> case-Y (win_h)
+//   native win_h  (63.6, active short axis) -> case-X (win_w)
+disp_w = 78.5;
+disp_h = 93.5;
+disp_t = 12.0;  // measured: board + FPC connector bump
+disp_wire_clearance = 3.0; // padding behind the board for the FPC cable to
+                            // bend/route without pinching
 
-// Native top/bottom margins on the short axis (6.0 / 8.9mm — ASSUMPTION,
-// ~never confirmed against a real board photo) become this case's LEFT/
-// RIGHT margins after the rotation. The user wants minimal bezels but a
-// MATCHING left/right, and the two true margins are unequal, so: use one
-// symmetric margin equal to the LARGER of the two assumed values (8.9mm).
-// The larger value is the safe direction — applied to both sides it can
-// only make the cut window slightly *smaller* than the true active area
-// (a sliver of inactive board border masked at the edges), never bigger,
-// so it can never expose past the true active-area edge on the side where
-// the real margin is actually only 6.0mm. Still flagged ASSUMPTION since
-// 6.0/8.9 themselves were never confirmed — just resolved conservatively.
-win_margin_lr = 8.9; // ASSUMPTION: max(6.0, 8.9) native top/bottom margins,
-                      // reused symmetrically as the case's left/right margin
-win_w = disp_w - 2 * win_margin_lr; // 60.7 — derived, intentionally a bit
-                                     // less than the native 63.6mm active
-                                     // width, because the safe symmetric
-                                     // margin above eats slightly more than
-                                     // the true (asymmetric) native total of
-                                     // 14.9mm. Minimal-but-safe, not padded
-                                     // further than the larger margin requires.
-win_margin_top = (disp_h - win_h) / 2; // 4.35, exact — this pairing (native
-win_margin_bottom = win_margin_top;    // win_margin_lr) was already symmetric
-                                        // before rotation, so no assumption here
+win_h  = 90.0;  // Was 84.8 (vendor spec) -- real print showed content
+                 // clipped at the top edge; bumped, re-check after reprint.
+win_margin_top = (disp_h - win_h) / 2;
+win_margin_bottom = win_margin_top;
+
+win_margin_lr = 5.0; // Was 8.9 -- real board showed the window needed to be
+                      // wider to show the full 63.6mm active area.
+win_w = disp_w - 2 * win_margin_lr;
 
 // ---- MCU: ESP32-S3 Super Mini ----
 mcu_w = 22.52;
 mcu_l = 18.0;
 mcu_component_h = 4.0; // clearance for USB-C connector / header stubs
+mcu_wall_h = 2.5; // retaining wall around the MCU footprint (standoffs
+                   // alone don't stop it sliding sideways)
 
 // ---- Battery: 2000mAh LiPo, 60 x 36 x 7mm ----
 batt_w = 60.0;
 batt_h = 36.0;
-batt_t = 7.0;   // CONFIRMED (measured, 0.7cm) — matches the prior placeholder
-batt_puff_clearance = 2.0; // JUDGMENT CALL, not a spec: LiPo pouches can run
-                            // a bit thicker than nominal (puffiness over the
-                            // battery's life) and there's usually a layer of
-                            // tape/padding around it, so pad the tray's
-                            // interior depth a couple mm beyond batt_t on top
-                            // of the general fit `clearance` — otherwise a
-                            // slightly-fat pack could bind against the front
-                            // bezel when the case is closed.
+batt_t = 7.0;   // measured
+batt_puff_clearance = 2.0; // LiPo pouches puff up over time; extra depth
+                            // margin beyond batt_t
 
 // ---- Buttons: 3x 6x6mm tactile, in a row below the display window ----
 btn_body      = 6.0;
@@ -113,45 +76,37 @@ btn_pitch     = 16.0;
 btn_row_gap   = 8.0;  // gap from window bottom edge to button hole centers
 
 // ---- Display module's onboard buttons (now the case's TOP edge) ----
-// Per vendor photo, KEY0/KEY1 sit on the board's native RIGHT edge; the FPC
-// connector is on the native LEFT edge. Rotating the board so KEY1 lands in
-// the case's top-left corner (new_x = native_y, new_y = native_x) puts
-// KEY0/KEY1 on the case's TOP edge and the FPC on the BOTTOM edge (open
-// cavity there already, below the pocket — see front_bezel()'s front face
-// comment). Only KEY1 gets a case cutout (see rear_tray()'s disp_btn_z) --
-// KEY0 doesn't need physical access. disp_btn_x2/KEY0's position is kept
-// below only as hardware reference.
-disp_btn_d  = 6.0;    // Finger-press access hole -- was 2.2 (a bare
-                       // switch-actuator placeholder, far too small to
-                       // press with an actual fingertip). 6mm leaves 5.2mm
-                       // clearance to the nearest corner screw boss at
-                       // disp_btn_x1's real position; a larger 8mm hole was
-                       // tried first but doesn't fit the tray wall's ~11.5mm
-                       // height at any Z without breaching the open top
-                       // edge -- see rear_tray()'s disp_btn_z comment.
-disp_btn_x1 = 16.03; // KEY1 — nearer the case's top-left corner, has a cutout
-disp_btn_x2 = 33.70; // KEY0 — reference only, no cutout
+// KEY0/KEY1 sit on the board's native RIGHT edge, FPC on the native LEFT
+// edge. After rotation KEY0/KEY1 land on the case's TOP edge, FPC on the
+// BOTTOM. Only KEY1 (wired as PIN_BTN_SETTINGS) gets a cutout.
+disp_btn_w = 4.0;  // KEY1's real actuator is a rectangle, not round (real-
+disp_btn_h = 7.0;  // hardware photo) -- same rough finger-press area as
+                    // the old 6mm circle, shaped to match.
+disp_btn_x1 = 16.03; // KEY1 -- has a cutout
+disp_btn_x2 = 33.70; // KEY0 -- reference only, no cutout
 
-top_rim = 10.0; // clearance above the pocket, beyond `wall` -- sized to fit
-                 // the top-row screw bosses (see boss_inset_y_top) with real
-                 // margin on both sides, not just KEY0/KEY1's old position
+top_rim = 6.0;  // Was 10.0 -- shrunk since KEY1 needs to sit near the top
+                 // edge, not buried under a wide rim.
 
 // ---- USB-C access (in tray side wall, aligned to MCU edge) ----
 usbc_slot_w = 10.0;
-usbc_slot_h = 4.0;
+usbc_slot_h = 5.0; // extra vertical tolerance since the slot is now
+                    // anchored to the MCU's mounting height (see
+                    // usbc_slot_z below), not a floating guess
 
 // ---- Slide switch (ASSUMPTION — no spec given, adjust before printing) ----
 sw_slot_w = 12.0;
-sw_slot_h = 4.0;
+sw_slot_h = 3.0;  // Was 4.0 -- real switch reads shorter (real-hardware photo)
+sw_body_w  = 7.0;  // ASSUMPTION: switch body footprint (deeper than the
+sw_body_l  = 13.0; // bare slot cut alone can seat)
+sw_pocket_h = 4.5;  // ASSUMPTION: interior pocket depth to contain the
+                     // switch body so it sits flush, not proud of the floor
 
-// ---- Screw bosses (M2.5 self-tapping, 4 corners) ----
+// ---- Screw bosses (M2.5 self-tapping, bottom corners) ----
 boss_od      = 6.0;
 boss_pilot_d = 2.0;   // pilot hole for self-tap thread
 boss_clear_d = 2.7;   // clearance hole through the bezel for the screw shaft
 boss_inset   = 7.0;   // inset from outer corner, both axes (clear of corner_r)
-boss_inset_y_top = 5.0; // top-row bosses' inset from the outer top edge --
-                         // smaller than boss_inset so they sit centered in
-                         // top_rim, clear of the pocket's top wall below
 countersink_depth = 1.2; // recess for a flat/pan screw head at the bezel front
 
 corner_r = 4.0; // rounded exterior corners
@@ -160,28 +115,39 @@ corner_r = 4.0; // rounded exterior corners
 pocket_w = disp_w + 2 * clearance;
 pocket_h = disp_h + 2 * clearance;
 
-// outer_w/outer_h: case is now portrait (tall/narrow) — outer_w is derived
-// from the rotated (short-axis) disp_w=78.5, outer_h from the rotated
-// (long-axis) disp_h=93.5 plus the button strip and top rim, so outer_h ends
-// up well over outer_w, unlike the old landscape-ish footprint.
 outer_w = pocket_w + 2 * wall;                    // 83.5
-button_area_h = 20.0;                             // room below window for button row
-outer_h = pocket_h + wall + button_area_h + top_rim; // 122.3
+button_area_h = 16.0; // Was 20.0 -- shrunk, buttons still fit with margin
+outer_h = pocket_h + wall + button_area_h + top_rim;
 
 bezel_front_t = 2.4;   // front face thickness (button cap holes live here)
-bezel_pocket_depth = disp_t + clearance + disp_wire_clearance; // 15.3 — board
-                                                                // + FPC bump
-                                                                // + wire-route
-                                                                // padding
-bezel_total_t = bezel_front_t + bezel_pocket_depth; // 17.7
+bezel_pocket_depth = disp_t + clearance + disp_wire_clearance;
+bezel_total_t = bezel_front_t + bezel_pocket_depth;
 
-tray_interior_depth = max(batt_t + batt_puff_clearance, mcu_component_h) + clearance; // 9.3
+disp_tray_protrusion = 13.0; // ASSUMPTION, from a real-hardware photo: the
+                              // display's pin-header/FPC assembly sticks
+                              // well into the TRAY cavity, not just the
+                              // bezel-side pocket. Re-check after reprint.
+tray_interior_depth = max(batt_t + batt_puff_clearance, mcu_component_h, disp_tray_protrusion) + clearance;
 tray_floor_t = 2.2;
 tray_wall_h  = tray_interior_depth + tray_floor_t;
 
-// Rounded-rectangle outline (2D), used to give the case's exterior footprint
-// soft corners instead of sharp 90 deg edges — this is a toy, not something
-// that should bite a hand or a pocket lining.
+// ---- Top-center snap-fit fastener (replaces a screw there) ----
+// The old top-center screw's clearance hole punched into the display
+// pocket once the window grew taller -- risked hitting the board. Swapped
+// for a snap-fit: a flexible post on the tray (rear_tray()) pushes through
+// a slot in the bezel (front_bezel()) above the pocket, barbs past it, and
+// hooks on the outer face. ASSUMPTION: dimensions are a first estimate --
+// printed vertical posts flex less readily than injection-molded ones, so
+// the barb overhang is kept small (0.8mm). If it snaps off, reprint with
+// the post reoriented, or glue just this one point.
+snap_post_w = 4.0;
+snap_post_t = 1.4;
+snap_barb_h = 1.6;
+snap_barb_overhang = 0.8;
+snap_slot_clearance = 0.3; // slot sized post dims + this, per side
+snap_y = outer_h - wall - snap_post_t / 2; // shared target Y for both parts
+
+// Rounded-rectangle outline (2D) for the case's exterior footprint.
 module rounded_rect(w, h, r) {
     hull() {
         translate([r, r]) circle(r = r);
@@ -191,17 +157,12 @@ module rounded_rect(w, h, r) {
     }
 }
 
-// Shared by screw_bosses() (tray) and front_bezel()'s own clearance holes,
-// so the two parts' screws can never drift out of alignment. The top two
-// bosses use boss_inset_y_top instead of boss_inset -- boss_inset alone put
-// them almost exactly on the pocket's thin top wall (~1mm clearance),
-// punching through it and leaving a sliver of material either side of the
-// hole.
+// Shared by screw_bosses() (tray) and front_bezel()'s clearance holes, so
+// the two parts' screws can't drift out of alignment. Bottom corners only
+// -- the top boss was replaced by the snap-fit fastener above.
 function boss_positions() = [
     [boss_inset, boss_inset],
     [outer_w - boss_inset, boss_inset],
-    [boss_inset, outer_h - boss_inset_y_top],
-    [outer_w - boss_inset, outer_h - boss_inset_y_top],
 ];
 
 module screw_bosses(hole_d, extra_h = 0) {
@@ -224,24 +185,12 @@ module front_bezel() {
     btn_start_x = outer_w / 2 - btn_pitch;
 
     difference() {
-        // Front face slab (this is the only material over the button strip
-        // — no back layer there, so switch bodies have clearance to sit
-        // behind it in the tray cavity). Rounded exterior corners. No
-        // separate raised pocket lip/tube here (there used to be one, plus
-        // a redundant full-footprint pocket-recess cut that fought it via a
-        // coincident-face boolean — CGAL resolved that pair into an
-        // unintentional near-zero-thickness sliver around the window
-        // instead of cleanly canceling, which read as a fragile paper-thin
-        // wall on the print). The slab alone already does the retaining
-        // job: since win_w/win_h are smaller than pocket_w/pocket_h, the
-        // slab's own material between the window cut and the pocket cut
-        // (both below) forms the display's catch — no extra add-on needed.
+        // Front face slab -- no back layer over the button strip, so
+        // switch bodies have clearance behind it in the tray cavity. The
+        // slab alone retains the display (win_w/win_h < pocket_w/pocket_h),
+        // no separate pocket lip needed.
         linear_extrude(height = bezel_front_t)
             rounded_rect(outer_w, outer_h, corner_r);
-        // No raised bosses here — the bezel just needs clean clearance
-        // holes (cut below). Threaded bosses live on the tray side only,
-        // otherwise the bottom two corners (outside the pocket-wall
-        // footprint) would poke proud through the front face.
 
         // Display window (full depth)
         translate([win_x, win_y, -0.1])
@@ -251,54 +200,69 @@ module front_bezel() {
         translate([pocket_x, pocket_y, bezel_front_t - 0.01])
             cube([pocket_w, pocket_h, bezel_pocket_depth + 0.2]);
 
-        // Button holes: straight bore sized to the switch body, full front-face
-        // depth. Switches press in from behind (tray side) until their flange
-        // seats against the inside face; cap pokes out the front.
+        // Button holes: straight bore, full front-face depth. Switches
+        // press in from behind; cap pokes out the front.
         for (i = [0:2]) {
             bx = btn_start_x + i * btn_pitch;
             translate([bx, btn_row_y, -0.1])
                 cylinder(d = btn_hole, h = bezel_front_t + 0.2);
         }
 
-        // Display's onboard buttons (KEY0/KEY1) are side-actuated -- pressed
-        // horizontally toward the board, not straight into the front face --
-        // so their access holes live in rear_tray()'s top wall instead.
+        // KEY0/KEY1 are side-actuated, so their access hole lives in
+        // rear_tray()'s top wall instead.
 
-        // Corner screw clearance holes, full depth, with a countersink at the
-        // front face so a flat/pan screw head sits recessed
+        // Corner screw clearance holes, with a countersink at the front
+        // face so a flat/pan screw head sits recessed
         for (p = boss_positions()) {
             translate([p[0], p[1], -0.1])
                 cylinder(d = boss_clear_d, h = bezel_total_t + 0.2);
             translate([p[0], p[1], -0.1])
                 cylinder(d1 = boss_od - 1, d2 = boss_clear_d, h = countersink_depth + 0.1);
         }
+
+        // Top-center snap-fit slot -- the tray's flexible post pushes
+        // through here and barbs past the outer face.
+        translate([outer_w / 2 - (snap_post_w + snap_slot_clearance) / 2,
+                   snap_y - (snap_post_t + snap_slot_clearance) / 2, -0.1])
+            cube([snap_post_w + snap_slot_clearance, snap_post_t + snap_slot_clearance, bezel_front_t + 0.2]);
     }
 }
 
 module rear_tray() {
-    // MCU near the BOTTOM wall (its USB-C port lines up with the access
-    // slot below, which is on the bottom wall -- opposite the display's
-    // KEY1 hole on the top wall). Battery bay swapped to the top area so
-    // it doesn't collide with the relocated MCU.
-    mcu_x = outer_w / 2 - mcu_w / 2;
+    // MCU near the BOTTOM wall (USB-C port lines up with the access slot
+    // there, opposite KEY1 on the top wall). Battery bay near the top.
+    // Board mounted ROTATED 90deg from its native mcu_w x mcu_l labels --
+    // real-hardware photo showed the header pin rows run along the tray's
+    // Y axis, not X -- footprint here is mcu_l wide x mcu_w tall, centered.
+    mcu_fp_x = mcu_l;
+    mcu_fp_y = mcu_w;
+    mcu_x = outer_w / 2 - mcu_fp_x / 2;
     mcu_y = wall + 4;
-    batt_x = wall + 3;
-    batt_y = outer_h - wall - batt_h - 4;
 
-    // Slide switch hole, through the tray floor (rear panel), vertical and
-    // off-center in the open gap between the MCU and battery bay.
+    // Battery mounted ROTATED 90deg from its native batt_w x batt_h labels
+    // too -- real photo showed the long 60mm edge runs along the tray's Y
+    // axis. Shifted flush-left to dodge display-PCB components.
+    batt_x = wall + 1;
+    batt_y = outer_h - wall - batt_w - 11; // moved down 5mm from the top edge
+
+    // Slide switch hole, off-center in the gap between MCU and battery.
     // ASSUMPTION: confirm before printing.
     sw_x = outer_w * 0.7 - sw_slot_h / 2;
-    sw_y = (mcu_y + mcu_l + batt_y) / 2 - sw_slot_w / 2;
+    sw_y = (mcu_y + mcu_fp_y + batt_y) / 2 - sw_slot_w / 2;
+    sw_center_x = sw_x + sw_slot_h / 2;
+    sw_center_y = sw_y + sw_slot_w / 2;
+
+    // USB-C slot Z, anchored to the MCU's standoff height rather than a
+    // floating centered guess (which a real print showed sitting too high).
+    usbc_slot_z = tray_floor_t + 1.5;
 
     difference() {
         union() {
             // Floor, rounded exterior corners
             linear_extrude(height = tray_floor_t)
                 rounded_rect(outer_w, outer_h, corner_r);
-            // Perimeter wall -- 0.01mm overlap into the floor, same reason
-            // as the bezel's pocket tube above (avoids a flush coincident
-            // face producing degenerate shells).
+            // Perimeter wall -- 0.01mm overlap into the floor to avoid a
+            // flush coincident face producing degenerate shells.
             translate([0, 0, tray_floor_t - 0.01])
                 difference() {
                     linear_extrude(height = tray_interior_depth + 0.01)
@@ -308,44 +272,76 @@ module rear_tray() {
                             rounded_rect(outer_w - 2 * wall, outer_h - 2 * wall, max(corner_r - wall, 0.5));
                 }
             screw_bosses(boss_pilot_d, tray_wall_h);
+
+            // Top-center snap-fit post -- flexes through the bezel's slot,
+            // then barbs past it and hooks on the outer face.
+            snap_post_h = tray_wall_h + bezel_front_t + 1.0; // pokes proud of the bezel
+            translate([outer_w / 2 - snap_post_w / 2, snap_y - snap_post_t / 2, tray_floor_t]) {
+                // +0.3 overlap into the top wall (back side only) to avoid
+                // a flush coincident face.
+                cube([snap_post_w, snap_post_t + 0.3, snap_post_h - snap_barb_h]);
+                translate([0, 0, snap_post_h - snap_barb_h])
+                    hull() {
+                        cube([snap_post_w, snap_post_t + snap_barb_overhang, 0.1]);
+                        translate([0, snap_barb_overhang * 0.3, snap_barb_h - 0.1])
+                            cube([snap_post_w, snap_post_t * 0.6, 0.1]);
+                    }
+            }
+
+            // MCU retaining wall -- cradles the board's edges (standoffs
+            // alone don't stop it sliding).
+            translate([mcu_x - 0.5, mcu_y - 0.5, tray_floor_t]) {
+                difference() {
+                    cube([mcu_fp_x + 1, mcu_fp_y + 1, mcu_wall_h]);
+                    translate([0.5, 0.5, -0.1]) cube([mcu_fp_x, mcu_fp_y, mcu_wall_h + 0.2]);
+                }
+            }
+
+            // Slide switch containment pocket -- the switch's body nests
+            // here so only its slide-tab pokes through the hole below.
+            translate([sw_center_x - sw_body_w / 2, sw_center_y - sw_body_l / 2, tray_floor_t]) {
+                difference() {
+                    cube([sw_body_w, sw_body_l, sw_pocket_h]);
+                    translate([(sw_body_w - sw_slot_h) / 2, (sw_body_l - sw_slot_w) / 2, -0.1])
+                        cube([sw_slot_h, sw_slot_w, sw_pocket_h + 0.2]);
+                }
+            }
         }
 
-        // USB-C access slot, centered on the bottom wall (MCU sits near here
-        // now) -- opposite the KEY1 button hole below.
-        translate([outer_w / 2 - usbc_slot_w / 2, -0.1, tray_floor_t + tray_interior_depth / 2 - usbc_slot_h / 2])
+        // USB-C access slot, centered on the bottom wall
+        translate([outer_w / 2 - usbc_slot_w / 2, -0.1, usbc_slot_z])
             cube([usbc_slot_w, wall + 0.2, usbc_slot_h]);
 
-        // Display's onboard KEY1 button (the only one wired up in firmware,
-        // as PIN_BTN_SETTINGS -- KEY0 isn't read at all, so it gets no
-        // access hole) is side-actuated -- pressed toward the board, not
-        // straight into it -- and the board's PCB/button side faces
-        // backward, so the real switch ends up close to this wall rather
-        // than the bezel. Bored through the top wall near its bezel-facing
-        // edge, at KEY1's real X position (disp_btn_x1, offset by `wall` to
-        // match pocket_x). Centered in the wall's ~11.5mm height (rather
-        // than pinned near the top edge as before) so the enlarged
-        // disp_btn_d hole has real margin on both sides instead of
-        // breaching the open top edge.
+        // KEY1 access hole -- side-actuated, cut through the top wall at
+        // KEY1's real X position, centered in the wall's height.
         disp_btn_z = tray_wall_h / 2 + 0.75;
-        translate([wall + disp_btn_x1, outer_h + 0.1, disp_btn_z])
-            rotate([90, 0, 0])
-                cylinder(d = disp_btn_d, h = wall + 0.2);
+        translate([wall + disp_btn_x1 - disp_btn_w / 2, outer_h - wall - 0.1, disp_btn_z - disp_btn_h / 2])
+            cube([disp_btn_w, wall + 0.2, disp_btn_h]);
 
-        // Slide switch access hole, through the rear floor (see sw_x/sw_y above)
+        // Slide switch access hole
         translate([sw_x, sw_y, -0.1])
             cube([sw_slot_h, sw_slot_w, tray_floor_t + 0.2]);
+
+        // "Forager by Max" -- small indented text on the exterior bottom
+        // face, centered in the gap between MCU and battery. mirror()
+        // makes it read correctly from below (outside the case).
+        translate([outer_w / 2, (mcu_y + mcu_fp_y + batt_y) / 2, -0.1])
+            mirror([1, 0, 0])
+                linear_extrude(height = 0.8)
+                    text("Forager by Max", size = 2.4, font = "Marker Felt",
+                         halign = "center", valign = "center");
     }
 
-    // MCU standoffs (near the USB-C wall, board's short edge toward that wall)
-    for (p = [[0,0],[mcu_w,0],[0,mcu_l],[mcu_w,mcu_l]])
+    // MCU standoffs
+    for (p = [[0,0],[mcu_fp_x,0],[0,mcu_fp_y],[mcu_fp_x,mcu_fp_y]])
         translate([mcu_x + p[0], mcu_y + p[1], tray_floor_t])
             cylinder(d = 3.5, h = 1.5);
 
-    // Battery bay walls (shallow retaining lip, battery held by friction/tape)
+    // Battery bay walls (shallow retaining lip, held by friction/tape)
     translate([batt_x - 0.5, batt_y - 0.5, tray_floor_t]) {
         difference() {
-            cube([batt_w + 1, batt_h + 1, 1.5]);
-            translate([0.5, 0.5, -0.1]) cube([batt_w, batt_h, 2]);
+            cube([batt_h + 1, batt_w + 1, 1.5]);
+            translate([0.5, 0.5, -0.1]) cube([batt_h, batt_w, 2]);
         }
     }
 }
