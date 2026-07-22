@@ -150,8 +150,8 @@ usbc_slot_h = 4.0;
 // ---- Slide switch ----
 // Real switch measures 4 x 8mm. sw_body_w/sw_body_l follow from the slot
 // plus a uniform 1mm containment-wall margin on every side.
-sw_slot_w = 8.5;
-sw_slot_h = 5.0;
+sw_slot_w = 9.0;
+sw_slot_h = 4.5;
 sw_wall_margin = 1.0;
 sw_body_w  = sw_slot_h + 2 * sw_wall_margin;
 sw_body_l  = sw_slot_w + 2 * sw_wall_margin;
