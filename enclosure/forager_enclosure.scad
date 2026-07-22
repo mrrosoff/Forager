@@ -243,7 +243,7 @@ module rear_tray() {
     // MCU/USB-C shared X-center, left of case-center -- clears the front
     // buttons (shifted right, see btn_center_offset) and lines the
     // USB-C cutout up with the board.
-    mcu_usbc_x_center = outer_w * 0.70; // roughly halfway to the physical-LEFT wall (case-X high)
+    mcu_usbc_x_center = outer_w * 0.25; // battery side (case-X low, physical RIGHT), clear of its footprint
     mcu_x = mcu_usbc_x_center - mcu_fp_x / 2;
     mcu_y = wall + 4;
 
