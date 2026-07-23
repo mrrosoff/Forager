@@ -50,18 +50,28 @@ wall_x_hi = wall;
 // self-tapping screw's actual thread engagement depth, not just a cosmetic
 // enclosure wall.
 flange_w = 2.2;
-// flange_inset is a fixed 5mm from the case edge -- independent of
-// corner_r now (not corner_r+1), so shrinking the corner radius doesn't
-// silently resize the bezel margins that depend on this.
-flange_inset = 5.0;
+// flange_inset is the case edge to the flange's near face -- flush against
+// the wall (== wall thickness) rather than floating further in. v6 print
+// feedback found the top screw flanges pinching the real PCB; the old
+// 5.0mm inset put dead space between the wall and the flange while
+// pocket_x_inset (below) was DERIVED from flange_inset, so the flange and
+// the pocket always moved together and the gap between them never
+// actually changed regardless of flange_inset's value. Decoupling them --
+// flange flush to the wall, pocket_x_inset held fixed at its old numeric
+// value independent of flange_inset -- opens up real clearance between
+// the flange and the board without resizing the case at all.
+flange_inset = wall;
 
-// Gap from the flange's far face to where the display pocket starts, so
-// the flange has clearance beside the board instead of colliding with it.
-flange_side_clearance = 2.0;
 // Case edge to pocket edge, both sides (symmetric: flange position and
 // size don't differ side to side -- the bezel-width asymmetry comes
 // entirely from win_margin_left/right below, the real hardware offset).
-pocket_x_inset = flange_inset + flange_w + flange_side_clearance;
+// Deliberately NOT derived from flange_inset (see above) -- this is the
+// same 9.2mm the old flange_inset=5.0 formula produced, kept fixed so the
+// case/pocket geometry doesn't change as flange_inset moves independently.
+pocket_x_inset = 9.2;
+// Actual flange-to-pocket clearance with the above two fixed: 9.2 - wall -
+// flange_w = 5.5mm per side (was pinned at 2.0mm before decoupling).
+flange_side_clearance = pocket_x_inset - flange_inset - flange_w;
 
 // ---- Display module (Waveshare 4.2", GDEY042T81) ----
 // Rotated 90deg from native landscape PCB layout, so disp_w/disp_h/win_w/
@@ -91,7 +101,7 @@ win_w = disp_w - win_margin_left - win_margin_right; // = 65.0, real measured vi
 mcu_w = 22.52;
 mcu_l = 18.0;
 mcu_component_h = 4.0; // clearance for USB-C connector / header stubs
-mcu_standoff_h = 3.5;  // tall enough to actually contact the board
+mcu_standoff_h = 3.25;  // tall enough to actually contact the board
 
 // ---- Battery: 2000mAh LiPo, 60 x 36 x 7mm ----
 batt_w = 60.0;
@@ -213,8 +223,13 @@ module front_bezel() {
     win_x = pocket_x + win_margin_left;
     win_y = bottom_rim + button_area_h + win_margin_bottom;
 
-    btn_row_y = pocket_y - btn_row_gap; // button hole centers, below the pocket
-    btn_start_x = outer_w / 2 + btn_center_offset - btn_pitch;
+    // Shifted 3mm down and 3mm right (case-X LOW is physical right, see
+    // header) from real-print feedback -- the centered position wasn't
+    // quite where fingers land.
+    btn_offset_y = -3.0;
+    btn_offset_x = -3.0;
+    btn_row_y = pocket_y - btn_row_gap + btn_offset_y; // button hole centers, below the pocket
+    btn_start_x = outer_w / 2 + btn_center_offset - btn_pitch + btn_offset_x;
 
     difference() {
         union() {
@@ -225,9 +240,8 @@ module front_bezel() {
                 rounded_rect(outer_w, outer_h, corner_r);
 
             // Side-entry screw flanges (left+right, top+bottom -- 4
-            // total), floating in the tray's open cavity at flange_inset
-            // from the case edge (independent of the tray's own thin
-            // wall), reaching into the tray cavity in Z to give the
+            // total), flush against the tray's thin wall at flange_inset
+            // == wall, reaching into the tray cavity in Z to give the
             // horizontal screw material to bite into.
             for (sy = side_ys) {
                 translate([flange_inset, sy - side_boss_od / 2, bezel_front_t - 0.01])
@@ -276,8 +290,9 @@ module rear_tray() {
     mcu_fp_y = mcu_w;
     // MCU/USB-C shared X-center, left of case-center -- clears the front
     // buttons (shifted right, see btn_center_offset) and lines the
-    // USB-C cutout up with the board.
-    mcu_usbc_x_center = outer_w * 0.25; // battery side (case-X low, physical RIGHT), clear of its footprint
+    // USB-C cutout up with the board. Shifted another 10mm right from
+    // real-print feedback.
+    mcu_usbc_x_center = outer_w * 0.25 + 10.0; // battery side (case-X low, physical RIGHT), clear of its footprint
     mcu_x = mcu_usbc_x_center - mcu_fp_x / 2;
     mcu_y = wall + 4;
 
@@ -338,9 +353,9 @@ module rear_tray() {
             cube([usbc_slot_w, wall + 0.2, usbc_slot_h]);
 
         // Side-entry screw clearance holes (left+right, top+bottom) --
-        // screws pass through the tray's thin wall, then open cavity air,
-        // into the bezel's flanges (front_bezel()), which float at
-        // flange_inset rather than right at the tray's own wall.
+        // screws pass through the tray's thin wall directly into the
+        // bezel's flanges (front_bezel()), which sit flush against it at
+        // flange_inset == wall.
         for (sy = side_ys) {
             translate([-0.1, sy, side_boss_z_tray])
                 rotate([0, 90, 0])
@@ -351,10 +366,22 @@ module rear_tray() {
         }
 
         // KEY1 access hole -- side-actuated, cut through the top wall at
-        // KEY1's real X position, centered in the wall's height.
+        // KEY1's real X position, centered in the wall's height. Tapered:
+        // a straight disp_btn_w x disp_btn_h hole matched the actual
+        // switch precisely but was too small to get a finger into. Funnels
+        // from a much bigger opening at the true exterior surface down to
+        // the exact button size right where it meets KEY1.
         disp_btn_z = tray_wall_h / 2 + 1.75;
-        translate([pocket_x_inset + disp_btn_x1 - disp_btn_w / 2, outer_h - wall - 0.1, disp_btn_z - disp_btn_h / 2])
-            cube([disp_btn_w, wall + 0.2, disp_btn_h]);
+        disp_btn_access_w = 12.0; // wide outer opening, easy to find/press
+        disp_btn_access_h = 7.0;
+        hull() {
+            // Inner face: exact button size, right at KEY1 itself
+            translate([pocket_x_inset + disp_btn_x1 - disp_btn_w / 2, outer_h - wall - 0.1, disp_btn_z - disp_btn_h / 2])
+                cube([disp_btn_w, 0.01, disp_btn_h]);
+            // Outer face: wide funnel mouth at the true exterior surface
+            translate([pocket_x_inset + disp_btn_x1 - disp_btn_access_w / 2, outer_h + 0.09, disp_btn_z - disp_btn_access_h / 2])
+                cube([disp_btn_access_w, 0.01, disp_btn_access_h]);
+        }
 
         // Slide switch access hole
         translate([sw_x, sw_y, -0.1])
@@ -378,11 +405,19 @@ module rear_tray() {
     batt_wall_margin = 0.5;
     batt_fit_clearance = 2.5; // real clearance beyond the battery's own footprint
     batt_wall_h = 4.0;
+    // Wire gap: the battery's wires come out near this bottom corner, on
+    // the long wall facing the switch/MCU standoff (case-X high side of
+    // the bay) -- away from the switch itself, which sits up near the far
+    // (top-screw) end of that same wall.
+    batt_wire_gap_w = 8.0;
+    batt_wire_gap_y = 0.0; // flush with the bay's bottom corner
     translate([batt_x - batt_wall_margin - batt_fit_clearance / 2, batt_y - batt_wall_margin - batt_fit_clearance / 2, tray_floor_t]) {
         difference() {
             cube([batt_h + 2 * batt_wall_margin + batt_fit_clearance, batt_w + 2 * batt_wall_margin + batt_fit_clearance, batt_wall_h]);
             translate([batt_wall_margin, batt_wall_margin, -0.1])
                 cube([batt_h + batt_fit_clearance, batt_w + batt_fit_clearance, batt_wall_h + 0.5]);
+            translate([batt_wall_margin + batt_h + batt_fit_clearance - 0.1, batt_wire_gap_y, -0.1])
+                cube([batt_wall_margin + 0.2, batt_wire_gap_w, batt_wall_h + 0.5]);
         }
     }
 }
