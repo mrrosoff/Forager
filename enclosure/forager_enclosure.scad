@@ -33,7 +33,8 @@ corner_r  = 3.0;   // rounded exterior corners
 
 // Side-entry screw dimensions -- defined early since top_rim/bottom_rim
 // below need side_boss_od/side_clear_d to size their bands correctly.
-side_boss_od      = 3.5;
+side_boss_od      = 4.5;  // +1mm from real-print feedback -- there was
+                           // room to make the screw flanges chunkier
 side_pilot_d      = 2.0;
 side_clear_d      = 2.7;
 
@@ -45,11 +46,10 @@ wall_x_hi = wall;
 
 // The screw FLANGE (the tab on the bezel side, see front_bezel()) is a
 // separate feature from the tray's wall above, and floats independently in
-// the tray's open cavity. flange_w is its own thickness -- kept at a
-// sturdier 2.2mm (not the thinner general `wall`) since it's the
-// self-tapping screw's actual thread engagement depth, not just a cosmetic
-// enclosure wall.
-flange_w = 2.2;
+// the tray's open cavity. flange_w is its own thickness (the screw's
+// thread engagement depth) -- +1mm from real-print feedback (there was
+// room), same reasoning as side_boss_od just above.
+flange_w = 3.2;
 // flange_inset is the case edge to the flange's near face -- flush against
 // the wall (== wall thickness) rather than floating further in. v6 print
 // feedback found the top screw flanges pinching the real PCB; the old
@@ -127,7 +127,10 @@ btn_center_offset = (win_margin_left - win_margin_right) / 2; // centers the
 // PIN_BTN_SETTINGS) gets a cutout.
 disp_btn_w = 6.0;
 disp_btn_h = 3.5;
-disp_btn_x1 = 16.03; // KEY1 -- has a cutout
+disp_btn_x1 = 11.03; // KEY1 -- has a cutout. Shifted 5mm toward the
+                      // battery-bay wall (case-X low) from real-print
+                      // feedback -- was offset from the true button
+                      // position with the display centered correctly.
 disp_btn_x2 = 33.70; // KEY0 -- reference only, no cutout
 
 // top_rim/bottom_rim: bands above/below the display pocket.
@@ -202,7 +205,11 @@ side_flange_depth = 8.0; // how far the bezel's flange reaches into the tray cav
 mcu_top_edge = wall + 4 + mcu_w; // mcu_y + mcu_fp_y, replicated here since
                                   // this needs to be a top-level value
 side_y_top    = outer_h - 10;
-side_y_bottom = side_screw_edge_clearance_bottom;
+// side_screw_edge_clearance_bottom is the minimum safe distance off the
+// rounded corner; +5mm here from real-print feedback pulls the bottom
+// screw further off that curve for a cleaner boss, well within the
+// bottom_rim margin already sized around the smaller minimum value.
+side_y_bottom = side_screw_edge_clearance_bottom + 5.0;
 side_ys = [side_y_top, side_y_bottom];
 side_boss_z_bezel = bezel_front_t + side_flange_depth / 2; // bezel-local Z
 side_boss_z_tray  = tray_wall_h - side_flange_depth / 2;   // tray-local Z (see modules below)
@@ -370,14 +377,23 @@ module rear_tray() {
         // a straight disp_btn_w x disp_btn_h hole matched the actual
         // switch precisely but was too small to get a finger into. Funnels
         // from a much bigger opening at the true exterior surface down to
-        // the exact button size right where it meets KEY1.
+        // a still-oversized opening at KEY1 itself -- real-print feedback
+        // found the first taper (exact disp_btn_w x disp_btn_h at the
+        // inner face) still hard to press, since it pinched back down to
+        // the tight, precise button footprint right where a finger
+        // actually needs room to land. The switch itself doesn't care
+        // about the extra margin (it's a side-actuated nub, not a capped
+        // button needing a snug guide hole), so oversizing the whole
+        // throat -- not just the outer mouth -- is free.
         disp_btn_z = tray_wall_h / 2 + 1.75;
-        disp_btn_access_w = 12.0; // wide outer opening, easy to find/press
-        disp_btn_access_h = 7.0;
+        disp_btn_inner_w = disp_btn_w + 3.0; // was exact disp_btn_w -- still centered on KEY1
+        disp_btn_inner_h = disp_btn_h + 3.0; // was exact disp_btn_h
+        disp_btn_access_w = 14.0; // wide outer opening, easy to find/press
+        disp_btn_access_h = 9.0;
         hull() {
-            // Inner face: exact button size, right at KEY1 itself
-            translate([pocket_x_inset + disp_btn_x1 - disp_btn_w / 2, outer_h - wall - 0.1, disp_btn_z - disp_btn_h / 2])
-                cube([disp_btn_w, 0.01, disp_btn_h]);
+            // Inner face: oversized around KEY1, not the exact button size
+            translate([pocket_x_inset + disp_btn_x1 - disp_btn_inner_w / 2, outer_h - wall - 0.1, disp_btn_z - disp_btn_inner_h / 2])
+                cube([disp_btn_inner_w, 0.01, disp_btn_inner_h]);
             // Outer face: wide funnel mouth at the true exterior surface
             translate([pocket_x_inset + disp_btn_x1 - disp_btn_access_w / 2, outer_h + 0.09, disp_btn_z - disp_btn_access_h / 2])
                 cube([disp_btn_access_w, 0.01, disp_btn_access_h]);
