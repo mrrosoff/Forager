@@ -19,9 +19,9 @@ SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 static AppContext ctx;
 static View currentView = View::Main;
 static int forageIdx = 0;  // Foraging view's browse position; session-only, and
-                            // reset to DEV_MODE_SPECIES_BROWSE_START on every
-                            // transition into/out of Foraging (see
-                            // retreatView()/advanceView())
+                           // reset to DEV_MODE_SPECIES_BROWSE_START on every
+                           // transition into/out of Foraging (see
+                           // retreatView()/advanceView())
 static uint32_t lastActivityMs = 0;
 
 // Set by buildContext() when the growth stage just advanced since the last
@@ -108,7 +108,7 @@ struct HoldAccel {
 };
 
 static bool holdAccelStep(HoldAccel& s, bool down, uint32_t initialMs, uint32_t floorMs,
-                           uint32_t accelMs) {
+                          uint32_t accelMs) {
   if (down && !s.held) {
     s.held = true;
     s.steps = 0;
@@ -148,8 +148,7 @@ static void goToSleep() {
   // ext0 only supports a single GPIO. All three pins are RTC-capable
   // (LEFT=1, RIGHT=2, ENTER=4) and read HIGH when pressed (INPUT_PULLDOWN),
   // so ANY_HIGH wakes on whichever one is pressed.
-  uint64_t wakeMask =
-      (1ULL << PIN_BTN_LEFT) | (1ULL << PIN_BTN_RIGHT) | (1ULL << PIN_BTN_ENTER);
+  uint64_t wakeMask = (1ULL << PIN_BTN_LEFT) | (1ULL << PIN_BTN_RIGHT) | (1ULL << PIN_BTN_ENTER);
   esp_sleep_enable_ext1_wakeup(wakeMask, ESP_EXT1_WAKEUP_ANY_HIGH);
   esp_sleep_enable_timer_wakeup(FORCE_REFRESH_INTERVAL_US);
   esp_deep_sleep_start();
@@ -183,6 +182,17 @@ static void doResetGame() {
   esp_restart();
 }
 
+// Reads the BATT_ADC divider (see config.h) and maps it to a 0-100 percent
+// across BATT_VOLTAGE_EMPTY..BATT_VOLTAGE_FULL. analogReadMilliVolts()
+// applies the ESP32's factory ADC calibration, so this is a real voltage
+// reading, not a raw uncalibrated ADC count.
+static uint8_t readBatteryPercent() {
+  float vBatt = (analogReadMilliVolts(PIN_BATT_ADC) / 1000.0f) * BATT_DIVIDER_RATIO;
+  float frac = (vBatt - BATT_VOLTAGE_EMPTY) / (BATT_VOLTAGE_FULL - BATT_VOLTAGE_EMPTY);
+  frac = std::max(0.0f, std::min(1.0f, frac));
+  return (uint8_t)(frac * 100.0f + 0.5f);
+}
+
 // Returns true the very first time this ever runs (birthDate == 0, no prior
 // save) -- setup() uses this to show the one-time birth sequence. Sets
 // birthDate immediately so a later wake never re-triggers it.
@@ -192,6 +202,7 @@ static bool buildContext() {
   int month = ctx.now.tm_mon + 1;
 
   ctx.featured = foraging::featured(month);
+  ctx.batteryPercent = readBatteryPercent();
 
   creature::load(ctx.creature);
   bool firstBoot = (ctx.creature.birthDate == 0);
@@ -373,7 +384,8 @@ static void onEnter() {
       ev.exact = ctx.eventExact != 0;
       const Forageable& current = foraging::speciesAtRank(forageIdx);
       int month = ctx.now.tm_mon + 1;
-      creature::feedForaged(ctx.creature, time(nullptr), foraging::inSeason(current, month), current.kind);
+      creature::feedForaged(ctx.creature, time(nullptr), foraging::inSeason(current, month),
+                            current.kind);
       journal::markEaten(foraging::indexAtRank(forageIdx));
       journal::save();
       if (events::eventMatchesSpecies(ev, current)) {
@@ -442,7 +454,9 @@ static const char* textEntryPrompt(TextEntryPurpose p) {
   }
 }
 
-static void renderCurrentTextEntry() { display::renderTextEntry(textEntryPrompt(tePurpose), teState); }
+static void renderCurrentTextEntry() {
+  display::renderTextEntry(textEntryPrompt(tePurpose), teState);
+}
 
 // Begins the shared text-entry overlay for one purpose. initial pre-fills
 // the buffer (e.g. re-showing an in-progress SSID isn't needed today, but
@@ -523,7 +537,7 @@ static bool handleTextEntryInput() {
 
   bool rightDown = digitalRead(PIN_BTN_RIGHT) == HIGH;
   if (holdAccelStep(teRightAccel, rightDown, TE_HOLD_INITIAL_MS, TE_HOLD_FLOOR_MS,
-                     TE_HOLD_ACCEL_MS)) {
+                    TE_HOLD_ACCEL_MS)) {
     textentry::moveNext(teState);
     renderCurrentTextEntry();
     activity = true;
@@ -532,7 +546,7 @@ static bool handleTextEntryInput() {
 
   bool leftDown = digitalRead(PIN_BTN_LEFT) == HIGH;
   if (holdAccelStep(teLeftAccel, leftDown, TE_HOLD_INITIAL_MS, TE_HOLD_FLOOR_MS,
-                     TE_HOLD_ACCEL_MS)) {
+                    TE_HOLD_ACCEL_MS)) {
     textentry::movePrev(teState);
     renderCurrentTextEntry();
     activity = true;
@@ -595,6 +609,9 @@ void setup() {
   pinMode(PIN_BTN_RIGHT, INPUT_PULLDOWN);
   pinMode(PIN_BTN_ENTER, INPUT_PULLDOWN);
   pinMode(PIN_BTN_SETTINGS, INPUT_PULLUP);
+  // 11db attenuation for the full ~3.3V range -- the battery divider's
+  // midpoint reaches ~2.1V at a full 4.2V charge, comfortably inside it.
+  analogSetPinAttenuation(PIN_BATT_ADC, ADC_11db);
   log_i("Woke");
 
 #if DEV_MODE_EVENT_CYCLE
@@ -750,11 +767,11 @@ static void handleSettingsInput() {
   }
   if (pressed(bRight)) {
     selectedOption = (selectedOption + 1) % 3;
-    display::renderSettings(selectedOption, confirmPending);
+    display::renderSettings(selectedOption, confirmPending, ctx.batteryPercent);
   }
   if (pressed(bLeft)) {
     selectedOption = (selectedOption + 2) % 3;
-    display::renderSettings(selectedOption, confirmPending);
+    display::renderSettings(selectedOption, confirmPending, ctx.batteryPercent);
   }
   if (pressed(bEnter)) {
     if (selectedOption == 0) {
@@ -766,7 +783,7 @@ static void handleSettingsInput() {
       // Reset Game and Power Off are both destructive/hard-to-undo, so both
       // go through the same yes/no confirm sub-screen before acting.
       confirmPending = true;
-      display::renderSettings(selectedOption, confirmPending);
+      display::renderSettings(selectedOption, confirmPending, ctx.batteryPercent);
     }
   }
 }
@@ -784,18 +801,18 @@ void loop() {
       inSettings = true;
       selectedOption = 0;
       confirmPending = false;
-      display::renderSettings(selectedOption, confirmPending);
+      display::renderSettings(selectedOption, confirmPending, ctx.batteryPercent);
     } else if (inWifiMenu) {
       if (wifiRemoveConfirm) {
         wifiRemoveConfirm = false;
         display::renderWifiMenu(wifiSelected, false);
       } else {
         inWifiMenu = false;
-        display::renderSettings(selectedOption, false);
+        display::renderSettings(selectedOption, false, ctx.batteryPercent);
       }
     } else if (confirmPending) {
       confirmPending = false;
-      display::renderSettings(selectedOption, confirmPending);
+      display::renderSettings(selectedOption, confirmPending, ctx.batteryPercent);
     } else {
       inSettings = false;
       display::renderView(currentView, ctx, forageIdx);

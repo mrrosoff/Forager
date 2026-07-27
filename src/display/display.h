@@ -46,7 +46,7 @@ void renderDeath(DeathCause cause);
 // Settings overlay -- selected: 0 = Power Off, 1 = Reset Game, 2 = WiFi
 // Networks. confirmPending shows a yes/no sub-screen for the destructive
 // Reset Game.
-void renderSettings(int selected, bool confirmPending);
+void renderSettings(int selected, bool confirmPending, uint8_t batteryPercent);
 
 // Blank white screen shown right before a Power Off (no wake source armed)
 // deep sleep -- the device is genuinely off until the physical switch
