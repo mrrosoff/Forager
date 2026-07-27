@@ -185,7 +185,11 @@ bezel_total_t = bezel_front_t + bezel_pocket_depth;
 disp_tray_protrusion = 13.0; // ASSUMPTION: how far the display's
                               // pin-header/FPC assembly sticks into the
                               // TRAY cavity, beyond the bezel-side pocket
-tray_interior_depth = max(batt_t + batt_puff_clearance, mcu_component_h, disp_tray_protrusion) + clearance;
+tray_wall_height_bonus = 8.0; // +8mm on the tray's perimeter walls (and,
+                               // since the wall/cavity share one extrude,
+                               // the cavity itself) from real-print
+                               // feedback -- the walls needed to be taller.
+tray_interior_depth = max(batt_t + batt_puff_clearance, mcu_component_h, disp_tray_protrusion) + clearance + tray_wall_height_bonus;
 tray_floor_t = 2.2;
 tray_wall_h  = tray_interior_depth + tray_floor_t;
 
@@ -373,19 +377,29 @@ module rear_tray() {
         }
 
         // KEY1 access hole -- side-actuated, cut through the top wall at
-        // KEY1's real X position, centered in the wall's height. Tapered:
-        // a straight disp_btn_w x disp_btn_h hole matched the actual
-        // switch precisely but was too small to get a finger into. Funnels
-        // from a much bigger opening at the true exterior surface down to
-        // a still-oversized opening at KEY1 itself -- real-print feedback
-        // found the first taper (exact disp_btn_w x disp_btn_h at the
-        // inner face) still hard to press, since it pinched back down to
-        // the tight, precise button footprint right where a finger
-        // actually needs room to land. The switch itself doesn't care
-        // about the extra margin (it's a side-actuated nub, not a capped
-        // button needing a snug guide hole), so oversizing the whole
-        // throat -- not just the outer mouth -- is free.
-        disp_btn_z = tray_wall_h / 2 + 1.75;
+        // KEY1's real X position. Tapered: a straight disp_btn_w x
+        // disp_btn_h hole matched the actual switch precisely but was too
+        // small to get a finger into. Funnels from a much bigger opening
+        // at the true exterior surface down to a still-oversized opening
+        // at KEY1 itself -- real-print feedback found the first taper
+        // (exact disp_btn_w x disp_btn_h at the inner face) still hard to
+        // press, since it pinched back down to the tight, precise button
+        // footprint right where a finger actually needs room to land. The
+        // switch itself doesn't care about the extra margin (it's a
+        // side-actuated nub, not a capped button needing a snug guide
+        // hole), so oversizing the whole throat -- not just the outer
+        // mouth -- is free.
+        //
+        // disp_btn_z is a FIXED distance from the top (the bezel-mating
+        // face at Z=tray_wall_h), not a center-relative offset -- it used
+        // to be tray_wall_h/2 + 1.75, which silently drifted (7.0mm off
+        // the top -> 10.0mm off the top, a real 3mm error) when
+        // tray_wall_h grew 8mm for the wall-height task, since that change
+        // had nothing to do with where the real KEY1 button sits. Anchored
+        // to the top instead, using the same real-world-validated 7.0mm
+        // the old formula worked out to before that drift.
+        disp_btn_top_offset = 7.0;
+        disp_btn_z = tray_wall_h - disp_btn_top_offset;
         disp_btn_inner_w = disp_btn_w + 3.0; // was exact disp_btn_w -- still centered on KEY1
         disp_btn_inner_h = disp_btn_h + 3.0; // was exact disp_btn_h
         disp_btn_access_w = 14.0; // wide outer opening, easy to find/press
