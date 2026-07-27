@@ -31,62 +31,6 @@
 #include "bitmaps/animals/river_otter_bitmap.h"
 #include "bitmaps/animals/snowshoe_hare_bitmap.h"
 #include "bitmaps/animals/stellers_jay_bitmap.h"
-#include "bitmaps/marmot/marmot_baby2_bitmap.h"
-#include "bitmaps/marmot/marmot_baby3_bitmap.h"
-#include "bitmaps/marmot/marmot_baby4_bitmap.h"
-#include "bitmaps/marmot/marmot_baby6_bitmap.h"
-#include "bitmaps/marmot/marmot_baby7_bitmap.h"
-#include "bitmaps/marmot/marmot_baby_bitmap.h"
-#include "bitmaps/marmot/marmot_bitmap.h"
-#include "bitmaps/marmot/marmot_death_bitmap.h"
-#include "bitmaps/marmot/marmot_juvenile2_bitmap.h"
-#include "bitmaps/marmot/marmot_juvenile3_bitmap.h"
-#include "bitmaps/marmot/marmot_variant10_bitmap.h"
-#include "bitmaps/marmot/marmot_variant11_bitmap.h"
-#include "bitmaps/marmot/marmot_variant13_bitmap.h"
-#include "bitmaps/marmot/marmot_variant15_bitmap.h"
-#include "bitmaps/marmot/marmot_variant16_bitmap.h"
-#include "bitmaps/marmot/marmot_variant17_bitmap.h"
-#include "bitmaps/marmot/marmot_variant18_bitmap.h"
-#include "bitmaps/marmot/marmot_variant20_bitmap.h"
-#include "bitmaps/marmot/marmot_variant21_bitmap.h"
-#include "bitmaps/marmot/marmot_variant22_bitmap.h"
-#include "bitmaps/marmot/marmot_variant24_bitmap.h"
-#include "bitmaps/marmot/marmot_variant25_bitmap.h"
-#include "bitmaps/marmot/marmot_variant26_bitmap.h"
-#include "bitmaps/marmot/marmot_variant27_bitmap.h"
-#include "bitmaps/marmot/marmot_variant28_bitmap.h"
-#include "bitmaps/marmot/marmot_variant5_bitmap.h"
-#include "bitmaps/marmot/marmot_variant6_bitmap.h"
-#include "bitmaps/marmot/marmot_variant7_bitmap.h"
-#include "bitmaps/marmot/marmot_variant8_bitmap.h"
-#include "bitmaps/marmot/marmot_variant9_bitmap.h"
-#include "bitmaps/marmot/marmot_baby2_small_bitmap.h"
-#include "bitmaps/marmot/marmot_baby4_small_bitmap.h"
-#include "bitmaps/marmot/marmot_baby6_small_bitmap.h"
-#include "bitmaps/marmot/marmot_baby7_small_bitmap.h"
-#include "bitmaps/marmot/marmot_baby_small_bitmap.h"
-#include "bitmaps/marmot/marmot_juvenile2_small_bitmap.h"
-#include "bitmaps/marmot/marmot_juvenile3_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant10_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant11_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant13_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant15_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant16_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant17_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant18_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant20_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant21_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant22_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant24_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant25_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant26_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant27_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant28_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant5_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant6_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant7_small_bitmap.h"
-#include "bitmaps/marmot/marmot_variant8_small_bitmap.h"
 #include "bitmaps/badges/berries_bitmap.h"
 #include "bitmaps/badges/complete_bitmap.h"
 #include "bitmaps/badges/halfway_bitmap.h"
@@ -96,6 +40,62 @@
 #include "bitmaps/badges/storms_bitmap.h"
 #include "bitmaps/badges/wanderer_bitmap.h"
 #include "bitmaps/badges/wildlife_bitmap.h"
+#include "bitmaps/marmot/marmot_baby2_bitmap.h"
+#include "bitmaps/marmot/marmot_baby2_small_bitmap.h"
+#include "bitmaps/marmot/marmot_baby3_bitmap.h"
+#include "bitmaps/marmot/marmot_baby4_bitmap.h"
+#include "bitmaps/marmot/marmot_baby4_small_bitmap.h"
+#include "bitmaps/marmot/marmot_baby6_bitmap.h"
+#include "bitmaps/marmot/marmot_baby6_small_bitmap.h"
+#include "bitmaps/marmot/marmot_baby7_bitmap.h"
+#include "bitmaps/marmot/marmot_baby7_small_bitmap.h"
+#include "bitmaps/marmot/marmot_baby_bitmap.h"
+#include "bitmaps/marmot/marmot_baby_small_bitmap.h"
+#include "bitmaps/marmot/marmot_bitmap.h"
+#include "bitmaps/marmot/marmot_death_bitmap.h"
+#include "bitmaps/marmot/marmot_juvenile2_bitmap.h"
+#include "bitmaps/marmot/marmot_juvenile2_small_bitmap.h"
+#include "bitmaps/marmot/marmot_juvenile3_bitmap.h"
+#include "bitmaps/marmot/marmot_juvenile3_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant10_bitmap.h"
+#include "bitmaps/marmot/marmot_variant10_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant11_bitmap.h"
+#include "bitmaps/marmot/marmot_variant11_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant13_bitmap.h"
+#include "bitmaps/marmot/marmot_variant13_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant15_bitmap.h"
+#include "bitmaps/marmot/marmot_variant15_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant16_bitmap.h"
+#include "bitmaps/marmot/marmot_variant16_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant17_bitmap.h"
+#include "bitmaps/marmot/marmot_variant17_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant18_bitmap.h"
+#include "bitmaps/marmot/marmot_variant18_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant20_bitmap.h"
+#include "bitmaps/marmot/marmot_variant20_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant21_bitmap.h"
+#include "bitmaps/marmot/marmot_variant21_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant22_bitmap.h"
+#include "bitmaps/marmot/marmot_variant22_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant24_bitmap.h"
+#include "bitmaps/marmot/marmot_variant24_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant25_bitmap.h"
+#include "bitmaps/marmot/marmot_variant25_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant26_bitmap.h"
+#include "bitmaps/marmot/marmot_variant26_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant27_bitmap.h"
+#include "bitmaps/marmot/marmot_variant27_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant28_bitmap.h"
+#include "bitmaps/marmot/marmot_variant28_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant5_bitmap.h"
+#include "bitmaps/marmot/marmot_variant5_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant6_bitmap.h"
+#include "bitmaps/marmot/marmot_variant6_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant7_bitmap.h"
+#include "bitmaps/marmot/marmot_variant7_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant8_bitmap.h"
+#include "bitmaps/marmot/marmot_variant8_small_bitmap.h"
+#include "bitmaps/marmot/marmot_variant9_bitmap.h"
 #include "bitmaps/marmot/marmot_variant9_small_bitmap.h"
 #include "bitmaps/species/species_index.h"
 #include "config.h"
@@ -286,8 +286,20 @@ static void drawWeatherGlyph(int x, int y, const WeatherData& w) {
   }
 }
 
-#include "display_marmot_art.h"
+// Simple battery gauge: outline + a small terminal nub + a black fill
+// proportional to percent (0-100), floored at a 20%-equivalent width so a
+// near-empty reading still shows a visible sliver instead of disappearing
+// into the outline at this small icon size.
+static const int BATT_ICON_W = 20, BATT_ICON_H = 10, BATT_NUB_W = 2;
 
+static void drawBatteryIcon(int x, int y, uint8_t percent) {
+  epd.drawRect(x, y, BATT_ICON_W, BATT_ICON_H, C_BLACK);
+  epd.fillRect(x + BATT_ICON_W, y + BATT_ICON_H / 2 - 2, BATT_NUB_W, 4, C_BLACK);
+  int fillW = (BATT_ICON_W - 4) * std::max<int>(percent, 20) / 100;
+  epd.fillRect(x + 2, y + 2, fillW, BATT_ICON_H - 4, C_BLACK);
+}
+
+#include "display_marmot_art.h"
 
 // A hoary marmot -- hardcoded, dithered pen-and-ink-style/photo bitmaps (see
 // include/bitmaps/marmot/) rather than live procedural shapes, for real fur
@@ -314,10 +326,10 @@ static int drawCreature(int cx, int groundY, Mood mood, Stage stage, bool small 
     static int8_t babyVariant = -1;
     static int8_t juvenileVariant = -1;
     int idx = (stage == Stage::Baby) ? pickVariant(babyVariant, kBabyVariantCount)
-                                      : pickVariant(juvenileVariant, kJuvenileVariantCount);
+                                     : pickVariant(juvenileVariant, kJuvenileVariantCount);
     const MarmotArt& art = (stage == Stage::Baby)
-                                ? (small ? kBabyVariantsSmall[idx] : kBabyVariants[idx])
-                                : (small ? kJuvenileVariantsSmall[idx] : kJuvenileVariants[idx]);
+                               ? (small ? kBabyVariantsSmall[idx] : kBabyVariants[idx])
+                               : (small ? kJuvenileVariantsSmall[idx] : kJuvenileVariants[idx]);
     int bx = cx - art.w / 2;
     int by = groundY - art.groundY;
     epd.drawBitmap(bx, by, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
@@ -395,7 +407,6 @@ static void drawNavBar(const char* leftLbl, const char* enterLbl, const char* ri
 // into a recognizable silhouette); nullptr means "fall back to the marmot".
 #include "display_animal_art.h"
 
-
 // A pending wildlife sighting takes over the Main view until ENTER
 // resolves it (see events::checkForEvent / onEnter() in main.cpp).
 static void renderEncounter(const AppContext& ctx, const events::PendingEvent& ev) {
@@ -458,7 +469,6 @@ static void renderEncounter(const AppContext& ctx, const events::PendingEvent& e
 // adult is the only stage with actual complete thoughts.
 #include "display_thoughts.h"
 
-
 // A rounded speech-cloud with two small trailing circles, shown above the
 // marmot's head about 2 in 3 wakes -- re-rolled once per wake (cached in a
 // function-local static, same pattern as pickVariant()) so it doesn't
@@ -470,8 +480,8 @@ static void renderEncounter(const AppContext& ctx, const events::PendingEvent& e
 // Thresholds mirror creature::evaluate()'s Mood cutoffs (s.hunger >= 70,
 // s.happiness < 20) plus a matching cutoff for energy, which Mood doesn't
 // otherwise consider.
-static void pickThoughtPool(Stage stage, const CreatureState& creature,
-                             const char* const** outPool, int* outCount) {
+static void pickThoughtPool(Stage stage, const CreatureState& creature, const char* const** outPool,
+                            int* outCount) {
   if (stage == Stage::Baby) {
     *outPool = kThoughtsBaby;
     *outCount = kThoughtsBabyCount;
@@ -502,7 +512,7 @@ static void pickThoughtPool(Stage stage, const CreatureState& creature,
 }
 
 static void maybeDrawThoughtBubble(int headX, int headY, Stage stage,
-                                    const CreatureState& creature) {
+                                   const CreatureState& creature) {
   static int8_t roll = -1;
   static int8_t thoughtIdx = -1;
   const char* const* pool;
@@ -545,6 +555,11 @@ static void renderMain(const AppContext& ctx) {
 
   textAt(8, 10, ctx.creature.name, 2);
   drawWeatherGlyph(SCREEN_W - 40, 8, ctx.weather);
+
+  char battBuf[6];
+  snprintf(battBuf, sizeof(battBuf), "%d%%", ctx.batteryPercent);
+  drawBatteryIcon(SCREEN_W - 92, 10, ctx.batteryPercent);
+  textAt(SCREEN_W - 92 - 30, 12, battBuf, 1);
 
   char buf[24];
   strftime(buf, sizeof(buf), "%a %b %d", &ctx.now);
@@ -757,8 +772,8 @@ static void drawBadgeIcon(BadgeIcon icon, int cx, int cy, int r) {
       epd.fillCircle(cx, cy + r / 3, r / 3, C_BLACK);
       break;
     case BadgeIcon::Leaf:
-      epd.fillTriangle(cx, cy - r * 2 / 3, cx - r * 2 / 3, cy + r / 2, cx + r * 2 / 3,
-                        cy + r / 2, C_BLACK);
+      epd.fillTriangle(cx, cy - r * 2 / 3, cx - r * 2 / 3, cy + r / 2, cx + r * 2 / 3, cy + r / 2,
+                       C_BLACK);
       epd.drawLine(cx, cy - r / 2, cx, cy + r / 2, C_WHITE);
       break;
     case BadgeIcon::Paw:
@@ -835,7 +850,8 @@ static void drawBadge(const BadgeDef& b, int cx, int cy) {
   drawMedalRim(cx, cy, r);
   if (unlocked) {
     if (b.bitmap) {
-      epd.drawBitmap(cx - b.bitmapW / 2, cy - b.bitmapH / 2, b.bitmap, b.bitmapW, b.bitmapH, C_BLACK);
+      epd.drawBitmap(cx - b.bitmapW / 2, cy - b.bitmapH / 2, b.bitmap, b.bitmapW, b.bitmapH,
+                     C_BLACK);
     } else {
       drawBadgeIcon(b.icon, cx, cy, r);
     }
@@ -875,18 +891,18 @@ static void renderAchievements(const AppContext& ctx) {
 
   // 3 foraging (food types), 2 animals, 2 other events, 2 completionist.
   const BadgeDef badges[9] = {
-      {"Mushrooms", BadgeIcon::Mushroom, foraging::countEatenOfKind("mushroom"), 15, BADGE_MUSHROOMS_BITMAP,
-       BADGE_MUSHROOMS_W, BADGE_MUSHROOMS_H},
+      {"Mushrooms", BadgeIcon::Mushroom, foraging::countEatenOfKind("mushroom"), 15,
+       BADGE_MUSHROOMS_BITMAP, BADGE_MUSHROOMS_W, BADGE_MUSHROOMS_H},
       {"Berries", BadgeIcon::Berries, foraging::countEatenOfKind("berry"), 10, BADGE_BERRIES_BITMAP,
        BADGE_BERRIES_W, BADGE_BERRIES_H},
       {"Herbalist", BadgeIcon::Leaf, herbalist, 15, BADGE_HERBALIST_BITMAP, BADGE_HERBALIST_W,
        BADGE_HERBALIST_H},
       {"Wildlife", BadgeIcon::Paw, journal::totalAnimalSightings(), 10, BADGE_WILDLIFE_BITMAP,
        BADGE_WILDLIFE_W, BADGE_WILDLIFE_H},
-      {"Naturalist", BadgeIcon::Binoculars, journal::totalAnimalSightings(), 25, BADGE_NATURALIST_BITMAP,
-       BADGE_NATURALIST_W, BADGE_NATURALIST_H},
-      {"Storms", BadgeIcon::Cloud, journal::totalWeatherEvents(), 10, BADGE_STORMS_BITMAP, BADGE_STORMS_W,
-       BADGE_STORMS_H},
+      {"Naturalist", BadgeIcon::Binoculars, journal::totalAnimalSightings(), 25,
+       BADGE_NATURALIST_BITMAP, BADGE_NATURALIST_W, BADGE_NATURALIST_H},
+      {"Storms", BadgeIcon::Cloud, journal::totalWeatherEvents(), 10, BADGE_STORMS_BITMAP,
+       BADGE_STORMS_W, BADGE_STORMS_H},
       {"Wanderer", BadgeIcon::Compass, journal::totalOtherEvents(), 15, BADGE_WANDERER_BITMAP,
        BADGE_WANDERER_W, BADGE_WANDERER_H},
       {"Halfway", BadgeIcon::HalfMoon, total, foraging::speciesCount() / 2, BADGE_HALFWAY_BITMAP,
@@ -1047,9 +1063,13 @@ void renderDeath(DeathCause cause) {
  * 1 = Reset Game. confirmPending shows a yes/no sub-screen for Reset Game,
  * since it's destructive.
  */
-void renderSettings(int selected, bool confirmPending) {
+void renderSettings(int selected, bool confirmPending, uint8_t batteryPercent) {
   epd.beginFrame();
   textAt(8, 10, "Settings", 2);
+  char battBuf[6];
+  snprintf(battBuf, sizeof(battBuf), "%d%%", batteryPercent);
+  drawBatteryIcon(SCREEN_W - 52, 10, batteryPercent);
+  textAt(SCREEN_W - 52 - 30, 12, battBuf, 1);
 
   if (confirmPending) {
     if (selected == 1) {
@@ -1217,9 +1237,9 @@ void renderSleep(Stage stage) {
   // don't turn up in the wild -- see CLAUDE.md's sourcing notes), so those
   // stages reuse their normal standing pose here rather than showing the
   // wrong-stage Adult art.
-  const MarmotArt* art = stage == Stage::Baby     ? &kBabyVariants[0]
-                          : stage == Stage::Juvenile ? &kJuvenileVariants[0]
-                                                      : &kMarmotSleepy[0];
+  const MarmotArt* art = stage == Stage::Baby       ? &kBabyVariants[0]
+                         : stage == Stage::Juvenile ? &kJuvenileVariants[0]
+                                                    : &kMarmotSleepy[0];
   int cx = SCREEN_W / 2;
   int by = SCREEN_H / 2 + 40;
   int bx = cx - art->w / 2;
@@ -1239,7 +1259,6 @@ void renderSleep(Stage stage) {
 
   epd.endFrame(true);
 }
-
 
 void hibernate() { epd.sleep(); }
 

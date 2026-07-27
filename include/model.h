@@ -61,9 +61,9 @@ struct CreatureState {
   uint8_t hunger;     // 0 = full, 100 = starving
   uint8_t happiness;  // 0..100
   uint8_t energy;     // 0..100 -- decays like happiness, refilled by feeding
-                       // (more so by protein/fat-rich food kinds; see
-                       // creature::feedEffectForKind())
-  time_t lastFed;      // epoch, 0 = never
+                      // (more so by protein/fat-rich food kinds; see
+                      // creature::feedEffectForKind())
+  time_t lastFed;     // epoch, 0 = never
 
   /**
    * Epoch of the last "play" interaction -- feeding or resolving a wake-time
@@ -126,4 +126,12 @@ struct AppContext {
    * baby-appropriate event pool.
    */
   uint8_t stage = 0;
+
+  /**
+   * 0-100, read fresh each wake in main.cpp's buildContext() from the
+   * BATT_ADC voltage divider (see config.h) -- not persisted, since it's
+   * cheap to re-read and would go stale across the days between wakes
+   * otherwise.
+   */
+  uint8_t batteryPercent = 0;
 };
