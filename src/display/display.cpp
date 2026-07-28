@@ -4,7 +4,7 @@
 #include <math.h>
 
 #include <algorithm>
-#include <cstring>
+#include <string>
 
 #include "bitmaps/animals/bald_eagle_bitmap.h"
 #include "bitmaps/animals/banana_slug_bitmap.h"
@@ -232,28 +232,32 @@ static void textCentered(int x0, int w, int y, const char* s, uint8_t size = 1) 
   textAt(x0 + (w - (int)bw) / 2 - bx, y, s, size);
 }
 
+static void textAt(int x, int y, const std::string& s, uint8_t size = 1) {
+  textAt(x, y, s.c_str(), size);
+}
+
+static void textCentered(int x0, int w, int y, const std::string& s, uint8_t size = 1) {
+  textCentered(x0, w, y, s.c_str(), size);
+}
+
 // Word-wraps `s` into lines of at most `maxChars` characters (breaking on
 // spaces), drawing each line `size`*8+2 px apart starting at (x,y). Returns
 // the y coordinate just past the last line, for stacking content below it.
 static int textWrapped(int x, int y, int maxChars, const char* s, uint8_t size = 1) {
-  char line[64];
   int lineH = size * 8 + 2;
-  const char* p = s;
-  while (*p) {
+  std::string rest = s;
+  while (!rest.empty()) {
     int n = 0;
     int lastSpace = -1;
-    while (p[n] && n < maxChars) {
-      if (p[n] == ' ') lastSpace = n;
+    while (n < (int)rest.size() && n < maxChars) {
+      if (rest[n] == ' ') lastSpace = n;
       n++;
     }
-    if (p[n] && lastSpace >= 0) n = lastSpace;  // break at last space in range
-    int copyLen = n < (int)sizeof(line) - 1 ? n : (int)sizeof(line) - 1;
-    memcpy(line, p, copyLen);
-    line[copyLen] = '\0';
-    textAt(x, y, line, size);
+    if (n < (int)rest.size() && lastSpace >= 0) n = lastSpace;  // break at last space in range
+    textAt(x, y, rest.substr(0, n), size);
     y += lineH;
-    p += n;
-    while (*p == ' ') p++;
+    rest.erase(0, n);
+    while (!rest.empty() && rest.front() == ' ') rest.erase(0, 1);
   }
   return y;
 }
@@ -388,17 +392,16 @@ static const int NAV_Y = SCREEN_H - 14;
 
 static void drawNavBar(const char* leftLbl, const char* enterLbl, const char* rightLbl) {
   epd.drawFastHLine(4, NAV_Y - 4, SCREEN_W - 8, C_BLACK);
-  char buf[24];
-  snprintf(buf, sizeof(buf), "<%s", leftLbl);
-  textAt(4, NAV_Y, buf, 1);
+  std::string left = std::string("<") + leftLbl;
+  textAt(4, NAV_Y, left, 1);
   textCentered(0, SCREEN_W, NAV_Y, enterLbl, 1);
-  snprintf(buf, sizeof(buf), "%s>", rightLbl);
+  std::string right = std::string(rightLbl) + ">";
   int16_t bx, by;
   uint16_t bw, bh;
   epd.setFont(nullptr);
   epd.setTextSize(1);
-  epd.getTextBounds(buf, 0, NAV_Y, &bx, &by, &bw, &bh);
-  textAt(SCREEN_W - 4 - (int)bw, NAV_Y, buf, 1);
+  epd.getTextBounds(right.c_str(), 0, NAV_Y, &bx, &by, &bw, &bh);
+  textAt(SCREEN_W - 4 - (int)bw, NAV_Y, right, 1);
 }
 
 // Per-animal reference-photo artwork for the encounter screen, indexed the
@@ -556,10 +559,8 @@ static void renderMain(const AppContext& ctx) {
   textAt(8, 10, ctx.creature.name, 2);
   drawWeatherGlyph(SCREEN_W - 40, 8, ctx.weather);
 
-  char battBuf[6];
-  snprintf(battBuf, sizeof(battBuf), "%d%%", ctx.batteryPercent);
   drawBatteryIcon(SCREEN_W - 92, 10, ctx.batteryPercent);
-  textAt(SCREEN_W - 92 - 30, 12, battBuf, 1);
+  textAt(SCREEN_W - 92 - 30, 12, std::to_string(ctx.batteryPercent) + "%", 1);
 
   char buf[24];
   strftime(buf, sizeof(buf), "%a %b %d", &ctx.now);
@@ -586,8 +587,8 @@ static const char* const MONTH_ABBR[12] = {"Jan", "Feb", "Mar", "Apr", "May", "J
 
 // Renders a species' active months as compact ranges (e.g. "Jun-Aug, Oct")
 // instead of an unlabeled dot calendar.
-static void seasonText(const Forageable& f, char* buf, size_t bufSize) {
-  size_t written = 0;
+static std::string seasonText(const Forageable& f) {
+  std::string out;
   bool first = true;
   int m = 1;
   while (m <= 12) {
@@ -598,16 +599,15 @@ static void seasonText(const Forageable& f, char* buf, size_t bufSize) {
     int start = m;
     while (m <= 12 && foraging::inSeason(f, m)) m++;
     int end = m - 1;
-    if (!first && written < bufSize) written += snprintf(buf + written, bufSize - written, ", ");
-    if (written < bufSize) {
-      if (start == end)
-        written += snprintf(buf + written, bufSize - written, "%s", MONTH_ABBR[start - 1]);
-      else
-        written += snprintf(buf + written, bufSize - written, "%s-%s", MONTH_ABBR[start - 1],
-                            MONTH_ABBR[end - 1]);
+    if (!first) out += ", ";
+    out += MONTH_ABBR[start - 1];
+    if (start != end) {
+      out += "-";
+      out += MONTH_ABBR[end - 1];
     }
     first = false;
   }
+  return out;
 }
 
 static void renderForaging(const AppContext& ctx, int speciesIdx) {
@@ -629,15 +629,14 @@ static void renderForaging(const AppContext& ctx, int speciesIdx) {
   ev.exact = ctx.eventExact != 0;
   bool isMatch = events::eventMatchesSpecies(ev, f);
 
-  char posBuf[16];
   bool eaten = journal::hasEaten(foraging::indexAtRank(speciesIdx));
-  snprintf(posBuf, sizeof(posBuf), "%d/%d%s", speciesIdx + 1, foraging::browsableCount(),
-           eaten ? " (eaten)" : "");
+  std::string posBuf = std::to_string(speciesIdx + 1) + "/" +
+                        std::to_string(foraging::browsableCount()) + (eaten ? " (eaten)" : "");
   int16_t pbx, pby;
   uint16_t pbw, pbh;
   epd.setFont(nullptr);
   epd.setTextSize(1);
-  epd.getTextBounds(posBuf, 0, 6, &pbx, &pby, &pbw, &pbh);
+  epd.getTextBounds(posBuf.c_str(), 0, 6, &pbx, &pby, &pbw, &pbh);
   textAt(SCREEN_W - 8 - (int)pbw, 6, posBuf, 1);
 
   // Large centered icon -- the species art is the focal point of the view.
@@ -660,8 +659,7 @@ static void renderForaging(const AppContext& ctx, int speciesIdx) {
   textCentered(0, SCREEN_W, y, f.name, 2);
   y += 22;
 
-  char kindLine[40];
-  snprintf(kindLine, sizeof(kindLine), "%s - %s", f.kind, foraging::biomeName(f.biome));
+  std::string kindLine = std::string(f.kind) + " - " + foraging::biomeName(f.biome);
   textCentered(0, SCREEN_W, y, kindLine, 1);
   y += 16;
 
@@ -684,11 +682,7 @@ static void renderForaging(const AppContext& ctx, int speciesIdx) {
   textAt(8, y, "TIP:", 1);
   y = textWrapped(8, y + 12, 46, f.harvestTip, 1) + 8;
 
-  char seasonBuf[48];
-  seasonText(f, seasonBuf, sizeof(seasonBuf));
-  char seasonLine[64];
-  snprintf(seasonLine, sizeof(seasonLine), "SEASON: %s", seasonBuf);
-  textAt(8, y, seasonLine, 1);
+  textAt(8, y, "SEASON: " + seasonText(f), 1);
 
   if (isMatch) textCentered(0, SCREEN_W, y + 16, "MATCHES ACTIVE FIND!", 1);
 
@@ -717,9 +711,7 @@ static const char* stageName(Stage s) {
 }
 
 static void renderStatus(const AppContext& ctx) {
-  char titleBuf[40];
-  snprintf(titleBuf, sizeof(titleBuf), "%s - %s", ctx.creature.name, stageName((Stage)ctx.stage));
-  textAt(8, 10, titleBuf, 2);
+  textAt(8, 10, std::string(ctx.creature.name) + " - " + stageName((Stage)ctx.stage), 2);
 
   // Smaller than the Main view's mascot -- Status needs the vertical room
   // for four bars plus weather/streak text below it.
@@ -740,14 +732,15 @@ static void renderStatus(const AppContext& ctx) {
 
   if (ctx.weather.valid) {
     char buf[48];
-    snprintf(buf, sizeof(buf), "%s, %.0fC", ctx.weather.condition, ctx.weather.tempC);
+    snprintf(buf, sizeof(buf), "%s, %.0fC", ctx.weather.condition.c_str(), ctx.weather.tempC);
     textAt(20, 344, buf, 1);
   }
 
-  char progressBuf[48];
-  snprintf(progressBuf, sizeof(progressBuf), "Streak: %ud | Eaten: %d/%d",
-           ctx.creature.feedStreakDays, journal::totalEaten(), foraging::speciesCount());
-  textAt(20, 364, progressBuf, 1);
+  textAt(20, 364,
+         "Streak: " + std::to_string(ctx.creature.feedStreakDays) +
+             "d | Eaten: " + std::to_string(journal::totalEaten()) + "/" +
+             std::to_string(foraging::speciesCount()),
+         1);
 
   bool achievementsReachable = (Stage)ctx.stage == Stage::Adult;
   drawNavBar(achievementsReachable ? "Achievements" : "", "", "Main");
@@ -859,10 +852,9 @@ static void drawBadge(const BadgeDef& b, int cx, int cy) {
     textCentered(cx - r, r * 2, cy - 4, "?", 1);
   }
   textCentered(cx - 45, 90, cy + r + 4, b.name, 1);
-  char countBuf[12];
   int shown = b.count < b.threshold ? b.count : b.threshold;
-  snprintf(countBuf, sizeof(countBuf), "%d/%d", shown, b.threshold);
-  textCentered(cx - 45, 90, cy + r + 16, countBuf, 1);
+  textCentered(cx - 45, 90, cy + r + 16, std::to_string(shown) + "/" + std::to_string(b.threshold),
+               1);
 }
 
 static void renderAchievements(const AppContext& ctx) {
@@ -880,10 +872,11 @@ static void renderAchievements(const AppContext& ctx) {
   }
 
   int total = journal::totalEaten();
-  char buf[48];
-  snprintf(buf, sizeof(buf), "Species: %d/%d   Streak: %ud", total, foraging::speciesCount(),
-           ctx.creature.feedStreakDays);
-  textCentered(0, SCREEN_W, 46, buf, 1);
+  textCentered(0, SCREEN_W, 46,
+               "Species: " + std::to_string(total) + "/" +
+                   std::to_string(foraging::speciesCount()) +
+                   "   Streak: " + std::to_string(ctx.creature.feedStreakDays) + "d",
+               1);
 
   int herbalist = foraging::countEatenOfKind("green") + foraging::countEatenOfKind("herb") +
                   foraging::countEatenOfKind("flower") + foraging::countEatenOfKind("fern") +
@@ -997,9 +990,7 @@ void renderTransition(Stage newStage, const char* name) {
   }
 
   epd.beginFrame();
-  char headline[40];
-  snprintf(headline, sizeof(headline), "%s grew up!", name);
-  textCentered(0, SCREEN_W, 20, headline, 1);
+  textCentered(0, SCREEN_W, 20, std::string(name) + " grew up!", 1);
 
   const MarmotArt& art = (newStage == Stage::Juvenile) ? kJuvenileVariants[0] : kMarmotContent[0];
   int cx = SCREEN_W / 2;
@@ -1066,10 +1057,8 @@ void renderDeath(DeathCause cause) {
 void renderSettings(int selected, bool confirmPending, uint8_t batteryPercent) {
   epd.beginFrame();
   textAt(8, 10, "Settings", 2);
-  char battBuf[6];
-  snprintf(battBuf, sizeof(battBuf), "%d%%", batteryPercent);
   drawBatteryIcon(SCREEN_W - 52, 10, batteryPercent);
-  textAt(SCREEN_W - 52 - 30, 12, battBuf, 1);
+  textAt(SCREEN_W - 52 - 30, 12, std::to_string(batteryPercent) + "%", 1);
 
   if (confirmPending) {
     if (selected == 1) {
@@ -1084,9 +1073,7 @@ void renderSettings(int selected, bool confirmPending, uint8_t batteryPercent) {
   } else {
     const char* options[] = {"WiFi Networks", "Reset Game", "Power Off"};
     for (int i = 0; i < 3; i++) {
-      char line[24];
-      snprintf(line, sizeof(line), "%s %s", i == selected ? ">" : " ", options[i]);
-      textAt(20, 90 + i * 30, line, 1);
+      textAt(20, 90 + i * 30, std::string(i == selected ? "> " : "  ") + options[i], 1);
     }
     drawNavBar("Prev", "Select", "Next");
     textCentered(0, SCREEN_W, SCREEN_H - 34, "BACK = previous menu", 1);
@@ -1098,20 +1085,13 @@ void renderSettings(int selected, bool confirmPending, uint8_t batteryPercent) {
 // Short label for a grid cell -- printable characters show as themselves,
 // the control/toggle sentinels get a word so an empty-looking or sentinel
 // cell isn't mistaken for a rendering glitch.
-static void keyLabel(char c, char* out, size_t outSize) {
-  if (c == textentry::BACKSPACE) {
-    snprintf(out, outSize, "DEL");
-  } else if (c == textentry::DONE) {
-    snprintf(out, outSize, "OK");
-  } else if (c == textentry::SHIFT) {
-    snprintf(out, outSize, "SHIFT");
-  } else if (c == textentry::SYMBOLS) {
-    snprintf(out, outSize, "SYM");
-  } else if (c == ' ') {
-    snprintf(out, outSize, "SPACE");
-  } else {
-    snprintf(out, outSize, "%c", c);
-  }
+static std::string keyLabel(char c) {
+  if (c == textentry::BACKSPACE) return "DEL";
+  if (c == textentry::DONE) return "OK";
+  if (c == textentry::SHIFT) return "SHIFT";
+  if (c == textentry::SYMBOLS) return "SYM";
+  if (c == ' ') return "SPACE";
+  return std::string(1, c);
 }
 
 // A real on-screen keyboard grid (not a single blown-up character) -- every
@@ -1142,30 +1122,28 @@ void renderTextEntry(const char* prompt, const textentry::State& s) {
     int widths[16];
     int rowW = 0;
     for (int col = 0; col < rowLen; col++) {
-      char label[8];
-      keyLabel(textentry::charsetAt(s, idx + col), label, sizeof(label));
+      std::string label = keyLabel(textentry::charsetAt(s, idx + col));
       int16_t bx, by;
       uint16_t bw, bh;
-      epd.getTextBounds(label, 0, 0, &bx, &by, &bw, &bh);
+      epd.getTextBounds(label.c_str(), 0, 0, &bx, &by, &bw, &bh);
       widths[col] = std::max((int)bw + keyPad, minKeyW);
       rowW += widths[col];
     }
     int cx = (SCREEN_W - rowW) / 2;
     int cy = gridY + row * cellH;
     for (int col = 0; col < rowLen; col++, idx++) {
-      char label[8];
       char c = textentry::charsetAt(s, idx);
-      keyLabel(c, label, sizeof(label));
+      std::string label = keyLabel(c);
       int w = widths[col];
       int16_t bx, by;
       uint16_t bw, bh;
-      epd.getTextBounds(label, 0, 0, &bx, &by, &bw, &bh);
+      epd.getTextBounds(label.c_str(), 0, 0, &bx, &by, &bw, &bh);
       bool toggledOn = (c == textentry::SHIFT && s.caps) || (c == textentry::SYMBOLS && s.symbols);
       if (idx == s.pickerIndex) {
         epd.fillRect(cx + 1, cy + 1, w - 2, cellH - 2, C_BLACK);
         epd.setTextColor(C_WHITE);
         epd.setCursor(cx + (w - (int)bw) / 2, cy + (cellH - (int)bh) / 2);
-        epd.print(label);
+        epd.print(label.c_str());
         epd.setTextColor(C_BLACK);
       } else {
         if (toggledOn) epd.drawRect(cx + 1, cy + 1, w - 2, cellH - 2, C_BLACK);
@@ -1185,8 +1163,7 @@ void renderWifiMenu(int selected, bool confirmRemove) {
 
   int count = wifistore::count();
   if (confirmRemove && selected >= 0 && selected < count) {
-    char msg[48];
-    snprintf(msg, sizeof(msg), "Remove '%s'?", wifistore::at(selected).ssid);
+    std::string msg = std::string("Remove '") + wifistore::at(selected).ssid + "'?";
     textCentered(0, SCREEN_W, 160, msg, 1);
     drawNavBar("", "", "");
     textCentered(0, SCREEN_W, SCREEN_H - 34, "ENTER = Yes, BACK = No", 1);
@@ -1200,15 +1177,11 @@ void renderWifiMenu(int selected, bool confirmRemove) {
     y += 20;
   } else {
     for (int i = 0; i < count; i++) {
-      char line[40];
-      snprintf(line, sizeof(line), "%s %s", i == selected ? ">" : " ", wifistore::at(i).ssid);
-      textAt(20, y, line, 1);
+      textAt(20, y, std::string(i == selected ? "> " : "  ") + wifistore::at(i).ssid, 1);
       y += 18;
     }
   }
-  char addLine[20];
-  snprintf(addLine, sizeof(addLine), "%s Add Network", selected == count ? ">" : " ");
-  textAt(20, y, addLine, 1);
+  textAt(20, y, std::string(selected == count ? "> " : "  ") + "Add Network", 1);
 
   drawNavBar("Prev", "Select", "Next");
   textCentered(0, SCREEN_W, SCREEN_H - 34, "BACK = previous menu", 1);

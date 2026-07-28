@@ -2,6 +2,7 @@
 #include <Preferences.h>
 
 #include <algorithm>
+#include <string>
 
 #include "config.h"
 #include "creature.h"
@@ -78,7 +79,7 @@ static bool wifiRemoveConfirm = false;
 enum class TextEntryPurpose { None, MarmotName, WifiSsid, WifiPassword };
 static TextEntryPurpose tePurpose = TextEntryPurpose::None;
 static textentry::State teState;
-static char pendingWifiSsid[32];  // holds the SSID while its password is typed next
+static std::string pendingWifiSsid;  // holds the SSID while its password is typed next
 
 // Accelerating hold-to-scroll state for RIGHT on the Foraging view (see
 // loop()): a held press repeats faster the longer it's held, down to a
@@ -473,8 +474,8 @@ static void startTextEntry(TextEntryPurpose purpose, const char* initial) {
 static void finishTextEntry() {
   switch (tePurpose) {
     case TextEntryPurpose::MarmotName: {
-      const char* name = teState.buffer[0] ? teState.buffer : "Marmot";
-      strncpy(ctx.creature.name, name, sizeof(ctx.creature.name) - 1);
+      const std::string& name = teState.buffer.empty() ? "Marmot" : teState.buffer;
+      strncpy(ctx.creature.name, name.c_str(), sizeof(ctx.creature.name) - 1);
       ctx.creature.name[sizeof(ctx.creature.name) - 1] = '\0';
       creature::save(ctx.creature);
       tePurpose = TextEntryPurpose::None;
@@ -482,20 +483,19 @@ static void finishTextEntry() {
       break;
     }
     case TextEntryPurpose::WifiSsid: {
-      if (!teState.buffer[0]) {
+      if (teState.buffer.empty()) {
         // Blank SSID -- treat as cancelling out of "Add Network" rather
         // than prompting for a password nobody's going to use.
         tePurpose = TextEntryPurpose::None;
         display::renderWifiMenu(wifiSelected, false);
         break;
       }
-      strncpy(pendingWifiSsid, teState.buffer, sizeof(pendingWifiSsid) - 1);
-      pendingWifiSsid[sizeof(pendingWifiSsid) - 1] = '\0';
+      pendingWifiSsid = teState.buffer;
       startTextEntry(TextEntryPurpose::WifiPassword, "");
       break;
     }
     case TextEntryPurpose::WifiPassword: {
-      wifistore::add(pendingWifiSsid, teState.buffer);
+      wifistore::add(pendingWifiSsid.c_str(), teState.buffer.c_str());
       tePurpose = TextEntryPurpose::None;
       wifiSelected = 0;
       display::renderWifiMenu(wifiSelected, false);

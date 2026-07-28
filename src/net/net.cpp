@@ -118,9 +118,7 @@ WeatherData fetchWeather() {
   if (cur.isNull()) return w;
 
   w.tempC = cur["temp_C"].as<float>();
-  const char* desc = cur["weatherDesc"][0]["value"] | "Unknown";
-  strncpy(w.condition, desc, sizeof(w.condition) - 1);
-  w.condition[sizeof(w.condition) - 1] = '\0';
+  w.condition = cur["weatherDesc"][0]["value"] | "Unknown";
 
   float rain = cur["precipMM"].as<float>();
   for (JsonObject hr : doc["weather"][0]["hourly"].as<JsonArray>())

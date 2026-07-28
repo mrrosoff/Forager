@@ -1,7 +1,5 @@
 #include "textentry.h"
 
-#include <cstring>
-
 namespace textentry {
 
 // Three keyboard pages, each real QWERTY-shaped rows: lowercase letters
@@ -84,12 +82,10 @@ static const char* activePage(const State& s, int* outLen) {
 }
 
 void init(State& s, const char* initial, bool noDigits) {
-  s.len = 0;
-  s.buffer[0] = '\0';
-  if (initial && initial[0]) {
-    strncpy(s.buffer, initial, BUFFER_SIZE - 1);
-    s.buffer[BUFFER_SIZE - 1] = '\0';
-    s.len = (int)strlen(s.buffer);
+  s.buffer.clear();
+  if (initial) {
+    s.buffer = initial;
+    if ((int)s.buffer.size() > MAX_LEN) s.buffer.resize(MAX_LEN);
   }
   s.caps = false;
   s.symbols = false;
@@ -141,7 +137,7 @@ bool commit(State& s) {
   char c = current(s);
   if (c == DONE) return true;
   if (c == BACKSPACE) {
-    if (s.len > 0) s.buffer[--s.len] = '\0';
+    if (!s.buffer.empty()) s.buffer.pop_back();
     return false;
   }
   if (c == SHIFT) {
@@ -153,9 +149,8 @@ bool commit(State& s) {
     s.pickerIndex = 0;  // different page shape -- reset to a safe index
     return false;
   }
-  if (s.len < BUFFER_SIZE - 1) {
-    s.buffer[s.len++] = c;
-    s.buffer[s.len] = '\0';
+  if ((int)s.buffer.size() < MAX_LEN) {
+    s.buffer.push_back(c);
   }
   return false;
 }

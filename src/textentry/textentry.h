@@ -4,6 +4,8 @@
 // project needs free text with only 3 buttons and no keyboard.
 #pragma once
 
+#include <string>
+
 namespace textentry {
 
 // Not real printable characters -- sentinels appended after the printable
@@ -15,11 +17,10 @@ static const char DONE = 2;
 static const char SHIFT = 3;    // toggles uppercase letters
 static const char SYMBOLS = 4;  // toggles the symbols page (a "right shift")
 
-static const int BUFFER_SIZE = 32;
+static const int MAX_LEN = 31;  // matches the old fixed 32-byte buffer's usable length
 
 struct State {
-  char buffer[BUFFER_SIZE];
-  int len;
+  std::string buffer;
   int pickerIndex;  // position in the active page's charset
   bool caps;         // SHIFT toggle -- uppercase letters when true
   bool symbols;       // SYMBOLS toggle -- symbols page instead of letters

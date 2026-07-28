@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 
 #include "foraging.h"
 #include "journal.h"
@@ -250,12 +251,10 @@ const char* eventTitle(EventType type, bool negative) {
 
 // Capitalized display form of a Forageable::kind, e.g. "mushroom" -> "Mushroom".
 static const char* capitalizedKind(const char* kind) {
-  static char buf[24];
-  size_t i = 0;
-  for (; kind[i] && i < sizeof(buf) - 1; i++) buf[i] = kind[i];
-  buf[i] = '\0';
-  if (buf[0] >= 'a' && buf[0] <= 'z') buf[0] -= 32;
-  return buf;
+  static std::string buf;
+  buf = kind;
+  if (!buf.empty() && buf[0] >= 'a' && buf[0] <= 'z') buf[0] -= 32;
+  return buf.c_str();
 }
 
 const char* eventName(const PendingEvent& ev) {
