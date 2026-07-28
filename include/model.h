@@ -4,12 +4,14 @@
 #include <Arduino.h>
 #include <time.h>
 
+#include <string>
+
 struct WeatherData {
   bool valid;  // false if fetch/parse failed
   float tempC;
   float rainLast24hMm;
   bool postRain;  // recently wet == good foraging
-  char condition[40];
+  std::string condition;
 };
 
 // Rough PNW foraging region so the same monthly calendar can span very
