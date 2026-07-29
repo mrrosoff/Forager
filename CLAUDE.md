@@ -82,15 +82,20 @@ that didn't. `species_index.h` was *not* regenerated as part of this trim
 
 Everything persisted lives in one `Preferences` namespace, `"forager"`,
 opened independently (own `p.begin()`/`p.end()` block) in each of
-`creature.cpp`, `events.cpp`, and `journal.cpp` — no shared wrapper. Current
-keys: `hunger`, `happy`, `energy`, `lastFed`, `lastPlayed`, `birthDate`,
-`streak`, `streakDay`, `lastStage`, `name` (creature.cpp); `evType`, `evData`,
-`evExact`, `evLastAt`, `lastWake`, `engage` (events.cpp — pending-event +
-spawn-cooldown state, plus the engagement streak counter); `eaten`,
-`discovered` (journal.cpp, two parallel 32-byte species bitsets), plus
-simple lifetime counters (`animalSee`, `weatherEv`, `otherEv`, also
-journal.cpp). A single `Preferences::clear()` on `"forager"` wipes all of it
-at once, which is exactly what Settings → Reset Game relies on.
+`creature.cpp`, `events.cpp`, `journal.cpp`, and `minigames.cpp` — no shared
+wrapper. Current keys: `hunger`, `happy`, `energy`, `lastFed`, `lastPlayed`,
+`birthDate`, `streak`, `streakDay`, `lastStage`, `name` (creature.cpp);
+`evType`, `evData`, `evExact`, `evLastAt`, `lastWake`, `engage` (events.cpp —
+pending-event + spawn-cooldown state, plus the engagement streak counter);
+`eaten`, `discovered` (journal.cpp, two parallel 32-byte species bitsets),
+plus simple lifetime counters (`animalSee`, `weatherEv`, `otherEv`, also
+journal.cpp); `hsSnack`, `hsSimon`, `hsMemory`, `hsMaze`, `hsQuiz`,
+`mgSeen`, `stashG`, `stashS`, `stashR`, `stashF`, `stashYr` (minigames.cpp —
+one high score per game, indexed by the `Game` enum so that array's order
+tracks the enum's; a bitmask of which games have already shown their unlock
+screen; and the Winter Stash counts plus the last year settled). A single `Preferences::clear()` on
+`"forager"` wipes all of it at once, which is exactly what Settings → Reset
+Game relies on.
 
 ## Display: official Waveshare driver, 1-bit + dithering
 
@@ -189,6 +194,110 @@ regions get the same Bayer-dither pattern `dFillCircle`/etc. use elsewhere,
 so there's still a solid black "anchor" shape keeping each icon
 recognizable instead of an all-over stipple.
 
+## Minigames: turn-based only, and where the state lives
+
+`src/minigames/` is rules + state with no rendering and no button reading --
+`display::renderMinigames()` draws whatever screen the state says, and
+main.cpp's `handleMinigamesInput()` owns the buttons. Two consequences worth
+knowing before adding a sixth game:
+
+- **Nothing real-time.** A panel refresh is hundreds of milliseconds, so
+  every game is turn-based; the closest thing to action is Scree Run, and
+  even there sidesteps are free and only an explicit ENTER advances the
+  world. The two non-interactive playback screens (Marmot Says' sequence,
+  Burrow Hunt's swaps) run off a `MG_FRAME_MS` timer in loop() rather than a
+  blocking `delay()` loop, so BACK still quits mid-playback.
+- **View::Minigames doesn't go through `display::renderView()`** -- it needs
+  the game state, which `AppContext` deliberately doesn't carry. main.cpp's
+  `renderCurrent()` is the dispatcher every "redraw where we are" call site
+  goes through instead.
+
+**Nothing here can be scored on reaction time.** Several designs were tried
+and cut on exactly this point (a lane-dodger, a runner): a panel refresh is
+hundreds of milliseconds, so "moves on its own, press in time" is unplayable
+no matter how the constants are tuned. Every game in the roster was
+*already* turn-based before it got put on this device, which is the filter
+any sixth game has to pass too.
+
+**A shell game was also tried and cut, for a related reason**: three cups
+only works if you can *watch* them move, and rendering the swaps as discrete
+labelled frames ("burrows 1 and 2 traded, then 2 and 3") turns it into
+mental permutation arithmetic rather than the game anyone means by a shell
+game. Motion is not available here, so games that are *about* motion are
+out, not just games that are fast.
+
+The unlock ladder (see `minigames::isUnlocked()`) mixes two axes: Snack Hunt
+and Marmot Says from birth, Forest Memory at Juvenile, Burrow Maze at Adult,
+Species Quiz at 50 discovered species. Locked rows stay visible on the menu
+with their requirement and progress rather than being hidden, and
+`startMinigame()` refuses to start them. Crossing a threshold fires a
+one-time reveal (`display::renderMinigameUnlock()`), driven by the persisted
+`mgSeen` bitmask rather than by "is it unlocked right now", and checked both
+at wake and immediately after a Discovery resolves -- that's the one thing
+that can cross the species threshold mid-session.
+
+Three further constraints worth knowing:
+
+- **Forest Memory's card faces are flat silhouettes, never species photos**
+  (`drawForestIcon()`). A dithered photo at card size is unreadable speckle
+  -- the same finding that made the achievement badges flat icons -- and a
+  memory game where two faces can be confused is broken. Four of the six are
+  traced bitmaps in `include/bitmaps/tokens/` (from a reference image the
+  owner supplied; note these did **not** come through the Commons sourcing
+  pipeline the marmot/species/animal art uses, so don't assume the same
+  licensing applies if this ever ships beyond a personal device). The other
+  two are drawn to match. When adding a face, check it against the existing
+  five at card size first: the original sheet had two ferns and two
+  rosettes that were indistinguishable at 44px, which would have made the
+  game unwinnable-by-skill.
+- **Burrow Maze never asks for a direction.** Three buttons can't steer in
+  four, and turn-turn-step spends presses on rotating rather than deciding,
+  which is miserable at one refresh per press. Instead `mazeOptions()` lists
+  the tunnels actually leaving the current cell, LEFT/RIGHT cycle that short
+  list, ENTER commits, and `mazeAdvance()` walks the entire corridor to the
+  next junction in one go. One press is one *decision*, not one cell.
+- **Snack Hunt banks into NVS on every pick**, not at the end of a run (see
+  `snackPick()`), so abandoning a run mid-way never loses what it found --
+  the stash is a long-term stockpile, not a run score.
+- **No minigame draws from the foraging species table except the Quiz.**
+  Snack Hunt hands out generic den-stuffing (grass/leaves/twigs/flower) and
+  Forest Memory uses procedural forest tokens, both deliberately: the
+  Foraging view is where real species live, and a minigame paying out
+  "Chanterelle x3" would blur two systems that mean different things.
+- **The menu rows and unlock screens carry no icons.** Per-game emblems were
+  drawn and then pulled: at the ~14px a menu row affords, procedural icons
+  read as smudges beside crisp text and made the list look worse. Both
+  screens are typographic instead (name at size 2 over a hairline, size-3
+  name in a framed panel on the reveal).
+
+**The Winter Stash** is the one piece of state here that isn't a per-session
+score: Snack Hunt's finds accumulate in `stashG`/`stashL`/`stashT`/`stashF`
+across days, and the first December wake settles up
+(`stashResolveDue()`/`stashResolve()`, driven from main.cpp's
+`resolveWinterStashIfDue()`), applying a happiness/energy swing and clearing
+the pile for the next year. `stashYr` records the year already settled so a
+second December wake doesn't re-run it. The shortfall penalty is deliberately
+mild -- this is a goal to aim at, not a second way to kill the marmot -- and
+a marmot younger than `WINTER_GRACE_DAYS` at winter is exempt entirely,
+since a November hatchling never had a season to gather in.
+
+**Gathering is capped to one run per calendar day** (`stashDay`, checked in
+`startSnackRun()`). Without it the whole seasonal arc collapses: "play again"
+on the run-over screen is instant, so a determined evening would clear a
+three-week goal in one sitting. Later runs stay fully playable and still post
+high scores -- they just don't stock the pile, and the screen says so rather
+than silently discarding the finds. The day is claimed at the *start* of a
+run so quitting a bad run can't re-roll it, and
+`DEV_MODE_UNLOCK_MINIGAMES` bypasses the cap so testing isn't gated on the
+calendar.
+
+The Species Quiz's questions come from `minigames/quiz_facts.h`, a
+name-keyed bank of ~220 clues covering all 200 species, **deliberately not**
+the species table's `note`/`harvestTip` -- the Foraging view prints those
+verbatim, so quizzing on them would just test whether the player can page
+one screen left. Clues must never contain their own species' name; there's a
+one-off check for that worth re-running when entries are added.
+
 ## Hardware gotchas
 
 - Deep-sleep wake uses `esp_sleep_enable_ext1_wakeup()` (ANY_HIGH) across all
@@ -226,6 +335,12 @@ recognizable instead of an all-over stipple.
   it's set (confirmed happening: an immediate post-naming ForagingFind that
   couldn't be acknowledged via ENTER, by design, since ForagingFind only
   resolves by eating a matching species on Foraging).
+- `DEV_MODE_UNLOCK_MINIGAMES` — `minigames::isUnlocked()` returns true for
+  everything, so the whole games menu is playable without waiting on growth
+  stage or 50 discovered species. It does **not** touch the unlock *reveal*
+  screens: those run off the persisted `mgSeen` bitmask, so after a Reset
+  Game they all fire back-to-back on the next wake — annoying if you just
+  want to play, handy if you're proofreading them.
 - Both flip to `0` before any real gameplay testing session — flip back to
   `1` only while actively iterating on stage/growth-adjacent or hardware
   timing-adjacent features, and remember to flip back before handing the

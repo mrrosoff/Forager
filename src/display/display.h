@@ -1,6 +1,7 @@
 // display.h — all e-ink rendering: views, sprites, creature.
 #pragma once
 
+#include "minigames.h"
 #include "model.h"
 #include "textentry.h"
 
@@ -9,12 +10,49 @@ namespace display {
 // Initialize SPI (custom pins) and the e-ink panel. Call once after wake.
 void begin();
 
+// View::Minigames is NOT drawn by renderView() -- it needs the game state,
+// which model.h deliberately doesn't carry, so it has its own entry point
+// (see renderMinigames() below and renderCurrent() in main.cpp).
 // speciesIdx selects which entry the Foraging view shows. forceFullRefresh
 // overrides the normal "only the first frame after wake is a full refresh,
 // everything else is partial" behavior (see epd_adapter.h) -- used for a
 // mid-session event trigger (see main.cpp), where the new photo art
 // deserves a clean full draw instead of a partial-refresh update.
 void renderView(View v, const AppContext& ctx, int speciesIdx, bool forceFullRefresh = false);
+
+/**
+ * The Minigames view, at whatever screen its state says (menu, a playback
+ * frame, the player's turn, a quiz reveal, or the run-over summary) -- see
+ * minigames.h. Separate from renderView() because it needs that state;
+ * takes forceFullRefresh for the same reason Foraging does, since a run
+ * racks up a lot of partial refreshes.
+ */
+void renderMinigames(const AppContext& ctx, const minigames::State& s,
+                     bool forceFullRefresh = false);
+
+/**
+ * Winter settling-up for Snack Hunt's stockpile (see minigames::Stash),
+ * shown once on the first December wake. Caller blocks on ENTER, applies
+ * the reward or the shortfall, then clears the pile for next year.
+ */
+void renderWinterStash(bool made, bool grace, int points, const char* name);
+
+/**
+ * One-time "new minigame unlocked" reveal for g, shown the first time its
+ * condition is met (see minigames::pendingUnlocks()). `name` is the
+ * marmot's. Caller blocks on an ENTER press to acknowledge, same as the
+ * growth-transition screen.
+ */
+void renderMinigameUnlock(minigames::Game g, const char* name);
+
+/**
+ * The badge/streak wall. Reached through Settings (not the LEFT/RIGHT view
+ * cycle -- see View in model.h), so it draws its own frame like the other
+ * Settings sub-screens rather than being a renderView() case. Still gated
+ * on Adult: pre-Adult it shows a "come back once you're grown" message
+ * instead of the badges.
+ */
+void renderAchievements(const AppContext& ctx);
 
 // Full-screen sleeping marmot with a few drifting Zzz's -- shown right
 // before deep sleep, no text or nav bar, since the panel stays on this
@@ -43,9 +81,21 @@ void renderTransition(Stage newStage, const char* name);
  */
 void renderDeath(DeathCause cause);
 
-// Settings overlay -- selected: 0 = Power Off, 1 = Reset Game, 2 = WiFi
-// Networks. confirmPending shows a yes/no sub-screen for the destructive
-// Reset Game.
+// Settings menu rows, in the order they're drawn -- shared with main.cpp's
+// handleSettingsInput() so the "which row did they pick" branching doesn't
+// drift from what's on screen. Achievements lives here rather than in the
+// LEFT/RIGHT view cycle (see View in model.h).
+enum : int {
+  SETTINGS_ACHIEVEMENTS = 0,
+  SETTINGS_WIFI,
+  SETTINGS_RESET_GAME,
+  SETTINGS_POWER_OFF,
+  SETTINGS_OPTION_COUNT,
+};
+
+// Settings overlay -- selected indexes the SETTINGS_* rows above.
+// confirmPending shows a yes/no sub-screen for the two destructive rows
+// (Reset Game and Power Off).
 void renderSettings(int selected, bool confirmPending, uint8_t batteryPercent);
 
 // Blank white screen shown right before a Power Off (no wake source armed)

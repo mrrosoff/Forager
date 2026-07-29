@@ -10,27 +10,37 @@
 
 // Dev-mode: disable deep sleep entirely so the board stays on USB serial
 // while iterating. Flip to 0 before shipping.
-#define DEV_MODE_NO_SLEEP 0
+#define DEV_MODE_NO_SLEEP 1
 
 // Dev-mode: creature::computeStage() always returns Adult, skipping the
 // real-time Baby/Juvenile wait so Adult-only content (Foraging,
 // Achievements, the full adult pose pool) can be tested immediately. Flip
 // to 0 before shipping.
-#define DEV_MODE_SKIP_GROWTH 0
+#define DEV_MODE_SKIP_GROWTH 1
+
+// Dev-mode: minigames::isUnlocked() returns true for every game, so the
+// whole menu is playable regardless of growth stage or journal progress --
+// the games are otherwise gated behind Juvenile/Adult and 50 discovered
+// species, which is days of real play before some of them can be tested at
+// all. Doesn't touch the unlock *reveal* screens: those are driven by the
+// persisted `mgSeen` bitmask (see minigames::pendingUnlocks()), so with this
+// on they all fire on the next wake after a reset, one after another, which
+// is itself a convenient way to proofread them. Flip to 0 before shipping.
+#define DEV_MODE_UNLOCK_MINIGAMES 1
 
 // Dev-mode: journal::load() marks every species discovered (visible in the
 // Foraging browse list) on every wake, regardless of what's actually been
 // found -- lets Foraging/species-icon work be tested without grinding
 // Discovery events first. Doesn't affect eaten/growth-stage progress, only
 // visibility. Flip to 0 before shipping.
-#define DEV_MODE_UNLOCK_SPECIES 0
+#define DEV_MODE_UNLOCK_SPECIES 1
 
 // Dev-mode: foraging::rebuildBrowseOrder() sorts the Foraging list
 // alphabetically by name instead of by relevance score -- pairs with
 // DEV_MODE_UNLOCK_SPECIES for systematically paging through every species
 // (e.g. reviewing/replacing art) in a stable, predictable order. Flip to 0
 // before shipping.
-#define DEV_MODE_ALPHABETIZE_BROWSE 0
+#define DEV_MODE_ALPHABETIZE_BROWSE 1
 
 // Dev-mode: Foraging's browse position starts here instead of species 1 --
 // pairs with DEV_MODE_ALPHABETIZE_BROWSE for resuming a systematic
