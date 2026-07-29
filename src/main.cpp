@@ -701,6 +701,14 @@ void setup() {
   }
 
   if (firstBoot) {
+    // Blank the panel first -- this is the very first frame after
+    // display::begin(), so it gets a guaranteed full refresh (see
+    // EpdGFX::endFrame() in CLAUDE.md's display notes), wiping any stale
+    // content cleanly rather than partial-refreshing over it. Gives a brief
+    // window to power off with a genuinely blank screen (e.g. right after a
+    // fresh flash) before the birth reveal draws.
+    display::renderPowerOff();
+    delay(3000);
     display::renderBirth();
     // Require an explicit ENTER before jumping into naming -- otherwise the
     // reveal flashes by and the player's straight into text entry with no
