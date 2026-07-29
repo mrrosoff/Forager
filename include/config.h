@@ -10,7 +10,7 @@
 
 // Dev-mode: disable deep sleep entirely so the board stays on USB serial
 // while iterating. Flip to 0 before shipping.
-#define DEV_MODE_NO_SLEEP 1
+#define DEV_MODE_NO_SLEEP 0
 
 // Dev-mode: creature::computeStage() always returns Adult, skipping the
 // real-time Baby/Juvenile wait so Adult-only content (Foraging,
@@ -23,14 +23,14 @@
 // found -- lets Foraging/species-icon work be tested without grinding
 // Discovery events first. Doesn't affect eaten/growth-stage progress, only
 // visibility. Flip to 0 before shipping.
-#define DEV_MODE_UNLOCK_SPECIES 1
+#define DEV_MODE_UNLOCK_SPECIES 0
 
 // Dev-mode: foraging::rebuildBrowseOrder() sorts the Foraging list
 // alphabetically by name instead of by relevance score -- pairs with
 // DEV_MODE_UNLOCK_SPECIES for systematically paging through every species
 // (e.g. reviewing/replacing art) in a stable, predictable order. Flip to 0
 // before shipping.
-#define DEV_MODE_ALPHABETIZE_BROWSE 1
+#define DEV_MODE_ALPHABETIZE_BROWSE 0
 
 // Dev-mode: Foraging's browse position starts here instead of species 1 --
 // pairs with DEV_MODE_ALPHABETIZE_BROWSE for resuming a systematic
