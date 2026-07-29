@@ -7,6 +7,10 @@ weather/season and what's worth foraging right now. It sleeps almost all
 the time; ENTER wakes it, it refreshes, and it drops back to deep sleep
 after 60s idle. Neglect it for about a week and it dies.
 
+<p align="center">
+  <img src="assets/device.jpg" alt="Forager device: a hand-held e-ink marmot tamagotchi in a green 3D-printed enclosure" width="480">
+</p>
+
 ## Getting started
 
 ```sh
@@ -75,26 +79,6 @@ quirks, hardware gotchas, art-sourcing pipeline) not covered here.
   most paired with a real sourced photo.
 - **Animal sightings**: 25 PNW animals, 21 with a real photo.
 - **Achievement badges**: 9 flat icons from openly-licensed Commons sets.
-
-## Project layout
-
-```
-platformio.ini          Build config, board, libs, per-module include paths
-include/                Shared headers (config.h pins/tunables, model.h types,
-                         secrets.example.h, bitmaps/{animals,badges,marmot,species})
-src/
-  main.cpp                State machine: wake -> fetch -> render -> sleep
-  net/                    WiFi, NTP, weather fetch + parse
-  foraging/               PNW species reference table
-  creature/               Mood/growth/death logic, persisted stats
-  events/                 Wake-time interaction events + flavor text
-  journal/                Eaten/discovered species tracking, counters
-  display/                Rendering: views, dithering, nav bar, settings
-  textentry/              Shared on-screen QWERTY keyboard
-  wifistore/              Saved WiFi credentials (NVS-backed)
-  epd_official/           Vendored Waveshare driver (do not lint/format)
-enclosure/               OpenSCAD 3D-printable case (see file header)
-```
 
 ## Build / Format / Lint
 
