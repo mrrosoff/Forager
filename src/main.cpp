@@ -709,6 +709,16 @@ void setup() {
   }
 
   if (firstBoot) {
+#if DEV_MODE_SKIP_GROWTH
+    // DEV_MODE_SKIP_GROWTH already jumps straight to Adult content --
+    // skipping the interactive birth/naming flow too (auto-named "Marmot")
+    // means a dev testing Adult-only views doesn't have to click through
+    // naming via the physical buttons on every fresh boot/reset.
+    strncpy(ctx.creature.name, "Marmot", sizeof(ctx.creature.name) - 1);
+    ctx.creature.name[sizeof(ctx.creature.name) - 1] = '\0';
+    ctx.creature.named = true;
+    creature::save(ctx.creature);
+#else
     // Blank the panel first -- this is the very first frame after
     // display::begin(), so it gets a guaranteed full refresh (see
     // EpdGFX::endFrame() in CLAUDE.md's display notes), wiping any stale
@@ -746,6 +756,7 @@ void setup() {
       }
       delay(15);
     }
+#endif
   }
   if (pendingTransition) {
     display::renderTransition(transitionToStage, ctx.creature.name);
