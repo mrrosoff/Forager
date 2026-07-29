@@ -95,6 +95,17 @@ struct CreatureState {
   // Chosen at birth via the on-screen text entry (see textentry.h);
   // defaults to "Marmot" if the player leaves it blank.
   char name[16];
+
+  /**
+   * True once the birth-naming flow has actually completed (see main.cpp's
+   * finishTextEntry()) -- distinct from birthDate != 0, which gets
+   * persisted right away on first boot (before naming) so growth timing
+   * starts at the true creation moment. Without this separate flag, losing
+   * power mid-naming would leave birthDate already persisted, so the next
+   * boot's firstBoot check would incorrectly skip straight to Main with a
+   * default name instead of returning to the birth/naming screen.
+   */
+  bool named = false;
 };
 
 /**

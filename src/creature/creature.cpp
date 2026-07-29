@@ -26,6 +26,7 @@ void load(CreatureState& s) {
   strncpy(s.name, "Marmot", sizeof(s.name) - 1);  // default if never named yet
   s.name[sizeof(s.name) - 1] = '\0';
   p.getString("name", s.name, sizeof(s.name));
+  s.named = p.getBool("named", false);
   p.end();
   s.mood = Mood::Content;  // recomputed by evaluate()
 }
@@ -43,6 +44,7 @@ void save(const CreatureState& s) {
   p.putULong64("streakDay", (uint64_t)s.lastStreakDay);
   p.putUChar("lastStage", s.lastSeenStage);
   p.putString("name", s.name);
+  p.putBool("named", s.named);
   p.end();
 }
 

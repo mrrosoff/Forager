@@ -557,10 +557,13 @@ static void renderMain(const AppContext& ctx) {
   }
 
   textAt(8, 10, ctx.creature.name, 2);
-  drawWeatherGlyph(SCREEN_W - 40, 8, ctx.weather);
+  drawWeatherGlyph(SCREEN_W - 100, 8, ctx.weather);
 
-  drawBatteryIcon(SCREEN_W - 92, 10, ctx.batteryPercent);
-  textAt(SCREEN_W - 92 - 30, 12, std::to_string(ctx.batteryPercent) + "%", 1);
+  // Battery flush against the top-right corner (icon's right edge, nub
+  // included, lands at SCREEN_W - 8, matching the right margin other views
+  // use), with the weather glyph bumped further left to make room.
+  drawBatteryIcon(SCREEN_W - 30, 10, ctx.batteryPercent);
+  textAt(SCREEN_W - 60, 12, std::to_string(ctx.batteryPercent) + "%", 1);
 
   char buf[24];
   strftime(buf, sizeof(buf), "%a %b %d", &ctx.now);
