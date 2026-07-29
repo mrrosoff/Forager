@@ -38,6 +38,17 @@ FeedEffect feedEffectForKind(const char* kind);
 void feedForaged(CreatureState& s, time_t now, bool inSeason, const char* kind);
 
 /**
+ * Finishing a minigame run with a non-zero score counts as attention: a
+ * happiness bump scaled to the score (capped below what a single feed
+ * gives) plus a lastPlayed reset, so playing holds off the boredom/energy
+ * decay the same way feeding or resolving an event does. Hunger is
+ * untouched -- games aren't food. Applied at most once per wake session
+ * (see main.cpp's minigameRewarded flag) so a good run can't be replayed
+ * for unlimited happiness.
+ */
+void rewardMinigame(CreatureState& s, time_t now, int score);
+
+/**
  * Growth stage from distinct species foraged so far (journal::totalEaten(),
  * passed in rather than read directly so this module doesn't need to depend
  * on journal.h) -- see BABY_STAGE_SPECIES / ADULT_STAGE_SPECIES in config.h.

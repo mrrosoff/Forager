@@ -130,8 +130,8 @@ static int64_t dayIndex(time_t t) { return (int64_t)t / 86400; }
 // feedForaged() below), this only varies the secondary boost.
 FeedEffect feedEffectForKind(const char* kind) {
   static const char* const kTreatKinds[] = {"berry", "sap", "nut", "pine nut"};
-  static const char* const kProteinKinds[] = {"shellfish", "crab", "shrimp",
-                                               "snail",     "chiton", "urchin"};
+  static const char* const kProteinKinds[] = {"shellfish", "crab",   "shrimp",
+                                              "snail",     "chiton", "urchin"};
   for (const char* k : kTreatKinds) {
     if (strcmp(kind, k) == 0) return {20, 5};
   }
@@ -165,6 +165,19 @@ void feedForaged(CreatureState& s, time_t now, bool inSeason, const char* kind) 
   else {
     s.lastStreakDay = now;
   }
+}
+
+void rewardMinigame(CreatureState& s, time_t now, int score) {
+  if (score <= 0) return;
+  // Scales with how well the run went, but caps well under a feed's
+  // happiness bump -- playing is attention, not food, and shouldn't become
+  // a way to keep a never-fed marmot topped up. Deliberately leaves hunger
+  // alone for the same reason.
+  int boost = 4 + score * 2;
+  if (boost > 15) boost = 15;
+  int h = (int)s.happiness + boost;
+  s.happiness = (uint8_t)(h > 100 ? 100 : h);
+  s.lastPlayed = now;  // same boredom/energy clock feeding and events reset
 }
 
 /**

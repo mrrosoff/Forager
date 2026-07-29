@@ -109,13 +109,19 @@ struct CreatureState {
 };
 
 /**
- * Achievements sits LEFT of Status, Status LEFT of Main, Foraging RIGHT of
+ * Minigames sits LEFT of Status, Status LEFT of Main, Foraging RIGHT of
  * Main -- the numeric order here is what LEFT(-1)/RIGHT(+1) step through in
- * main.cpp. Achievements goes leftmost (not appended after Foraging) because
+ * main.cpp. Minigames goes leftmost (not appended after Foraging) because
  * Foraging's RIGHT button is fully consumed by accelerating hold-to-scroll,
- * so RIGHT can never reach a view past it.
+ * so RIGHT can never reach a view past it -- and because being leftmost
+ * frees up LEFT (dead at the end of the cycle) for the game menu's own
+ * selection stepping.
+ *
+ * Achievements used to be the leftmost view; it moved under Settings (see
+ * display::renderAchievements()) so the LEFT/RIGHT cycle stays four screens
+ * long with the minigames added.
  */
-enum class View : uint8_t { Achievements = 0, Status, Main, Foraging, COUNT };
+enum class View : uint8_t { Minigames = 0, Status, Main, Foraging, COUNT };
 
 struct AppContext {
   struct tm now;  // local time

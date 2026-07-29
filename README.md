@@ -56,17 +56,46 @@ from the rest) and not a wake source, so Settings only works once awake.
   each decay over about a week without feeding/interaction; any one maxing
   out (Hunger) or bottoming out (Happiness/Energy) kills the marmot and
   resets to a fresh birth.
-- **Views** (LEFT/RIGHT cycle, ENTER acts): Achievements ← Status ← **Main**
+- **Views** (LEFT/RIGHT cycle, ENTER acts): Minigames ← Status ← **Main**
   → Foraging. Main shows the marmot + mood + weather + pending events;
   Foraging pages the discovered species list and eats on ENTER; Status shows
-  the raw stats; Achievements (Adult only) shows 9 unlockable badges.
+  the raw stats.
+- **Minigames**: five turn-based games, unlocked as the marmot grows and the
+  journal fills — Snack Hunt and Marmot Says (from birth), Forest Memory
+  (Juvenile), Burrow Maze (Adult), and Species Quiz (50 species discovered).
+  Nothing here is scored on reaction time; the panel refresh makes that
+  unplayable, so every game is one that was always turn-based. Each keeps a
+  persisted high score, a scoring run bumps happiness once per wake, and
+  crossing an unlock threshold shows a one-time reveal screen.
+  - **Snack Hunt** — four bushes, rummage under one; each bush independently
+    hides something or nothing (~30% each), then all four lift so you see
+    what you walked past. Five picks a run.
+  - **Marmot Says** — Simon: repeat a growing LEFT/RIGHT/ENTER sequence.
+  - **Forest Memory** — concentration on a 4×3 grid of forest tokens, with a
+    miss budget.
+  - **Burrow Maze** — a 5×5 tunnel dig. Three buttons can't steer in four
+    directions, so it never asks for one: at each junction it lists the
+    tunnels out of that cell, LEFT/RIGHT cycle them, ENTER commits, and the
+    marmot walks the whole corridor by itself. One press per *decision*.
+  - **Species Quiz** — name a species from a clue, photo revealed on a right
+    answer.
+- **Winter Stash**: what Snack Hunt turns up (dry grass, leaves, twigs, the
+  odd wildflower — den-stuffing, deliberately not foraging species)
+  accumulates in a persisted stockpile across days. **Only the first run of
+  each calendar day stocks it**; later runs still play and still score, they
+  just don't gather, so the season's goal can't be ground out in one sitting.
+  Reach 120 points before December and the marmot dens up fat and content;
+  fall short and it goes into winter hungry — unless it was born within 60
+  days of winter, in which case it's let off, since it never had a season to
+  gather in. Settled once on the first December wake, then cleared for the
+  next year. Progress shows on the Status view as well as in the game.
 - **Wake-time events**: roughly every 6h of wall-clock time, a chance of a
   Discovery/sighting/find/mishap/weather/treasure/encounter event takes over
   the Main view until resolved. Frequent use raises the odds; browsing all
   views quickly guarantees one.
-- **Settings** (via SETTINGS button): WiFi Networks (add/remove, on-screen
-  keyboard), Reset Game (wipes progress, confirm required), Power Off (true
-  off, confirm required).
+- **Settings** (via SETTINGS button): Achievements (Adult only; 9 unlockable
+  badges), WiFi Networks (add/remove, on-screen keyboard), Reset Game (wipes
+  progress, confirm required), Power Off (true off, confirm required).
 
 See `CLAUDE.md` for implementation details (NVS layout, display driver
 quirks, hardware gotchas, art-sourcing pipeline) not covered here.
@@ -77,6 +106,10 @@ quirks, hardware gotchas, art-sourcing pipeline) not covered here.
 - **Weather**: [wttr.in](https://wttr.in) JSON for Seattle.
 - **Foraging reference**: 200 PNW species (`src/foraging/foraging_species.h`),
   most paired with a real sourced photo.
+- **Quiz clues**: a separate 322-entry bank covering all 200 species
+  (`src/minigames/quiz_facts.h`), written apart from the reference text so
+  the quiz isn't quoting a card you can page over to. 115 species carry two
+  or more clues, so meeting a familiar one again isn't the same question.
 - **Animal sightings**: 25 PNW animals, 21 with a real photo.
 - **Achievement badges**: 9 flat icons from openly-licensed Commons sets.
 

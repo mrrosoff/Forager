@@ -10,6 +10,7 @@
 #include "events.h"
 #include "foraging.h"
 #include "journal.h"
+#include "minigames.h"
 #include "model.h"
 #include "net.h"
 #include "textentry.h"
@@ -55,11 +56,37 @@ static Btn bSettings{PIN_BTN_SETTINGS, false, 0, false};
 /**
  * Settings overlay state (see loop()) -- not part of the View cycle, since
  * it's triggered by its own dedicated button rather than LEFT/RIGHT paging.
- * selectedOption: 0 = WiFi Networks, 1 = Reset Game, 2 = Power Off.
+ * selectedOption indexes display::SETTINGS_* (Achievements, WiFi Networks,
+ * Reset Game, Power Off).
  */
 static bool inSettings = false;
 static int selectedOption = 0;
 static bool confirmPending = false;
+
+/**
+ * Achievements sub-screen (under Settings). Purely a display -- LEFT/RIGHT/
+ * ENTER do nothing there, SETTINGS/KEY1 backs out to the Settings menu like
+ * every other sub-screen. It used to be the leftmost View (see View in
+ * model.h); it moved here when the minigames took that slot, since it's a
+ * read-only progress wall rather than something you interact with.
+ */
+static bool inAchievements = false;
+
+/**
+ * Minigames view state (see handleMinigamesInput()). The game menu and the
+ * runs themselves all live inside View::Minigames rather than being an
+ * overlay -- the marmot's still on the other views the whole time.
+ */
+static minigames::State mg;
+// Non-interactive playback frames (Marmot Says' sequence, Burrow Hunt's
+// swaps) advance on this timer. Long enough to actually read a frame on a
+// panel that takes a few hundred ms to refresh in the first place.
+static const uint32_t MG_FRAME_MS = 900;
+static uint32_t mgNextFrameMs = 0;
+// A finished run tops the marmot up at most once per wake (see
+// creature::rewardMinigame()) -- otherwise replaying a good run is a
+// happiness faucet.
+static bool minigameRewarded = false;
 
 /**
  * WiFi Networks sub-screen state (under Settings -- see handleWifiMenuInput()).
@@ -220,6 +247,7 @@ static bool buildContext() {
   creature::save(ctx.creature);
 
   journal::load();
+  minigames::load();
 
   Stage stage = creature::computeStage(journal::totalEaten());
   ctx.stage = (uint8_t)stage;
@@ -274,15 +302,18 @@ static bool pressed(Btn& b) {
   return fired;
 }
 
-// LEFT/RIGHT step backward/forward through Achievements <-> Status <-> Main
-// <-> Foraging, clamped at each end (no wraparound). Foraging is reachable
-// from birth now (growth is gated by species foraged, so a Baby has to be
-// able to forage). Achievements is hidden entirely until Adult (see
-// renderAchievements()'s old "Locked" message, replaced by just not
-// navigating there at all).
-static bool viewReachable(View v) {
-  if (v == View::Achievements && (Stage)ctx.stage != Stage::Adult) return false;
-  return true;
+/**
+ * Draws whatever the current view is. View::Minigames doesn't go through
+ * display::renderView() -- it needs the game state, which AppContext
+ * deliberately doesn't carry (see display.h) -- so every "redraw where we
+ * are" call site goes through here instead of calling renderView() directly.
+ */
+static void renderCurrent(bool forceFullRefresh = false) {
+  if (currentView == View::Minigames) {
+    display::renderMinigames(ctx, mg, forceFullRefresh);
+  } else {
+    display::renderView(currentView, ctx, forageIdx, forceFullRefresh);
+  }
 }
 
 // Rewards an actively-browsing session with a guaranteed event instead of
@@ -331,23 +362,30 @@ static bool bumpScreenChangeAndMaybeSpawn() {
 static void retreatView() {
   if ((int)currentView <= 0) return;
   View prev = (View)((int)currentView - 1);
-  if (!viewReachable(prev)) return;
   if (currentView == View::Foraging) forageIdx = DEV_MODE_SPECIES_BROWSE_START;
+  // Always arrive at Minigames on its menu, never mid-run -- a run can only
+  // be left via BACK (which already returns to the menu), but paging in
+  // shouldn't be able to resume a stale one either way.
+  if (prev == View::Minigames) mg.screen = minigames::Screen::Menu;
   currentView = prev;
   bool spawned = bumpScreenChangeAndMaybeSpawn();
-  display::renderView(currentView, ctx, forageIdx, spawned);
+  renderCurrent(spawned);
 }
 
 static void advanceView() {
   int n = (int)View::COUNT;
   if ((int)currentView >= n - 1) return;
   View next = (View)((int)currentView + 1);
-  if (!viewReachable(next)) return;
   if (next == View::Foraging) forageIdx = DEV_MODE_SPECIES_BROWSE_START;
   currentView = next;
   bool spawned = bumpScreenChangeAndMaybeSpawn();
-  display::renderView(currentView, ctx, forageIdx, spawned);
+  renderCurrent(spawned);
 }
+
+// Defined below (it needs the minigame render helpers) -- onEnter() calls it
+// because resolving a Discovery can cross a minigame's species threshold
+// mid-session, and the reveal should fire right then rather than next wake.
+static void showPendingMinigameUnlocks();
 
 // ENTER's action depends on the current view: resolve a pending sighting/
 // mishap/weather event on Main (ForagingFind events are NOT resolved here --
@@ -380,6 +418,7 @@ static void onEnter() {
         creature::evaluate(ctx.creature, ctx.now, ctx.weather);
         creature::save(ctx.creature);
         ctx.eventType = (uint8_t)events::EventType::None;
+        showPendingMinigameUnlocks();
         display::renderView(View::Main, ctx, forageIdx);
       }
       break;
@@ -449,6 +488,369 @@ static int forageHoldStepSize(int holdSteps) {
   return 10;
 }
 
+/**
+ * Blocks until ENTER is pressed and released, or the idle window runs out
+ * (in which case it sleeps, exactly like the birth/transition screens do --
+ * walking away mid-screen shouldn't burn battery). Shared by every
+ * acknowledge-this-and-continue reveal.
+ */
+static void waitForEnterOrSleep() {
+  uint32_t waitStart = millis();
+  while (digitalRead(PIN_BTN_ENTER) != HIGH) {
+    if (millis() - waitStart > INACTIVITY_SLEEP_MS) {
+      goToSleep();
+      return;  // only reached under DEV_MODE_NO_SLEEP, where goToSleep() is a no-op
+    }
+    delay(15);
+  }
+  // Wait for release too, so the press that acknowledged this screen can't
+  // also register as an edge on whatever comes next.
+  while (digitalRead(PIN_BTN_ENTER) == HIGH) delay(15);
+  bEnter.prev = false;
+}
+
+/**
+ * First December wake of the year: settle up the Winter Stash that Snack
+ * Hunt has been filling (see minigames::stashResolveDue()). Making the goal
+ * sends the marmot into the den fat and content; falling short costs it,
+ * though nowhere near enough to be fatal on its own -- the stockpile is a
+ * long-term goal to aim at, not a second way to lose the game.
+ */
+static void resolveWinterStashIfDue() {
+  int year = ctx.now.tm_year + 1900, month = ctx.now.tm_mon + 1;
+  if (!minigames::stashResolveDue(year, month)) return;
+  int points = minigames::stashPoints();
+  bool made = minigames::stashResolve(year);
+
+  // A marmot born in late autumn never had a season to gather in, so it
+  // isn't punished for a thin larder on a goal it couldn't have reached --
+  // it just gets told the winter came early. Measured from birth to now,
+  // which is within days of December 1st by definition here.
+  time_t nowUtc = time(nullptr);
+  int64_t daysAlive = ctx.creature.birthDate > 0 ? (nowUtc - ctx.creature.birthDate) / 86400 : 0;
+  bool grace = !made && daysAlive < minigames::WINTER_GRACE_DAYS;
+
+  display::renderWinterStash(made, grace, points, ctx.creature.name);
+  waitForEnterOrSleep();
+
+  int delta = made ? 25 : (grace ? 0 : -15);
+  int h = (int)ctx.creature.happiness + delta;
+  ctx.creature.happiness = (uint8_t)std::max(1, std::min(100, h));
+  if (made) {
+    int e = (int)ctx.creature.energy + 25;
+    ctx.creature.energy = (uint8_t)std::min(100, e);
+  }
+  creature::save(ctx.creature);
+}
+
+/**
+ * Shows one "new minigame unlocked" reveal per game that just became
+ * available, then redraws whatever was on screen. Called both at wake (for
+ * growth- and journal-driven unlocks that happened since last time) and
+ * right after a Discovery resolves, since that can cross the 25/50-species
+ * thresholds mid-session.
+ */
+static void showPendingMinigameUnlocks() {
+  uint8_t pending = minigames::pendingUnlocks((Stage)ctx.stage);
+  if (pending == 0) return;
+  for (int i = 0; i < (int)minigames::Game::COUNT; i++) {
+    if (!(pending & (1 << i))) continue;
+    display::renderMinigameUnlock((minigames::Game)i, ctx.creature.name);
+    minigames::markAnnounced((minigames::Game)i);
+    waitForEnterOrSleep();
+  }
+}
+
+/**
+ * Ends a minigame run: records the high score (see minigames::finishRun())
+ * and, the first time in this wake session, pays out the happiness/
+ * lastPlayed reward for a non-zero score.
+ */
+static void endMinigameRun() {
+  minigames::finishRun(mg);
+  if (!minigameRewarded && mg.score > 0) {
+    creature::rewardMinigame(ctx.creature, time(nullptr), mg.score);
+    creature::evaluate(ctx.creature, ctx.now, ctx.weather);
+    creature::save(ctx.creature);
+    minigameRewarded = true;
+  }
+}
+
+/**
+ * Starts a fresh run of `g` from the game menu (or from the Over screen's
+ * "play again"). Refuses to start a locked game, or one whose question pool
+ * turned out to be empty -- the caller stays on the menu in that case,
+ * where the row already says what it's waiting on.
+ */
+static bool startMinigame(minigames::Game g) {
+  if (!minigames::isUnlocked(g, (Stage)ctx.stage)) return false;
+  mg.game = g;
+  mg.score = 0;
+  mg.newBest = false;
+  switch (g) {
+    case minigames::Game::Snack:
+      // Day index, so only the first run of each calendar day stocks the
+      // stash (see minigames::startSnackRun()).
+      minigames::startSnackRun(mg, (int64_t)time(nullptr) / 86400);
+      mg.screen = minigames::Screen::Prompt;
+      break;
+    case minigames::Game::Simon:
+      mg.simon.len = 0;
+      minigames::startSimonRound(mg);
+      mg.screen = minigames::Screen::Sequence;
+      mgNextFrameMs = millis() + MG_FRAME_MS;
+      break;
+    case minigames::Game::Memory:
+      minigames::startMemoryBoard(mg);
+      mg.screen = minigames::Screen::Prompt;
+      break;
+    case minigames::Game::Maze:
+      minigames::startMaze(mg);
+      mg.screen = minigames::Screen::Prompt;
+      break;
+    default:
+      if (!minigames::startQuizRound(mg)) return false;
+      mg.screen = minigames::Screen::Prompt;
+      break;
+  }
+  renderCurrent(true);
+  return true;
+}
+
+/**
+ * The Minigames view's button handling, which mirrors how Foraging takes
+ * over RIGHT: on the game menu LEFT cycles the selection (it's otherwise
+ * dead, since Minigames is the leftmost view and retreatView() no-ops
+ * there) while RIGHT still pages on to Status; once a run starts the game
+ * owns all three buttons, and SETTINGS/KEY1 quits back to the menu (handled
+ * in loop() with the rest of the back-button dispatch).
+ *
+ * Returns true if anything happened, so the caller only resets the idle
+ * timer on real activity rather than on every poll.
+ */
+static bool handleMinigamesInput() {
+  using minigames::Screen;
+
+  if (mg.screen == Screen::Menu) {
+    bool acted = false;
+    if (pressed(bLeft)) {
+      mg.menuSel = (mg.menuSel + 1) % (int)minigames::Game::COUNT;
+      renderCurrent();
+      acted = true;
+    }
+    if (pressed(bRight)) {
+      advanceView();
+      return true;
+    }
+    if (pressed(bEnter)) {
+      // A locked (or unaskable) game just doesn't start -- its menu row
+      // already says what it's waiting on, so there's nothing to add.
+      acted = startMinigame((minigames::Game)mg.menuSel);
+    }
+    return acted;
+  }
+
+  if (mg.screen == Screen::Sequence) {
+    // Non-interactive frames: swallow any presses (so a mashed button
+    // doesn't queue up an answer) and advance on the frame timer.
+    pressed(bLeft);
+    pressed(bRight);
+    pressed(bEnter);
+    if (millis() < mgNextFrameMs) return false;
+    if (mg.game == minigames::Game::Simon) {
+      mg.simon.showIdx++;
+      if (mg.simon.showIdx >= mg.simon.len) {
+        // Playback just ran a burst of partial refreshes over the same
+        // region (one per call, plus a photo), which is exactly how
+        // ghosting accumulates -- and a ghost of the *last call shown* on
+        // the answer screen would be a genuine hint. Clean the panel before
+        // handing the turn over.
+        mg.screen = Screen::Prompt;
+        mgNextFrameMs = millis() + MG_FRAME_MS;
+        renderCurrent(true);
+        return true;
+      }
+    } else if (mg.game == minigames::Game::Memory) {
+      // The beat where both cards are face-up before a mismatch flips back.
+      if (minigames::memoryResolveTurn(mg)) {
+        mg.score++;
+        if (minigames::memoryBoardCleared(mg)) minigames::startMemoryBoard(mg);
+      } else if (mg.memory.missesLeft <= 0) {
+        endMinigameRun();
+        renderCurrent(true);
+        return true;
+      }
+      mg.screen = Screen::Prompt;
+    }
+    mgNextFrameMs = millis() + MG_FRAME_MS;
+    renderCurrent();
+    return true;
+  }
+
+  if (mg.screen == Screen::Reveal) {
+    if (!pressed(bEnter)) return false;
+    if (mg.game == minigames::Game::Snack) {
+      // Snack Hunt's reveal is the bushes lifted; ENTER moves on to the
+      // next set, or ends the run once the picks are spent.
+      if (mg.snack.picksLeft > 0) {
+        minigames::startSnackRound(mg);
+        mg.screen = Screen::Prompt;
+        // Same reasoning as the pick itself: bushes settling back down is a
+        // small change, not a new screen. The run-over screen below is a
+        // real page turn and still gets the full refresh.
+        renderCurrent();
+        return true;
+      }
+      endMinigameRun();
+    } else {
+      // A correct answer always has more questions behind it -- the pool the
+      // quiz draws from is whatever's discovered, which can't shrink mid-run.
+      minigames::startQuizRound(mg);
+      mg.screen = Screen::Prompt;
+    }
+    renderCurrent(true);
+    return true;
+  }
+
+  if (mg.screen == Screen::Over) {
+    if (!pressed(bEnter)) return false;
+    if (!startMinigame(mg.game)) {
+      mg.screen = Screen::Menu;
+      renderCurrent();
+    }
+    return true;
+  }
+
+  // Screen::Prompt -- the player's turn, per game.
+  switch (mg.game) {
+    case minigames::Game::Quiz: {
+      bool acted = false;
+      if (pressed(bLeft)) {
+        mg.choice.sel = (mg.choice.sel + 2) % 3;
+        acted = true;
+      }
+      if (pressed(bRight)) {
+        mg.choice.sel = (mg.choice.sel + 1) % 3;
+        acted = true;
+      }
+      if (pressed(bEnter)) {
+        if (minigames::choiceCorrect(mg, mg.choice.sel)) {
+          mg.score++;
+          mg.screen = Screen::Reveal;  // the photo, as the reward
+        } else {
+          endMinigameRun();
+        }
+        renderCurrent(true);  // both outcomes are a full-page change
+        return true;
+      }
+      if (acted) renderCurrent();
+      return acted;
+    }
+    case minigames::Game::Memory: {
+      const int cards = minigames::MemoryRound::CARDS;
+      bool acted = false;
+      if (pressed(bLeft)) {
+        mg.memory.sel = (mg.memory.sel + cards - 1) % cards;
+        acted = true;
+      }
+      if (pressed(bRight)) {
+        mg.memory.sel = (mg.memory.sel + 1) % cards;
+        acted = true;
+      }
+      if (pressed(bEnter) && minigames::memoryFlip(mg)) {
+        // Second card of the turn: hold both face-up on a timed frame so
+        // there's something to actually memorize before it flips back.
+        if (minigames::memoryTurnPending(mg)) {
+          mg.screen = Screen::Sequence;
+          mgNextFrameMs = millis() + MG_FRAME_MS * 2;
+        }
+        renderCurrent();
+        return true;
+      }
+      if (acted) renderCurrent();
+      return acted;
+    }
+    case minigames::Game::Snack: {
+      const int bushes = minigames::SnackRound::BUSHES;
+      bool acted = false;
+      if (pressed(bLeft)) {
+        mg.snack.sel = (mg.snack.sel + bushes - 1) % bushes;
+        acted = true;
+      }
+      if (pressed(bRight)) {
+        mg.snack.sel = (mg.snack.sel + 1) % bushes;
+        acted = true;
+      }
+      if (pressed(bEnter)) {
+        // Whatever turns up is banked into the persisted stash immediately
+        // (see minigames::snackPick()) -- a run can be abandoned mid-way
+        // without losing what it already found.
+        mg.score += minigames::snackPick(mg);
+        mg.screen = Screen::Reveal;
+        // Partial, not a forced full refresh: only the bushes and the line
+        // under them change, and a full-panel flash between "pick" and
+        // "here's what was under it" breaks the illusion that the bushes
+        // are being lifted rather than the screen being replaced.
+        renderCurrent();
+        return true;
+      }
+      if (acted) renderCurrent();
+      return acted;
+    }
+    case minigames::Game::Maze: {
+      int opts[4];
+      int nOpts = minigames::mazeOptions(mg, opts);
+      bool acted = false;
+      if (pressed(bLeft) && nOpts > 1) {
+        mg.maze.sel = (mg.maze.sel + nOpts - 1) % nOpts;
+        acted = true;
+      }
+      if (pressed(bRight) && nOpts > 1) {
+        mg.maze.sel = (mg.maze.sel + 1) % nOpts;
+        acted = true;
+      }
+      if (pressed(bEnter)) {
+        minigames::mazeAdvance(mg);
+        if (minigames::mazeSolved(mg)) {
+          mg.score++;
+          minigames::startMaze(mg);
+          renderCurrent(true);
+        } else if (mg.maze.movesLeft <= 0) {
+          endMinigameRun();
+          renderCurrent(true);
+        } else {
+          renderCurrent();
+        }
+        return true;
+      }
+      if (acted) renderCurrent();
+      return acted;
+    }
+    case minigames::Game::Simon: {
+      // All three read in one pass (not short-circuited) so every button's
+      // edge state stays current -- see pressed()'s prev bookkeeping.
+      bool l = pressed(bLeft), r = pressed(bRight), e = pressed(bEnter);
+      int button = l ? 0 : r ? 1 : e ? 2 : -1;
+      if (button < 0) return false;
+      if (!minigames::simonPress(mg, (uint8_t)button)) {
+        endMinigameRun();
+        renderCurrent(true);
+      } else if (minigames::simonRoundComplete(mg)) {
+        mg.score++;
+        minigames::startSimonRound(mg);
+        mg.screen = Screen::Sequence;
+        mgNextFrameMs = millis() + MG_FRAME_MS;
+        renderCurrent(true);
+      } else {
+        renderCurrent();
+      }
+      return true;
+    }
+    default:
+      return false;  // every game is handled above
+  }
+}
+
 static const char* textEntryPrompt(TextEntryPurpose p) {
   switch (p) {
     case TextEntryPurpose::MarmotName:
@@ -487,7 +889,7 @@ static void finishTextEntry() {
       ctx.creature.named = true;
       creature::save(ctx.creature);
       tePurpose = TextEntryPurpose::None;
-      display::renderView(currentView, ctx, forageIdx);
+      renderCurrent();
       break;
     }
     case TextEntryPurpose::WifiSsid: {
@@ -774,7 +1176,9 @@ void setup() {
     }
     pendingTransition = false;
   }
-  display::renderView(currentView, ctx, forageIdx);
+  resolveWinterStashIfDue();
+  showPendingMinigameUnlocks();
+  renderCurrent();
   log_i("Mood: %s", creature::moodName(ctx.creature.mood));
 
   lastActivityMs = millis();
@@ -783,9 +1187,10 @@ void setup() {
 // Settings overlay button handling -- takes over LEFT/RIGHT/ENTER entirely
 // while active (mirrors how Foraging already takes over RIGHT today).
 static void handleSettingsInput() {
+  const int n = display::SETTINGS_OPTION_COUNT;
   if (confirmPending) {
     if (pressed(bEnter)) {
-      if (selectedOption == 1) {
+      if (selectedOption == display::SETTINGS_RESET_GAME) {
         doResetGame();  // never returns -- esp_restart()
       } else {
         doPowerOff();  // never returns -- deep sleep with no wake source
@@ -794,15 +1199,18 @@ static void handleSettingsInput() {
     return;
   }
   if (pressed(bRight)) {
-    selectedOption = (selectedOption + 1) % 3;
+    selectedOption = (selectedOption + 1) % n;
     display::renderSettings(selectedOption, confirmPending, ctx.batteryPercent);
   }
   if (pressed(bLeft)) {
-    selectedOption = (selectedOption + 2) % 3;
+    selectedOption = (selectedOption + n - 1) % n;
     display::renderSettings(selectedOption, confirmPending, ctx.batteryPercent);
   }
   if (pressed(bEnter)) {
-    if (selectedOption == 0) {
+    if (selectedOption == display::SETTINGS_ACHIEVEMENTS) {
+      inAchievements = true;
+      display::renderAchievements(ctx);
+    } else if (selectedOption == display::SETTINGS_WIFI) {
       inWifiMenu = true;
       wifiSelected = 0;
       wifiRemoveConfirm = false;
@@ -824,12 +1232,19 @@ void loop() {
     // SETTINGS/KEY1 is "back" at whatever depth we're currently at, one
     // level per press -- confirm sub-screen -> its parent menu -> Settings
     // itself -> exit Settings entirely. Pressing it from outside Settings
-    // enters it fresh, same as before.
-    if (!inSettings) {
+    // enters it fresh, same as before -- except mid-minigame, where the
+    // run itself is the thing to back out of first.
+    if (!inSettings && currentView == View::Minigames && mg.screen != minigames::Screen::Menu) {
+      mg.screen = minigames::Screen::Menu;
+      renderCurrent();
+    } else if (!inSettings) {
       inSettings = true;
       selectedOption = 0;
       confirmPending = false;
       display::renderSettings(selectedOption, confirmPending, ctx.batteryPercent);
+    } else if (inAchievements) {
+      inAchievements = false;
+      display::renderSettings(selectedOption, false, ctx.batteryPercent);
     } else if (inWifiMenu) {
       if (wifiRemoveConfirm) {
         wifiRemoveConfirm = false;
@@ -843,15 +1258,24 @@ void loop() {
       display::renderSettings(selectedOption, confirmPending, ctx.batteryPercent);
     } else {
       inSettings = false;
-      display::renderView(currentView, ctx, forageIdx);
+      renderCurrent();
     }
     lastActivityMs = millis();
+  } else if (inAchievements) {
+    // Read-only wall -- LEFT/RIGHT/ENTER do nothing here, BACK is the only
+    // way out (handled above). Still drain their edge state so a press held
+    // through the transition doesn't fire once we're back in a menu.
+    pressed(bLeft);
+    pressed(bRight);
+    pressed(bEnter);
   } else if (inWifiMenu) {
     handleWifiMenuInput();
     lastActivityMs = millis();
   } else if (inSettings) {
     handleSettingsInput();
     lastActivityMs = millis();
+  } else if (currentView == View::Minigames) {
+    if (handleMinigamesInput()) lastActivityMs = millis();
   } else {
     if (pressed(bLeft)) {
       retreatView();
