@@ -206,8 +206,15 @@ static bool buildContext() {
   ctx.batteryPercent = readBatteryPercent();
 
   creature::load(ctx.creature);
-  bool firstBoot = (ctx.creature.birthDate == 0);
-  if (firstBoot) ctx.creature.birthDate = nowUtc;
+  // firstBoot tracks whether the birth/naming flow still needs to run --
+  // driven by `named`, not birthDate. birthDate gets persisted right away
+  // below (before naming completes) so growth timing starts at the true
+  // creation moment; if firstBoot were keyed off birthDate == 0, losing
+  // power mid-naming would skip straight to Main with a default name on the
+  // next boot instead of returning to the birth screen. See CreatureState::
+  // named's doc comment.
+  bool firstBoot = !ctx.creature.named;
+  if (ctx.creature.birthDate == 0) ctx.creature.birthDate = nowUtc;
 
   creature::evaluate(ctx.creature, ctx.now, ctx.weather);
   creature::save(ctx.creature);
@@ -477,6 +484,7 @@ static void finishTextEntry() {
       const std::string& name = teState.buffer.empty() ? "Marmot" : teState.buffer;
       strncpy(ctx.creature.name, name.c_str(), sizeof(ctx.creature.name) - 1);
       ctx.creature.name[sizeof(ctx.creature.name) - 1] = '\0';
+      ctx.creature.named = true;
       creature::save(ctx.creature);
       tePurpose = TextEntryPurpose::None;
       display::renderView(currentView, ctx, forageIdx);
@@ -731,6 +739,7 @@ void setup() {
       if (millis() - waitStart > INACTIVITY_SLEEP_MS) {
         strncpy(ctx.creature.name, "Marmot", sizeof(ctx.creature.name) - 1);
         ctx.creature.name[sizeof(ctx.creature.name) - 1] = '\0';
+        ctx.creature.named = true;
         creature::save(ctx.creature);
         tePurpose = TextEntryPurpose::None;
         break;
