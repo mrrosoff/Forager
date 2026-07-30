@@ -72,7 +72,13 @@ static uint8_t pickUndiscoveredSpecies() {
   for (int idx = 0; idx < count; idx++) {
     if (!journal::isDiscovered(idx)) return (uint8_t)idx;
   }
-  return 0;
+  // Nothing left undiscovered. Callers are supposed to check that first, so
+  // this is unreachable in normal play -- but it used to `return 0`, and
+  // species 0 is Dead Man's Fingers, so any path that did slip through
+  // showed that same species every single time (which is exactly how the
+  // bug was spotted). A random index at least degrades to noise rather
+  // than to one conspicuous wrong answer.
+  return (uint8_t)random(count);
 }
 
 // The actual type/dataId roll, shared by checkForEvent()'s probabilistic

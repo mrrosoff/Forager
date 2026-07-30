@@ -84,13 +84,15 @@ Everything persisted lives in one `Preferences` namespace, `"forager"`,
 opened independently (own `p.begin()`/`p.end()` block) in each of
 `creature.cpp`, `events.cpp`, `journal.cpp`, and `minigames.cpp` — no shared
 wrapper. Current keys: `hunger`, `happy`, `energy`, `lastFed`, `lastPlayed`,
-`birthDate`, `streak`, `streakDay`, `lastStage`, `name` (creature.cpp);
+`birthDate`, `streak`, `streakDay`, `lastStage`, `name`, `curio`, `lastCur` (creature.cpp
+— `curio`/`lastCur` are the curiosity stat and its own decay clock);
 `evType`, `evData`, `evExact`, `evLastAt`, `lastWake`, `engage` (events.cpp —
 pending-event + spawn-cooldown state, plus the engagement streak counter);
 `eaten`, `discovered` (journal.cpp, two parallel 32-byte species bitsets),
 plus simple lifetime counters (`animalSee`, `weatherEv`, `otherEv`, also
 journal.cpp); `hsSnack`, `hsSimon`, `hsMemory`, `hsMaze`, `hsQuiz`,
-`mgSeen`, `stashG`, `stashS`, `stashR`, `stashF`, `stashYr` (minigames.cpp —
+`mgSeen`, `stashG`, `stashL`, `stashT`, `stashF`, `stashYr`, `stashDay`
+(minigames.cpp —
 one high score per game, indexed by the `Game` enum so that array's order
 tracks the enum's; a bitmask of which games have already shown their unlock
 screen; and the Winter Stash counts plus the last year settled). A single `Preferences::clear()` on
@@ -202,10 +204,11 @@ main.cpp's `handleMinigamesInput()` owns the buttons. Two consequences worth
 knowing before adding a sixth game:
 
 - **Nothing real-time.** A panel refresh is hundreds of milliseconds, so
-  every game is turn-based; the closest thing to action is Scree Run, and
-  even there sidesteps are free and only an explicit ENTER advances the
-  world. The two non-interactive playback screens (Marmot Says' sequence,
-  Burrow Hunt's swaps) run off a `MG_FRAME_MS` timer in loop() rather than a
+  every game is turn-based; the closest thing to pressure is Burrow Maze's
+  rising meltwater, and even that is counted in moves rather than seconds --
+  nothing advances until a button is pressed. The two non-interactive playback screens (Marmot Says' sequence,
+  Forest Memory's look-at-both-cards beat) run off a `MG_FRAME_MS` timer in
+  loop() rather than a
   blocking `delay()` loop, so BACK still quits mid-playback.
 - **View::Minigames doesn't go through `display::renderView()`** -- it needs
   the game state, which `AppContext` deliberately doesn't carry. main.cpp's
@@ -238,6 +241,22 @@ that can cross the species threshold mid-session.
 
 Three further constraints worth knowing:
 
+- **The games' small art is flat silhouettes, and that was settled
+  empirically.** Photos were tried first, at the owner's request, and the
+  result is recorded here so it isn't retried blind: 63 Commons candidates
+  across 7 subjects, scored by border variance, run through the marmot
+  pipeline (gamma 0.55 + Floyd-Steinberg) produced *nothing usable* at 56px
+  **or at 112px**, and thresholding them instead gave blobs. The reason
+  matters -- the marmot photos work because a marmot is one form with a
+  strong outline, whereas grass, leaves, wood and cone scales **are**
+  texture, so there's no silhouette for dithering to preserve. Photos remain
+  the right choice above ~112px with a clear subject: Simon's marmot, the
+  Quiz's species art, and Snack Hunt's predator reveal all use them.
+  The silhouettes come from named icon sets on Commons, fetched by exact
+  filename (a text search for "X silhouette" returns landscape photos and is
+  useless): **Noto Emoji v2.034**, which is Google's monochrome release, and
+  **Font Awesome 5 solid**. See `include/bitmaps/tokens/`, where each header
+  records its source glyph.
 - **Forest Memory's card faces are flat silhouettes, never species photos**
   (`drawForestIcon()`). A dithered photo at card size is unreadable speckle
   -- the same finding that made the achievement badges flat icons -- and a
@@ -341,6 +360,11 @@ one-off check for that worth re-running when entries are added.
   screens: those run off the persisted `mgSeen` bitmask, so after a Reset
   Game they all fire back-to-back on the next wake — annoying if you just
   want to play, handy if you're proofreading them.
+- `DEV_MODE_SHOW_ALL_CONTENT` — Snack Hunt deals bushes from a fixed list
+  covering every possible content (empty, each stash kind, every critter,
+  every predator) instead of rolling, and Forest Memory deals every card
+  face-up. Purely for proofreading the art without grinding for a rare
+  outcome; it makes Memory trivially winnable, which is the point.
 - Both flip to `0` before any real gameplay testing session — flip back to
   `1` only while actively iterating on stage/growth-adjacent or hardware
   timing-adjacent features, and remember to flip back before handing the

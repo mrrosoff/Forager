@@ -78,10 +78,16 @@ static bool inAchievements = false;
  * overlay -- the marmot's still on the other views the whole time.
  */
 static minigames::State mg;
-// Non-interactive playback frames (Marmot Says' sequence, Burrow Hunt's
-// swaps) advance on this timer. Long enough to actually read a frame on a
-// panel that takes a few hundred ms to refresh in the first place.
-static const uint32_t MG_FRAME_MS = 900;
+/**
+ * Non-interactive playback frames (Marmot Says' sequence, Forest Memory's
+ * look-at-both-cards beat) advance on this timer.
+ *
+ * 900ms was too fast: the panel spends a few hundred of those milliseconds
+ * refreshing, so consecutive frames read as one continuous flicker rather
+ * than as distinct calls -- and a sequence you can't visually separate is
+ * one you can't memorise. 2000ms leaves a clearly still frame between flips.
+ */
+static const uint32_t MG_FRAME_MS = 2000;
 static uint32_t mgNextFrameMs = 0;
 // A finished run tops the marmot up at most once per wake (see
 // creature::rewardMinigame()) -- otherwise replaying a good run is a
@@ -243,7 +249,7 @@ static bool buildContext() {
   bool firstBoot = !ctx.creature.named;
   if (ctx.creature.birthDate == 0) ctx.creature.birthDate = nowUtc;
 
-  creature::evaluate(ctx.creature, ctx.now, ctx.weather);
+  creature::evaluate(ctx.creature, ctx.now, ctx.weather, (Stage)ctx.stage);
   creature::save(ctx.creature);
 
   journal::load();
@@ -404,6 +410,9 @@ static void onEnter() {
         if (ev.type == events::EventType::Discovery) {
           journal::markDiscovered(ev.dataId);
           journal::save();
+          // The one curiosity source available from birth, before either
+          // species minigame unlocks.
+          creature::rewardDiscovery(ctx.creature, time(nullptr));
           foraging::rebuildBrowseOrder(ctx.now.tm_mon + 1, ctx.weather.postRain);
         } else if (ev.type == events::EventType::AnimalSighting) {
           journal::bumpAnimalSightings();
@@ -415,7 +424,7 @@ static void onEnter() {
           journal::bumpOtherEvents();
         }
         events::resolve(ev, ctx.creature, time(nullptr));
-        creature::evaluate(ctx.creature, ctx.now, ctx.weather);
+        creature::evaluate(ctx.creature, ctx.now, ctx.weather, (Stage)ctx.stage);
         creature::save(ctx.creature);
         ctx.eventType = (uint8_t)events::EventType::None;
         showPendingMinigameUnlocks();
@@ -439,7 +448,7 @@ static void onEnter() {
         events::resolve(ev, ctx.creature, time(nullptr));
         ctx.eventType = (uint8_t)events::EventType::None;
       }
-      creature::evaluate(ctx.creature, ctx.now, ctx.weather);
+      creature::evaluate(ctx.creature, ctx.now, ctx.weather, (Stage)ctx.stage);
       creature::save(ctx.creature);
       display::renderView(View::Foraging, ctx, forageIdx);
       break;
@@ -566,14 +575,36 @@ static void showPendingMinigameUnlocks() {
  * and, the first time in this wake session, pays out the happiness/
  * lastPlayed reward for a non-zero score.
  */
+/**
+ * Which bar each game feeds. Every lethal stat has a game attached, so no
+ * bar can run down with nothing the player can do about it: Snack Hunt turns
+ * up food, Marmot Says is company, Burrow Maze is exercise, and the two
+ * species games are the only things that feed curiosity.
+ */
+static creature::Stat statForGame(minigames::Game g) {
+  switch (g) {
+    case minigames::Game::Snack:
+      return creature::Stat::Hunger;
+    case minigames::Game::Maze:
+      return creature::Stat::Energy;
+    case minigames::Game::Memory:
+    case minigames::Game::Quiz:
+      return creature::Stat::Curiosity;
+    default:
+      return creature::Stat::Happiness;
+  }
+}
+
 static void endMinigameRun() {
   minigames::finishRun(mg);
-  if (!minigameRewarded && mg.score > 0) {
-    creature::rewardMinigame(ctx.creature, time(nullptr), mg.score);
-    creature::evaluate(ctx.creature, ctx.now, ctx.weather);
-    creature::save(ctx.creature);
-    minigameRewarded = true;
-  }
+  // Every finished run resets lastPlayed (which lifts the happiness/energy
+  // ceilings), but the stat top-up itself is once per wake -- pass 0 after
+  // that so replaying can't farm it.
+  int score = minigameRewarded ? 0 : mg.score;
+  creature::rewardMinigame(ctx.creature, time(nullptr), score, statForGame(mg.game));
+  if (score > 0) minigameRewarded = true;
+  creature::evaluate(ctx.creature, ctx.now, ctx.weather, (Stage)ctx.stage);
+  creature::save(ctx.creature);
 }
 
 /**
@@ -595,8 +626,7 @@ static bool startMinigame(minigames::Game g) {
       mg.screen = minigames::Screen::Prompt;
       break;
     case minigames::Game::Simon:
-      mg.simon.len = 0;
-      minigames::startSimonRound(mg);
+      minigames::startSimonRun(mg);
       mg.screen = minigames::Screen::Sequence;
       mgNextFrameMs = millis() + MG_FRAME_MS;
       break;

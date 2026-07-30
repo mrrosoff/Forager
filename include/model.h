@@ -65,7 +65,17 @@ struct CreatureState {
   uint8_t energy;     // 0..100 -- decays like happiness, refilled by feeding
                       // (more so by protein/fat-rich food kinds; see
                       // creature::feedEffectForKind())
-  time_t lastFed;     // epoch, 0 = never
+  /**
+   * 0..100. Unlike the three above this one is NOT lethal (see
+   * creature::checkDeath()) -- it's the "is there anything interesting going
+   * on" stat, raised by the two species games and by discoveries, and
+   * decaying on its own clock. The Status bar adds a transient weather bonus
+   * on top at render time (see display's curiosityDisplay()); only this base
+   * value is persisted, so good weather can't inflate the save.
+   */
+  uint8_t curiosity;
+
+  time_t lastFed;  // epoch, 0 = never
 
   /**
    * Epoch of the last "play" interaction -- feeding or resolving a wake-time
@@ -74,6 +84,11 @@ struct CreatureState {
    * still neglect it by never resolving events.
    */
   time_t lastPlayed;
+
+  // Epoch of the last curiosity-feeding activity -- a species game or a
+  // Discovery. Curiosity decays from here, on its own slower clock, rather
+  // than sharing lastPlayed with happiness and energy.
+  time_t lastCurious;
 
   time_t birthDate;  // epoch, 0 = never born yet (first-ever boot sentinel)
 

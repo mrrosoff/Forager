@@ -98,10 +98,22 @@
 #include "bitmaps/marmot/marmot_variant9_bitmap.h"
 #include "bitmaps/marmot/marmot_variant9_small_bitmap.h"
 #include "bitmaps/species/species_index.h"
-#include "bitmaps/tokens/token_agave.h"
-#include "bitmaps/tokens/token_eucalyptus.h"
+#include "bitmaps/tokens/token_beetle.h"
+#include "bitmaps/tokens/token_bloom.h"
+#include "bitmaps/tokens/token_branch.h"
+#include "bitmaps/tokens/token_bush.h"
+#include "bitmaps/tokens/token_cricket.h"
+#include "bitmaps/tokens/token_eyes.h"
 #include "bitmaps/tokens/token_fern.h"
-#include "bitmaps/tokens/token_succulent.h"
+#include "bitmaps/tokens/token_grass.h"
+#include "bitmaps/tokens/token_leaf.h"
+#include "bitmaps/tokens/token_leafpile.h"
+#include "bitmaps/tokens/token_lizard.h"
+#include "bitmaps/tokens/token_marmot.h"
+#include "bitmaps/tokens/token_spider.h"
+#include "bitmaps/tokens/token_toadstool.h"
+#include "bitmaps/tokens/token_tree.h"
+#include "bitmaps/tokens/token_wood.h"
 #include "config.h"
 #include "creature.h"
 #include "epd_adapter.h"
@@ -329,7 +341,15 @@ static int8_t pickVariant(int8_t& cache, int count) {
 // Returns the top pixel row the art was drawn at, so callers can position
 // things (like the Main view's thought bubble) relative to the actual pose
 // height instead of a fixed offset that leaves a gap above shorter poses.
-static int drawCreature(int cx, int groundY, Mood mood, Stage stage, bool small = false) {
+// The pixel rectangle a pose actually occupies. Poses differ a lot in width
+// and height, so anything positioned relative to the marmot (the thought
+// bubble) has to read this rather than assume a fixed spot.
+struct ArtBox {
+  int x, y, w, h;
+};
+
+static int drawCreature(int cx, int groundY, Mood mood, Stage stage, bool small = false,
+                        ArtBox* box = nullptr) {
   if (stage == Stage::Baby || stage == Stage::Juvenile) {
     static int8_t babyVariant = -1;
     static int8_t juvenileVariant = -1;
@@ -341,6 +361,7 @@ static int drawCreature(int cx, int groundY, Mood mood, Stage stage, bool small 
     int bx = cx - art.w / 2;
     int by = groundY - art.groundY;
     epd.drawBitmap(bx, by, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
+    if (box) *box = {bx, by, art.w, art.h};
     return by;
   }
 
@@ -388,6 +409,7 @@ static int drawCreature(int cx, int groundY, Mood mood, Stage stage, bool small 
   int bx = cx - art->w / 2;
   int by = groundY - art->groundY;
   epd.drawBitmap(bx, by, art->bitmap, art->w, art->h, C_BLACK, C_WHITE);
+  if (box) *box = {bx, by, art->w, art->h};
   return by;
 }
 
@@ -471,13 +493,25 @@ static void renderEncounter(const AppContext& ctx, const events::PendingEvent& e
     textAt(16, y, "Stay alert!", 1);
     y += 16;
   }
-  // ForagingFind isn't resolved by ENTER here (see main.cpp's onEnter()) --
-  // its effect only happens on Foraging, so no preview for it.
-  if (ev.type != events::EventType::ForagingFind) {
+  // A ForagingFind is the one event ENTER does NOT resolve -- it clears by
+  // eating something matching on the Foraging view (see onEnter()). So it
+  // gets instructions instead of an effect preview, and the nav bar must not
+  // offer "Acknowledge": a screen that advertises a button which does nothing,
+  // and never says what does work, reads as a locked-up game.
+  bool isFind = ev.type == events::EventType::ForagingFind;
+  if (isFind) {
+    y += 4;
+    textAt(16, y, "To settle this:", 1);
+    y += 14;
+    y = textWrapped(16, y, 40,
+                    ev.exact ? "Find this exact species on the Foraging list and eat it."
+                             : "Eat anything of this kind from the Foraging list.",
+                    1);
+  } else {
     textAt(16, y, events::eventEffectPreview(ev), 1);
   }
 
-  drawNavBar("Status", "Acknowledge", "Foraging");
+  drawNavBar("Status", isFind ? "" : "Acknowledge", "Foraging");
 }
 
 // Short, wholesome flavor lines for the occasional Main-view thought
@@ -530,13 +564,21 @@ static void pickThoughtPool(Stage stage, const CreatureState& creature, const ch
 }
 
 /**
- * artTopY is the top pixel row of the marmot pose (drawCreature()'s return
- * value). The bubble is filled white and drawn *after* the creature, so it
- * erases whatever it covers -- it has to stay clear of the art rather than
- * merely on-screen.
+ * Places the bubble up and to the right of the marmot's head, with the tail
+ * circles rising that way -- the classic comic reading, and consistent no
+ * matter which pose is up.
+ *
+ * What moves per pose is the *origin*. Poses vary by ~80px in width and
+ * ~200px in height (a standing marmot vs. a wide lounging one), so the head
+ * is in a very different place each time; anchoring off the art box's
+ * top-right region tracks it, where the old fixed x=235 anchor left the tail
+ * pointing at nothing and the bubble looking centred over a low, wide pose.
+ *
+ * The box is filled white and drawn after the creature, so it erases what it
+ * covers -- overlapping the pose's upper right is fine and reads as being in
+ * front, but it's clamped to stay on the panel and below the header rows.
  */
-static void maybeDrawThoughtBubble(int headX, int headY, int artTopY, Stage stage,
-                                   const CreatureState& creature) {
+static void maybeDrawThoughtBubble(const ArtBox& art, Stage stage, const CreatureState& creature) {
   static int8_t roll = -1;
   static int8_t thoughtIdx = -1;
   const char* const* pool;
@@ -549,43 +591,70 @@ static void maybeDrawThoughtBubble(int headX, int headY, int artTopY, Stage stag
   if (roll == 0) return;
 
   const char* thought = pool[thoughtIdx % count];
-  int16_t bx, by;
-  uint16_t bw, bh;
+
+  // Wrapped to two lines when it's long. A one-line bubble for a 32-character
+  // thought is ~200px wide, which crowds out any room to sit beside the pose;
+  // splitting at the space nearest the middle roughly halves the width.
+  std::string line1 = thought, line2;
+  if (line1.size() > 18) {
+    size_t mid = line1.size() / 2, best = std::string::npos;
+    for (size_t i = 0; i < line1.size(); i++) {
+      if (line1[i] != ' ') continue;
+      if (best == std::string::npos ||
+          (i > mid ? i - mid : mid - i) < (best > mid ? best - mid : mid - best)) {
+        best = i;
+      }
+    }
+    if (best != std::string::npos) {
+      line2 = line1.substr(best + 1);
+      line1 = line1.substr(0, best);
+    }
+  }
+
   epd.setFont(nullptr);
   epd.setTextSize(1);
-  epd.getTextBounds(thought, 0, 0, &bx, &by, &bw, &bh);
+  int16_t bx, by;
+  uint16_t bw, bh, bw2 = 0, bh2 = 0;
+  epd.getTextBounds(line1.c_str(), 0, 0, &bx, &by, &bw, &bh);
+  if (!line2.empty()) epd.getTextBounds(line2.c_str(), 0, 0, &bx, &by, &bw2, &bh2);
+  int textW = std::max((int)bw, (int)bw2);
+  int lineH = (int)bh + 4;
+  int textH = line2.empty() ? (int)bh : lineH + (int)bh2;
 
-  int padX = 8, padY = 6;
-  int cx = headX, cy = headY - 34 - bh / 2;
-  int rw = (int)bw / 2 + padX, rh = (int)bh / 2 + padY;
-
-  // Keep the whole bubble on the panel. It's centred on the marmot's head,
-  // which sits well right of centre, so any phrase past ~20 characters ran
-  // off the right edge ("So many rocks to nap on" lost its last few px).
-  // The tail circles still trail from the head, so sliding the box left
-  // reads as the bubble drifting rather than as a misplaced element.
-  const int margin = 4;
-  int minCx = margin + rw, maxCx = SCREEN_W - margin - rw;
-  cx = maxCx < minCx ? SCREEN_W / 2 : std::max(minCx, std::min(maxCx, cx));
-
-  // Sliding left can push the box over the marmot on a tall pose, and the
-  // white fill would punch a hole in it. Lift the bubble so it sits above
-  // the art's top edge -- but never above the name/date line, and if the
-  // pose is so tall there's no room for both, keep the bubble where the
-  // text is legible rather than shoving it off the top.
+  const int padX = 8, padY = 6, margin = 4;
   const int topLimit = 46;  // below the name (y=10) and date (y=30) rows
-  int lowestAllowed = artTopY - 4 - rh;
-  if (cy > lowestAllowed) cy = lowestAllowed;
-  if (cy - rh < topLimit) cy = topLimit + rh;
+  int rw = textW / 2 + padX, rh = textH / 2 + padY;
+
+  // Origin: the pose's head, taken as the upper-right of its bounding box --
+  // both coordinates move with the art rather than being fixed.
+  int headX = art.x + art.w * 3 / 4;
+  int headY = art.y + art.h / 8;
+
+  // Bubble up and to the right of that, clamped onto the panel.
+  int cx = headX + 24 + rw;
+  int cy = headY - 26 - rh;
+  cx = std::max(margin + rw, std::min(SCREEN_W - margin - rw, cx));
+  cy = std::max(topLimit + rh, cy);
 
   epd.fillRoundRect(cx - rw, cy - rh, rw * 2, rh * 2, 8, C_WHITE);
   epd.drawRoundRect(cx - rw, cy - rh, rw * 2, rh * 2, 8, C_BLACK);
-  textAt(cx - (int)bw / 2, cy - (int)bh / 2, thought, 1);
+  if (line2.empty()) {
+    textAt(cx - (int)bw / 2, cy - (int)bh / 2, line1, 1);
+  } else {
+    textAt(cx - (int)bw / 2, cy - textH / 2, line1, 1);
+    textAt(cx - (int)bw2 / 2, cy - textH / 2 + lineH, line2, 1);
+  }
 
-  epd.fillCircle(headX - 10, headY - 10, 4, C_WHITE);
-  epd.drawCircle(headX - 10, headY - 10, 4, C_BLACK);
-  epd.fillCircle(headX - 4, headY - 20, 3, C_WHITE);
-  epd.drawCircle(headX - 4, headY - 20, 3, C_BLACK);
+  // Tail: two circles stepping up-and-right from the head to the bubble's
+  // lower-left, growing as they go.
+  int toX = cx - rw + 6, toY = cy + rh - 2;
+  for (int i = 1; i <= 2; i++) {
+    int tx = headX + (toX - headX) * i / 3;
+    int ty = headY + (toY - headY) * i / 3;
+    int r = 2 + i;
+    epd.fillCircle(tx, ty, r, C_WHITE);
+    epd.drawCircle(tx, ty, r, C_BLACK);
+  }
 }
 
 static void renderMain(const AppContext& ctx) {
@@ -614,14 +683,9 @@ static void renderMain(const AppContext& ctx) {
   // own rock ledge baked in, and a second ground line under it just clashed.
   int stageCx = STAGE_X + STAGE_W / 2 - 20;
   int stageGroundY = STAGE_Y + STAGE_H - 24;
-  int topY = drawCreature(stageCx, stageGroundY, ctx.creature.mood, (Stage)ctx.stage);
-  // Anchored to the actual pose's top edge (with a floor so it never rises
-  // above where the name/date text sits) rather than a fixed offset -- a
-  // tall pose keeps the bubble up near the top of the stage area like
-  // before, but a shorter pose (more headroom above it) pulls the bubble
-  // down closer to the creature instead of leaving a big empty gap.
-  int bubbleY = std::max(topY + 30, STAGE_Y + 70);
-  maybeDrawThoughtBubble(STAGE_X + STAGE_W - 55, bubbleY, topY, (Stage)ctx.stage, ctx.creature);
+  ArtBox art{stageCx, STAGE_Y, 0, 0};
+  drawCreature(stageCx, stageGroundY, ctx.creature.mood, (Stage)ctx.stage, /*small=*/false, &art);
+  maybeDrawThoughtBubble(art, (Stage)ctx.stage, ctx.creature);
 
   drawNavBar("Status", "", "Foraging");
 }
@@ -733,14 +797,19 @@ static void renderForaging(const AppContext& ctx, int speciesIdx) {
   drawNavBar("Main", "Eat", "Scroll");
 }
 
-// Curiosity: derived from current weather, not persisted -- fresh rain (good
-// foraging conditions) makes for a curious creature; stale/offline data is
-// neutral.
-static uint8_t computeCuriosity(const WeatherData& w) {
-  if (!w.valid) return 50;
-  if (w.postRain) return 90;
-  if (w.tempC >= 8.0f && w.tempC <= 22.0f) return 65;
-  return 35;
+/**
+ * Curiosity as shown on the bar: the persisted stat (raised by the species
+ * games and by discoveries, decaying on its own clock) plus a transient
+ * bonus for weather worth going out in. Only the base is saved, so a wet
+ * week can't inflate the stat -- and it used to be *only* this weather term,
+ * which meant the bar sat among three stats you can affect while being
+ * something you couldn't touch at all.
+ */
+static uint8_t curiosityDisplay(const CreatureState& c, const WeatherData& w) {
+  int bonus = 0;
+  if (w.valid) bonus = w.postRain ? 25 : (w.tempC >= 8.0f && w.tempC <= 22.0f ? 10 : 0);
+  int v = (int)c.curiosity + bonus;
+  return (uint8_t)(v > 100 ? 100 : v);
 }
 
 static const char* stageName(Stage s) {
@@ -772,15 +841,15 @@ static void renderStatus(const AppContext& ctx) {
   bar(196, "Fullness", 100 - ctx.creature.hunger);
   bar(232, "Happiness", ctx.creature.happiness);
   bar(268, "Energy", ctx.creature.energy);
-  bar(304, "Curiosity", computeCuriosity(ctx.weather));
+  bar(304, "Curiosity", curiosityDisplay(ctx.creature, ctx.weather));
 
   if (ctx.weather.valid) {
     char buf[48];
     snprintf(buf, sizeof(buf), "%s, %.0fC", ctx.weather.condition.c_str(), ctx.weather.tempC);
-    textAt(20, 344, buf, 1);
+    textAt(20, 338, buf, 1);
   }
 
-  textAt(20, 358,
+  textAt(20, 350,
          "Streak: " + std::to_string(ctx.creature.feedStreakDays) + "d | Eaten: " +
              std::to_string(journal::totalEaten()) + "/" + std::to_string(foraging::speciesCount()),
          1);
@@ -788,7 +857,7 @@ static void renderStatus(const AppContext& ctx) {
   // The winter stockpile lives here too, not only inside Snack Hunt -- it's
   // the one goal in the game that spans weeks, so it shouldn't take a trip
   // into a minigame to check on.
-  textAt(20, 372,
+  textAt(20, 362,
          "Winter stash: " + std::to_string(minigames::stashPoints()) + "/" +
              std::to_string(minigames::WINTER_STASH_GOAL),
          1);
@@ -918,7 +987,7 @@ void renderAchievements(const AppContext& ctx) {
     textCentered(0, SCREEN_W, 160, "Locked", 2);
     textCentered(0, SCREEN_W, 190, "Come back once your marmot", 1);
     textCentered(0, SCREEN_W, 204, "is fully grown.", 1);
-    textCentered(0, SCREEN_W, SCREEN_H - 34, "BACK = previous menu", 1);
+    textCentered(0, SCREEN_W, SCREEN_H - 22, "BACK = previous menu", 1);
     epd.endFrame(true);
     return;
   }
@@ -962,34 +1031,11 @@ void renderAchievements(const AppContext& ctx) {
     drawBadge(badges[i], cols[i % 3], rows[i / 3]);
   }
 
-  textCentered(0, SCREEN_W, SCREEN_H - 34, "BACK = previous menu", 1);
+  textCentered(0, SCREEN_W, SCREEN_H - 22, "BACK = previous menu", 1);
   epd.endFrame(true);
 }
 
 // ------------------------------------------------------------- Minigames
-
-// A tiny procedural marmot -- body, head, ears -- for spots far too small
-// for the real photo bitmaps (a burrow opening is ~32px wide, where a
-// dithered photo is unreadable mush). Drawn in `color` so it works both on
-// the white panel and inside a filled-black burrow mouth.
-static void drawMarmotGlyph(int cx, int baseY, int w, uint16_t color) {
-  int bodyR = w / 2;
-  int headR = w * 7 / 20;
-  // Sitting up: a pear-shaped body (wide haunch, narrower shoulders) rather
-  // than a plain circle, which read as a snowman at small sizes.
-  epd.fillCircle(cx, baseY - bodyR, bodyR, color);
-  epd.fillCircle(cx, baseY - bodyR * 8 / 5, bodyR * 3 / 4, color);
-  int headY = baseY - bodyR * 2 - headR / 3;
-  epd.fillCircle(cx, headY, headR, color);
-  // Snout, angled down-left, so it has a front.
-  epd.fillCircle(cx - headR * 3 / 4, headY + headR / 3, headR / 2, color);
-  int earR = w / 9;
-  if (earR < 1) earR = 1;
-  epd.fillCircle(cx - headR * 3 / 5, headY - headR * 4 / 5, earR, color);
-  epd.fillCircle(cx + headR * 3 / 5, headY - headR * 4 / 5, earR, color);
-  // Tail sweeping out to the right along the ground.
-  epd.fillRect(cx + bodyR / 2, baseY - bodyR / 3, bodyR, bodyR / 3, color);
-}
 
 // A selectable row: filled black with knocked-out white text when picked,
 // a plain outline otherwise -- the same inversion the text-entry keyboard
@@ -1017,28 +1063,37 @@ static void optionBox(int x, int y, int w, int h, const std::string& label, bool
 }
 
 /**
- * One call in a Marmot Says sequence, drawn as a solid button-sized shape
- * (left arrow, right arrow, or a filled circle for ENTER) inside a rounded
- * plate. Solid shapes rather than the "<" / ">" / "OK" characters: a
- * scaled-up font glyph is a thin stroke on a big field, which is both weak
- * art and genuinely harder to hold in memory for a second.
+ * One call in a Marmot Says sequence: the icon this run has assigned to that
+ * button, on a rounded plate. Icons rather than arrow glyphs because a
+ * scaled-up "<" is a thin stroke on a big empty field -- weak art, and
+ * genuinely harder to hold in memory for a second than a distinct shape.
+ * The three are chosen to differ in silhouette (dome, spike, rosette), not
+ * just in detail.
  */
-static void drawSimonCall(uint8_t element, int cx, int cy, int size) {
+static void drawSimonCall(uint8_t iconId, int cx, int cy, int size) {
   int half = size / 2;
   epd.drawRoundRect(cx - half, cy - half, size, size, size / 5, C_BLACK);
   epd.drawRoundRect(cx - half + 1, cy - half + 1, size - 2, size - 2, size / 5, C_BLACK);
-  int a = size / 3;  // arrow half-height
-  switch (element) {
-    case 0:  // LEFT
-      epd.fillTriangle(cx - a, cy, cx + a / 2, cy - a, cx + a / 2, cy + a, C_BLACK);
+  const uint8_t* bmp;
+  int w, h;
+  switch (iconId) {
+    case 0:
+      bmp = TOKEN_TOADSTOOL_BITMAP;
+      w = TOKEN_TOADSTOOL_W;
+      h = TOKEN_TOADSTOOL_H;
       break;
-    case 1:  // RIGHT
-      epd.fillTriangle(cx + a, cy, cx - a / 2, cy - a, cx - a / 2, cy + a, C_BLACK);
+    case 1:
+      bmp = TOKEN_WOOD_BITMAP;
+      w = TOKEN_WOOD_W;
+      h = TOKEN_WOOD_H;
       break;
-    default:  // ENTER
-      epd.fillCircle(cx, cy, a * 3 / 4, C_BLACK);
+    default:
+      bmp = TOKEN_LEAF_BITMAP;
+      w = TOKEN_LEAF_W;
+      h = TOKEN_LEAF_H;
       break;
   }
+  epd.drawBitmap(cx - w / 2, cy - h / 2, bmp, w, h, C_BLACK, C_WHITE);
 }
 
 static void renderMinigameMenu(const AppContext& ctx, const minigames::State& s) {
@@ -1092,64 +1147,47 @@ static void renderMinigameMenu(const AppContext& ctx, const minigames::State& s)
  * if two faces can be confused.
  */
 static void drawForestIcon(int id, int cx, int cy, int r) {
-  // Four of the six are real traced silhouettes (see include/bitmaps/tokens/)
-  // rather than primitives -- botanical shapes have a character that circles
-  // and triangles can't fake, and they're solid black, which is the one
-  // thing this panel renders perfectly.
-  const uint8_t* bmp = nullptr;
-  int bw = 0, bh = 0;
+  (void)r;  // every face is a fixed-size bitmap
+  // Six faces chosen for distinct SILHOUETTES -- frond, cone, dome, log,
+  // flower, animal -- not just distinct subjects. Three earlier faces were
+  // cut for failing exactly that test once dithered: a eucalyptus sprig whose
+  // round leaves hollowed into a scatter of rings, a succulent rosette that
+  // became a speckled blob, and an agave whose blades read as a hand.
+  const uint8_t* bmp;
+  int bw, bh;
   switch (id) {
     case 0:
-      bmp = TOKEN_EUCALYPTUS_BITMAP;
-      bw = TOKEN_EUCALYPTUS_W;
-      bh = TOKEN_EUCALYPTUS_H;
-      break;
-    case 1:
-      bmp = TOKEN_AGAVE_BITMAP;
-      bw = TOKEN_AGAVE_W;
-      bh = TOKEN_AGAVE_H;
-      break;
-    case 2:
       bmp = TOKEN_FERN_BITMAP;
       bw = TOKEN_FERN_W;
       bh = TOKEN_FERN_H;
       break;
+    case 1:
+      bmp = TOKEN_TREE_BITMAP;
+      bw = TOKEN_TREE_W;
+      bh = TOKEN_TREE_H;
+      break;
+    case 2:
+      bmp = TOKEN_TOADSTOOL_BITMAP;
+      bw = TOKEN_TOADSTOOL_W;
+      bh = TOKEN_TOADSTOOL_H;
+      break;
     case 3:
-      bmp = TOKEN_SUCCULENT_BITMAP;
-      bw = TOKEN_SUCCULENT_W;
-      bh = TOKEN_SUCCULENT_H;
+      bmp = TOKEN_WOOD_BITMAP;
+      bw = TOKEN_WOOD_W;
+      bh = TOKEN_WOOD_H;
+      break;
+    case 4:
+      bmp = TOKEN_BLOOM_BITMAP;
+      bw = TOKEN_BLOOM_W;
+      bh = TOKEN_BLOOM_H;
       break;
     default:
+      bmp = TOKEN_BRANCH_BITMAP;
+      bw = TOKEN_BRANCH_W;
+      bh = TOKEN_BRANCH_H;
       break;
   }
-  if (bmp) {
-    epd.drawBitmap(cx - bw / 2, cy - bh / 2, bmp, bw, bh, C_BLACK, C_WHITE);
-    return;
-  }
-
-  // The remaining two are drawn to match that weight: chunky, solid, with
-  // detail knocked out in white rather than outlined in black.
-  if (id == 4) {  // toadstool
-    int capR = r * 4 / 5;
-    epd.fillCircle(cx, cy - r / 5, capR, C_BLACK);
-    epd.fillRect(cx - capR, cy - r / 5, capR * 2, capR + 2, C_WHITE);  // flatten the cap's base
-    epd.fillRect(cx - capR, cy - r / 5 - 1, capR * 2, 2, C_BLACK);
-    epd.fillRoundRect(cx - r / 4, cy - r / 5, r / 2, r * 4 / 5, 3, C_BLACK);
-    epd.fillCircle(cx - capR / 2, cy - r / 2, r / 6, C_WHITE);  // spots
-    epd.fillCircle(cx + capR / 3, cy - r * 3 / 5, r / 8, C_WHITE);
-    epd.fillCircle(cx + capR / 2, cy - r / 3, r / 9, C_WHITE);
-    return;
-  }
-  // Pine cone: a teardrop with scale notches cut out of it.
-  epd.fillCircle(cx, cy + r / 5, r * 3 / 5, C_BLACK);
-  epd.fillTriangle(cx - r * 3 / 5, cy + r / 5, cx + r * 3 / 5, cy + r / 5, cx, cy - r, C_BLACK);
-  for (int row = 0; row < 4; row++) {
-    int yy = cy - r * 2 / 3 + row * r / 2;
-    int half = r / 2 - row * r / 12;
-    epd.drawLine(cx - half, yy, cx, yy + r / 5, C_WHITE);
-    epd.drawLine(cx + half, yy, cx, yy + r / 5, C_WHITE);
-  }
-  epd.fillRect(cx - 1, cy + r * 4 / 5, 3, r / 4, C_BLACK);  // stalk
+  epd.drawBitmap(cx - bw / 2, cy - bh / 2, bmp, bw, bh, C_BLACK, C_WHITE);
 }
 
 static void renderMemory(const minigames::State& s) {
@@ -1165,7 +1203,13 @@ static void renderMemory(const minigames::State& s) {
   for (int i = 0; i < minigames::MemoryRound::CARDS; i++) {
     int x = x0 + (i % cols) * (cw + gapX);
     int y = y0 + (i / cols) * (ch + gapY);
+#if DEV_MODE_SHOW_ALL_CONTENT
+    // Every card open, so all six faces can be compared side by side --
+    // which is the only way to be sure none of them look alike.
+    bool faceUp = true;
+#else
     bool faceUp = s.memory.matched[i] || i == s.memory.firstFlip || i == s.memory.secondFlip;
+#endif
     epd.drawRoundRect(x, y, cw, ch, 8, C_BLACK);
     if (i == s.memory.sel) epd.drawRoundRect(x + 2, y + 2, cw - 4, ch - 4, 6, C_BLACK);
     if (faceUp) {
@@ -1210,18 +1254,10 @@ static void renderMemory(const minigames::State& s) {
  * under it appear, not just have text tell you what happened.
  */
 static void drawBush(int cx, int baseY, int w, int lift) {
-  int r = w / 3;
-  int top = baseY - lift;
-  // A lifted bush leans, so the two states aren't just the same shape
-  // shifted up the screen.
-  int tilt = lift / 4;
-  dFillCircle(cx - r / 2 - tilt, top - r, r, SHADE_DARK);
-  dFillCircle(cx + r / 2 - tilt / 2, top - r, r, SHADE_DARK);
-  dFillCircle(cx - tilt, top - r * 3 / 2, r, SHADE_DARK);
-  epd.drawCircle(cx - r / 2 - tilt, top - r, r, C_BLACK);
-  epd.drawCircle(cx + r / 2 - tilt / 2, top - r, r, C_BLACK);
-  epd.drawCircle(cx - tilt, top - r * 3 / 2, r, C_BLACK);
-  epd.drawFastVLine(cx - tilt / 2, top - r / 2, r / 2 + lift / 3, C_BLACK);
+  (void)w;  // sized by the art now
+  // Leans as it lifts, so the two states aren't the same shape shifted up.
+  epd.drawBitmap(cx - TOKEN_BUSH_W / 2 - lift / 5, baseY - lift - TOKEN_BUSH_H, TOKEN_BUSH_BITMAP,
+                 TOKEN_BUSH_W, TOKEN_BUSH_H, C_BLACK, C_WHITE);
 }
 
 /**
@@ -1230,69 +1266,87 @@ static void drawBush(int cx, int baseY, int w, int lift) {
  * four shapes that stay distinct in silhouette at ~16px: blades, a leaf,
  * crossed twigs, a flower.
  */
-static void drawStashIcon(uint8_t kind, int cx, int cy, int r) {
-  int base = cy + r;  // everything sits on the ground line, not floating
-  switch (kind) {
-    case minigames::STASH_GRASS: {
-      // Dry grass: blades that *arc*, each ending in a drooping seed head.
-      // An earlier version fanned straight spikes from one point and read
-      // as a black finger fungus rather than as a tuft of grass.
-      const int lean[5] = {-r, -r / 2, 0, r / 2, r};
-      for (int i = 0; i < 5; i++) {
-        int tipX = cx + lean[i] * 5 / 4;
-        int tipY = base - r * 2 + (i == 2 ? -r / 3 : (i % 2 ? r / 3 : 0));
-        int midX = cx + lean[i] / 2, midY = base - r;
-        // Two short segments make a curve; drawn twice for weight.
-        epd.drawLine(cx, base, midX, midY, C_BLACK);
-        epd.drawLine(cx + 1, base, midX + 1, midY, C_BLACK);
-        epd.drawLine(midX, midY, tipX, tipY, C_BLACK);
-        epd.drawLine(midX + 1, midY, tipX + 1, tipY, C_BLACK);
-        epd.fillCircle(tipX, tipY, 2, C_BLACK);  // seed head
-      }
-      break;
+static void drawStashIcon(uint8_t kind, uint8_t variant, int cx, int cy) {
+  const uint8_t* bmp;
+  int w, h;
+  if (kind == minigames::KIND_SCARE) {
+    // Only a pair of eyes in the grid -- the animal itself gets the whole
+    // run-over screen at photo size (see snackPredatorArt()).
+    bmp = TOKEN_EYES_BITMAP;
+    w = TOKEN_EYES_W;
+    h = TOKEN_EYES_H;
+  } else if (kind == minigames::KIND_CRITTER) {
+    switch (variant) {
+      case 0:
+        bmp = TOKEN_BEETLE_BITMAP;
+        w = TOKEN_BEETLE_W;
+        h = TOKEN_BEETLE_H;
+        break;
+      case 1:
+        bmp = TOKEN_LIZARD_BITMAP;
+        w = TOKEN_LIZARD_W;
+        h = TOKEN_LIZARD_H;
+        break;
+      case 2:
+        bmp = TOKEN_SPIDER_BITMAP;
+        w = TOKEN_SPIDER_W;
+        h = TOKEN_SPIDER_H;
+        break;
+      default:
+        bmp = TOKEN_CRICKET_BITMAP;
+        w = TOKEN_CRICKET_W;
+        h = TOKEN_CRICKET_H;
+        break;
     }
-    case minigames::STASH_LEAVES: {
-      // Two overlapping fallen leaves, each a rounded blade on a stalk --
-      // lying flat rather than standing up, so it reads as litter.
-      for (int k = 0; k < 2; k++) {
-        int ox = k ? r * 2 / 3 : -r * 2 / 3;
-        int oy = k ? -r / 3 : 0;
-        int lx = cx + ox, ly = base - r / 2 + oy;
-        epd.fillTriangle(lx - r, ly, lx, ly - r * 2 / 3, lx + r / 2, ly, C_BLACK);
-        epd.fillTriangle(lx - r, ly, lx, ly + r * 2 / 3, lx + r / 2, ly, C_BLACK);
-        epd.drawLine(lx - r, ly, lx + r / 2, ly, C_WHITE);          // midrib
-        epd.drawLine(lx + r / 2, ly, lx + r, ly + r / 3, C_BLACK);  // stalk
-      }
-      break;
+  } else {
+    switch (kind) {
+      case minigames::STASH_LEAVES:
+        bmp = TOKEN_LEAFPILE_BITMAP;
+        w = TOKEN_LEAFPILE_W;
+        h = TOKEN_LEAFPILE_H;
+        break;
+      case minigames::STASH_TWIGS:
+        bmp = TOKEN_WOOD_BITMAP;
+        w = TOKEN_WOOD_W;
+        h = TOKEN_WOOD_H;
+        break;
+      case minigames::STASH_FLOWER:
+        bmp = TOKEN_BLOOM_BITMAP;
+        w = TOKEN_BLOOM_W;
+        h = TOKEN_BLOOM_H;
+        break;
+      case minigames::STASH_GRASS:
+        bmp = TOKEN_GRASS_BITMAP;
+        w = TOKEN_GRASS_W;
+        h = TOKEN_GRASS_H;
+        break;
+      default:
+        return;  // KIND_NONE draws nothing
     }
-    case minigames::STASH_TWIGS: {
-      // A little pile of sticks: two crossed, one lying flat, each thick
-      // enough to read as wood rather than as a hairline.
-      epd.fillTriangle(cx - r, base - 1, cx + r, base - r, cx + r, base - r + 3, C_BLACK);
-      epd.fillTriangle(cx - r, base - 1, cx - r, base - 4, cx + r, base - r + 3, C_BLACK);
-      epd.fillTriangle(cx - r, base - r, cx + r, base - 1, cx + r, base - 4, C_BLACK);
-      epd.fillTriangle(cx - r, base - r, cx - r, base - r + 3, cx + r, base - 1, C_BLACK);
-      epd.fillRect(cx - r + 2, base - 3, r * 2 - 4, 3, C_BLACK);
-      // A short fork off the upper stick, so it's a twig and not a plank.
-      epd.drawLine(cx + r / 4, base - r * 2 / 3, cx + r / 2, base - r, C_BLACK);
-      epd.drawLine(cx + r / 4 + 1, base - r * 2 / 3, cx + r / 2 + 1, base - r, C_BLACK);
-      break;
-    }
-    case minigames::STASH_FLOWER: {
-      // A single stemmed bloom: five petals on a stalk with a leaf.
-      int fy = base - r * 4 / 3;
-      epd.fillRect(cx - 1, fy, 2, r * 4 / 3, C_BLACK);
-      epd.fillTriangle(cx, base - r / 2, cx - r / 2, base - r * 3 / 4, cx, base - r, C_BLACK);
-      for (int i = 0; i < 5; i++) {
-        float a = (float)i * 2.0f * (float)M_PI / 5.0f - (float)M_PI / 2.0f;
-        epd.fillCircle(cx + (int)(cosf(a) * r / 2), fy + (int)(sinf(a) * r / 2), r / 3, C_BLACK);
-      }
-      epd.fillCircle(cx, fy, r / 4, C_WHITE);
-      epd.drawCircle(cx, fy, r / 4, C_BLACK);
-      break;
-    }
+  }
+  epd.drawBitmap(cx - w / 2, cy - h / 2, bmp, w, h, C_BLACK, C_WHITE);
+}
+
+// The predator behind a scare, at real photo size for the run-over screen.
+// Order matches minigames::predatorName().
+struct SnackPredator {
+  const uint8_t* bitmap;
+  int w, h;
+};
+static SnackPredator snackPredatorArt(int i) {
+  switch (i) {
+    case 0:
+      return {ANIMAL_COYOTE_BITMAP, ANIMAL_COYOTE_W, ANIMAL_COYOTE_H};
+    case 1:
+      // Was the bobcat, swapped out: its source photo dithered pale and
+      // low-contrast, and at 170px next to the coyote/fox/owl it read as a
+      // vague smudge. The cougar's art is the strongest of the predators
+      // available, and it's just as real a marmot predator.
+      return {ANIMAL_COUGAR_BITMAP, ANIMAL_COUGAR_W, ANIMAL_COUGAR_H};
+    case 2:
+      return {ANIMAL_RED_FOX_BITMAP, ANIMAL_RED_FOX_W, ANIMAL_RED_FOX_H};
     default:
-      break;
+      return {ANIMAL_BARRED_OWL_BITMAP, ANIMAL_BARRED_OWL_W, ANIMAL_BARRED_OWL_H};
   }
 }
 
@@ -1332,51 +1386,72 @@ static void renderSnack(const minigames::State& s) {
     textCentered(0, SCREEN_W, 60, "gathered today.", 1);
   }
 
-  // 2x2 of bushes. Every bush lifts on the reveal, not just the picked one,
-  // so you always see what you walked past -- that's the sting of the game.
-  // The bush lifts a full 44px clear of the ground so the find underneath
-  // is drawn at a readable size rather than peeking out of a letterbox.
+  // 2x2 of bushes. On the reveal every bush shifts ASIDE rather than
+  // straight up, and all four open, not just the one picked. Sideways is
+  // forced by arithmetic: the bush art is 58px tall and a find is 44px, so
+  // stacking them needs ~110px of the 100px a cell has -- and lifting far
+  // enough for both ran the top row into the header and the bottom row into
+  // the row above it. There's plenty of width, so the bush leans left and
+  // the find sits on bare ground to its right.
   const int cellW = 130, cellH = 100;
   int x0 = (SCREEN_W - cellW * 2) / 2, y0 = 74;
   for (int i = 0; i < minigames::SnackRound::BUSHES; i++) {
     int cx = x0 + (i % 2) * cellW + cellW / 2;
     int baseY = y0 + (i / 2) * cellH + cellH - 24;
+    int bushX = revealed ? cx - 30 : cx;
+    int findX = cx + 28;
 
     if (revealed) {
-      // Bare ground where the bush was: a shallow oval scrape with whatever
-      // was hidden sitting on it.
-      dFillRoundRect(cx - 38, baseY - 8, 76, 18, 9, SHADE_LIGHT);
-      epd.drawRoundRect(cx - 38, baseY - 8, 76, 18, 9, C_BLACK);
+      // Bare scrape where the bush was sitting, with the find on it. Outline
+      // only, no dithered fill: at size 1 the label's strokes and the Bayer
+      // pattern are both 1px, so any fill behind the text fights it.
+      epd.drawRoundRect(findX - 26, baseY - 12, 52, 16, 8, C_BLACK);
+      std::string label = s.snack.kind[i] == minigames::KIND_NONE
+                              ? "Empty"
+                              : "x" + std::to_string(s.snack.amount[i]);
       if (s.snack.kind[i] != minigames::KIND_NONE) {
-        drawStashIcon(s.snack.kind[i], cx - 10, baseY - 18, 15);
-        textAt(cx + 14, baseY - 14, "x" + std::to_string(s.snack.amount[i]), 1);
-      } else {
-        textCentered(cx - 38, 76, baseY - 3, "nothing", 1);
+        drawStashIcon(s.snack.kind[i], s.snack.amount[i], findX, baseY - 34);
       }
+      textCentered(findX - 30, 60, baseY - 8, label, 1);
     }
 
-    drawBush(cx, baseY, 52, revealed ? 44 : 0);
+    drawBush(bushX, baseY, 52, revealed ? 8 : 0);
 
     if (!revealed && i == s.snack.sel) {
       epd.fillTriangle(cx - 8, baseY + 20, cx + 8, baseY + 20, cx, baseY + 8, C_BLACK);
     }
     if (revealed && i == s.snack.picked) {
-      // Mark the one actually chosen, since all four are now open.
-      epd.drawRoundRect(cx - cellW / 2 + 8, y0 + (i / 2) * cellH + 2, cellW - 16, cellH - 10, 8,
-                        C_BLACK);
-      epd.drawRoundRect(cx - cellW / 2 + 9, y0 + (i / 2) * cellH + 3, cellW - 18, cellH - 12, 7,
-                        C_BLACK);
+      // Mark the one actually chosen, since all four are now open. Sized to
+      // the cell's real content extents -- bush from cx-31, find art out to
+      // cx+54, tallest icon 44px above baseY-12 -- rather than to a guessed
+      // inset, which left the bush and the icon tops poking outside the box.
+      // drawBush() subtracts half the art width from the x it's given, so a
+      // bush drawn at cx-30 actually starts at cx-61 -- the box has to reach
+      // further left than the arithmetic first suggests.
+      int rowTop = y0 + (i / 2) * cellH;
+      epd.drawRoundRect(cx - 68, rowTop + 12, 126, 76, 8, C_BLACK);
+      epd.drawRoundRect(cx - 67, rowTop + 13, 124, 74, 7, C_BLACK);
     }
   }
 
   if (revealed) {
     int i = s.snack.picked;
-    std::string line = s.snack.kind[i] == minigames::KIND_NONE
-                           ? "Nothing under that one."
-                           : "Found " + std::to_string(s.snack.amount[i]) + "x " +
-                                 minigames::stashKindName(s.snack.kind[i]) + "!";
+    uint8_t k = s.snack.kind[i];
+    std::string line;
+    bool banked = false;
+    if (k == minigames::KIND_SCARE) {
+      line = std::string(minigames::predatorName(s.snack.amount[i])) + "! You bolt for home.";
+    } else if (k == minigames::KIND_CRITTER) {
+      line = "Just " + std::string(minigames::critterName(s.snack.amount[i])) + ".";
+    } else if (k == minigames::KIND_NONE) {
+      line = "Nothing under that one.";
+    } else {
+      line =
+          "Found " + std::to_string(s.snack.amount[i]) + "x " + minigames::stashKindName(k) + "!";
+      banked = true;
+    }
     textCentered(0, SCREEN_W, 284, line, 1);
-    if (!s.snack.banking && s.snack.kind[i] != minigames::KIND_NONE) {
+    if (!s.snack.banking && banked) {
       textCentered(0, SCREEN_W, 300, "(practice -- not stashed)", 1);
     }
     drawStashBar(320);
@@ -1404,14 +1479,17 @@ static const char* mazeDirName(int dir) {
 
 static void renderMaze(const minigames::State& s) {
   textAt(8, 10, "Burrow Maze", 2);
-  textAt(SCREEN_W - 84, 14, "Solved: " + std::to_string(s.score), 1);
+  textAt(SCREEN_W - 84, 8, "Solved: " + std::to_string(s.score), 1);
+  textAt(SCREEN_W - 84, 20, std::to_string(s.maze.n) + "x" + std::to_string(s.maze.n), 1);
   epd.drawFastHLine(8, 34, SCREEN_W - 16, C_BLACK);
 
-  // 46px cells (230 wide) rather than 52: at 52 the grid ran to y=316 and
-  // the option row collided with the moves-left line above the nav bar.
-  const int n = minigames::MazeRound::N;
-  const int cell = 46;
-  int gx = (SCREEN_W - n * cell) / 2, gy = 50;
+  // The grid grows with the score, so the cell size has to shrink to keep
+  // the whole board inside a fixed 240px band -- otherwise a 7x7 would push
+  // the option row down through the nav bar. 46px is the cap so a 5x5 looks
+  // the same as it always did.
+  const int n = s.maze.n;
+  const int cell = std::min(42, 210 / n);
+  int gx = (SCREEN_W - n * cell) / 2, gy = 46;
   int gh = n * cell;
 
   // Walls are drawn 2px thick as packed earth, so the tunnels read as dug
@@ -1420,8 +1498,13 @@ static void renderMaze(const minigames::State& s) {
     for (int x = 0; x < n; x++) {
       int px = gx + x * cell, py = gy + y * cell;
       uint8_t w = s.maze.wall[y][x];
-      // Trail already dug, so a long backtrack is visibly a backtrack.
-      if (s.maze.seen[y][x]) dFillRect(px + 3, py + 3, cell - 6, cell - 6, SHADE_LIGHT);
+      // Trail already dug, so a long backtrack is visibly a backtrack --
+      // and shaded darker once the water has had time to reach it, which is
+      // what makes the flood something you can see rather than just a bar.
+      if (s.maze.seen[y][x]) {
+        bool flooded = s.maze.movesLeft <= minigames::mazeBudgetFor(n) / 3;
+        dFillRect(px + 3, py + 3, cell - 6, cell - 6, flooded ? SHADE_DARK : SHADE_LIGHT);
+      }
       if (w & minigames::MazeRound::WALL_N) epd.fillRect(px, py, cell, 2, C_BLACK);
       if (w & minigames::MazeRound::WALL_W) epd.fillRect(px, py, 2, cell, C_BLACK);
       if (x == n - 1 && (w & minigames::MazeRound::WALL_E)) {
@@ -1448,25 +1531,21 @@ static void renderMaze(const minigames::State& s) {
   dFillRect(gapX - 4, gy + gh + 2, gap + 8, 7, SHADE_LIGHT);
   textCentered(ex, cell, ey + 6, "OUT", 1);
 
-  // The marmot as a compact head-on token: a 46px cell can't hold the photo
-  // art (downscaling a dithered bitmap aliases it into noise), but the old
-  // full-body glyph was a lumpy smudge at this size. A head reads.
+  // A silhouette token rather than the photo art: even the small marmot
+  // poses are 112px, and a cell here is 34-46px.
   {
     int mx = gx + s.maze.x * cell + cell / 2;
     int my = gy + s.maze.y * cell + cell / 2;
-    int hr = 11;
-    epd.fillCircle(mx - hr * 3 / 5, my - hr * 3 / 4, hr / 3, C_BLACK);  // ears
-    epd.fillCircle(mx + hr * 3 / 5, my - hr * 3 / 4, hr / 3, C_BLACK);
-    epd.fillCircle(mx, my, hr, C_BLACK);
-    epd.fillCircle(mx - hr / 3, my - hr / 4, 2, C_WHITE);  // eyes
-    epd.fillCircle(mx + hr / 3, my - hr / 4, 2, C_WHITE);
-    epd.fillCircle(mx, my + hr / 2, hr / 3, C_WHITE);  // muzzle
-    epd.fillCircle(mx, my + hr / 3, 1, C_BLACK);       // nose
+    epd.drawBitmap(mx - TOKEN_MARMOT_W / 2, my - TOKEN_MARMOT_H / 2, TOKEN_MARMOT_BITMAP,
+                   TOKEN_MARMOT_W, TOKEN_MARMOT_H, C_BLACK, C_WHITE);
   }
 
   int opts[4];
   int nOpts = minigames::mazeOptions(s, opts);
-  int y = gy + gh + 12;
+  // Breathing room between the board and the controls. There's slack at the
+  // bottom of the panel, so the whole lower block sits lower rather than
+  // crowding the maze.
+  int y = gy + gh + 22;
   textCentered(0, SCREEN_W, y, "Which tunnel?", 1);
   // The option list is short by construction (a cell has at most four
   // exits), so every choice fits on one row of boxes.
@@ -1477,7 +1556,24 @@ static void renderMaze(const minigames::State& s) {
               i == (s.maze.sel % nOpts));
   }
 
-  textCentered(0, SCREEN_W, y + 50, "Moves left: " + std::to_string(s.maze.movesLeft), 1);
+  // The rising meltwater is the fail state, so it's drawn as water gaining
+  // on you -- a bar that FILLS as moves run out, not one that drains. A
+  // depleting "moves left" gauge is bookkeeping; a rising flood is a threat.
+  int budget = minigames::mazeBudgetFor(n);
+  int left = s.maze.movesLeft < 0 ? 0 : s.maze.movesLeft;
+  int used = budget - left;
+  bool low = left <= 4;
+  // Clear of the option boxes above (which end at y+42): the label sits at
+  // barY-12, so the bar has to start at least 56 below `y`.
+  int barY = y + 68, barX = 40, barW = SCREEN_W - 80;
+  textCentered(0, SCREEN_W, barY - 12,
+               low ? "The water's at your tail!"
+                   : "Meltwater rising -- " + std::to_string(left) + " moves ahead",
+               1);
+  epd.drawRect(barX, barY, barW, 10, C_BLACK);
+  int flood = (barW - 4) * used / (budget > 0 ? budget : 1);
+  dFillRect(barX + 2, barY + 2, flood, 6, low ? SHADE_BLACK : SHADE_DARK);
+
   drawNavBar("Prev", "Dig", "Next");
 }
 
@@ -1542,7 +1638,7 @@ static void renderSimon(const minigames::State& s) {
     // the marmot everywhere else in the app looks.
     const MarmotArt& art = kMarmotExcitedSmall[0];
     epd.drawBitmap(10, 150, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
-    drawSimonCall(s.simon.seq[s.simon.showIdx], 212, 200, 76);
+    drawSimonCall(s.simon.icon[s.simon.seq[s.simon.showIdx]], 208, 210, 72);
     textCentered(
         0, SCREEN_W, 300,
         "Call " + std::to_string(s.simon.showIdx + 1) + " of " + std::to_string(s.simon.len), 1);
@@ -1554,12 +1650,14 @@ static void renderSimon(const minigames::State& s) {
 
   // A small reference of which button is which call, so the mapping never
   // has to be remembered separately from the sequence itself.
-  drawSimonCall(0, 60, 130, 34);
-  drawSimonCall(2, SCREEN_W / 2, 130, 34);
-  drawSimonCall(1, SCREEN_W - 60, 130, 34);
-  textCentered(30, 60, 168, "LEFT", 1);
+  // Which button is which call, this run. Reshuffled per run, so this is a
+  // legend the player actually needs rather than decoration.
+  drawSimonCall(s.simon.icon[0], 58, 132, 56);
+  drawSimonCall(s.simon.icon[2], SCREEN_W / 2, 132, 56);
+  drawSimonCall(s.simon.icon[1], SCREEN_W - 58, 132, 56);
+  textCentered(28, 60, 168, "LEFT", 1);
   textCentered(SCREEN_W / 2 - 30, 60, 168, "ENTER", 1);
-  textCentered(SCREEN_W - 90, 60, 168, "RIGHT", 1);
+  textCentered(SCREEN_W - 88, 60, 168, "RIGHT", 1);
 
   // One pip per call, filled as far as the player has got right.
   int n = s.simon.len;
@@ -1581,6 +1679,25 @@ static void renderMinigameOver(const minigames::State& s) {
   textAt(8, 10, minigames::gameName(s.game), 2);
   epd.drawFastHLine(8, 34, SCREEN_W - 16, C_BLACK);
 
+  // A Snack Hunt run cut short by a predator gets its own layout: the
+  // animal art is 170px tall, which simply doesn't fit alongside the
+  // standard score block, and the scare is the more interesting ending.
+  bool bolted = s.game == minigames::Game::Snack && s.snack.picked >= 0 &&
+                s.snack.kind[s.snack.picked] == minigames::KIND_SCARE;
+  if (bolted) {
+    int which = s.snack.amount[s.snack.picked];
+    textCentered(0, SCREEN_W, 48, "You ran for it!", 2);
+    textCentered(0, SCREEN_W, 78, std::string(minigames::predatorName(which)) + " was waiting.", 1);
+    SnackPredator art = snackPredatorArt(which);
+    epd.drawBitmap((SCREEN_W - art.w) / 2, 96, art.bitmap, art.w, art.h, C_BLACK, C_WHITE);
+    textCentered(0, SCREEN_W, 274, "Everything you found is safe", 1);
+    textCentered(0, SCREEN_W, 288, "in the stash.", 1);
+    drawStashBar(308);
+    textCentered(0, SCREEN_W, SCREEN_H - 34, "BACK = pick another game", 1);
+    drawNavBar("", "Play again", "");
+    return;
+  }
+
   textCentered(0, SCREEN_W, 60, s.score > 0 ? "Nice run!" : "That's the game", 2);
   textCentered(0, SCREEN_W, 110, "Score", 1);
   textCentered(0, SCREEN_W, 130, std::to_string(s.score), 4);
@@ -1594,8 +1711,8 @@ static void renderMinigameOver(const minigames::State& s) {
     textCentered(0, SCREEN_W, 260, "It was:", 1);
     textWrapped(8, 280, 23, minigames::choiceAnswer(s).name, 2);
   } else if (s.game == minigames::Game::Snack) {
-    // Snack Hunt's run score is beside the point -- the stash it fed is the
-    // thing that carries over, so that's what the summary leads with.
+    // Snack Hunt's run score is beside the point -- the stash it fed is
+    // what carries over, so that's what the summary leads with.
     drawStashBar(258);
     textCentered(0, SCREEN_W, 300,
                  minigames::stashPoints() >= minigames::WINTER_STASH_GOAL
@@ -1714,10 +1831,14 @@ void renderMinigames(const AppContext& ctx, const minigames::State& s, bool forc
     case minigames::Screen::Over:
       renderMinigameOver(s);
       break;
-    case minigames::Screen::Reveal:
-      renderQuizReveal(s);
-      break;
     default:
+      // Everything else dispatches on the GAME, not the screen. Screen is
+      // shared vocabulary -- Snack Hunt and the Quiz both use Reveal, Simon
+      // and Memory both use Sequence -- so a screen-first switch sent Snack
+      // Hunt's bush reveal to the Quiz's renderer, which then drew a species
+      // card out of a ChoiceRound the run had never filled in (landing on
+      // species 0, Dead Man's Fingers, every single time). Each renderer
+      // handles its own screens.
       switch (s.game) {
         case minigames::Game::Snack:
           renderSnack(s);
@@ -1732,7 +1853,11 @@ void renderMinigames(const AppContext& ctx, const minigames::State& s, bool forc
           renderMaze(s);
           break;
         default:
-          renderQuizPrompt(s);
+          if (s.screen == minigames::Screen::Reveal) {
+            renderQuizReveal(s);
+          } else {
+            renderQuizPrompt(s);
+          }
           break;
       }
       break;

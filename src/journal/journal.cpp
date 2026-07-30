@@ -3,6 +3,10 @@
 #include <Preferences.h>
 
 #include "config.h"
+// For speciesCount() only, to clamp totalDiscovered() to the real species
+// count rather than the bitset's 256-bit capacity. No header cycle:
+// journal.h includes nothing, so foraging.cpp can keep depending on it.
+#include "foraging.h"
 
 namespace journal {
 
@@ -65,7 +69,15 @@ bool isDiscovered(int speciesIndex) {
   return (discoveredBits[speciesIndex / 8] & (1 << (speciesIndex % 8))) != 0;
 }
 
-int totalDiscovered() { return countBits(discoveredBits); }
+// Clamped to the real species count: the bitsets are 32 bytes = 256 bits for
+// 200 species, so counting raw bits overcounts by up to 56 whenever the
+// padding is set -- which DEV_MODE_UNLOCK_SPECIES does wholesale, making
+// "discovered" read 256/200 and quietly skewing every threshold built on it.
+int totalDiscovered() {
+  int n = countBits(discoveredBits);
+  int cap = foraging::speciesCount();
+  return n > cap ? cap : n;
+}
 
 void markEaten(int speciesIndex) {
   if (speciesIndex < 0 || speciesIndex >= kBytes * 8) return;

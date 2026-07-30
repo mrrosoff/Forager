@@ -11,10 +11,24 @@ void load(CreatureState& s);
 
 void save(const CreatureState& s);
 
-// Recompute hunger from elapsed time and derive the current mood from the
-// full context (season + weather + hunger). Updates s in place and returns
-// the chosen mood.
-Mood evaluate(CreatureState& s, const struct tm& now, const WeatherData& weather);
+/**
+ * Recompute hunger from elapsed time and derive the current mood from the
+ * full context (season + weather + hunger). Updates s in place and returns
+ * the chosen mood.
+ *
+ * `stage` scales how fast everything decays: a Baby has only two of the five
+ * minigames unlocked and a Juvenile three, so the bars they can't yet do
+ * anything about drain more slowly (see decayScale()). Without that, a young
+ * marmot is asked to maintain four bars with two tools.
+ */
+Mood evaluate(CreatureState& s, const struct tm& now, const WeatherData& weather, Stage stage);
+
+/**
+ * A resolved Discovery event feeds curiosity -- finding a new species is the
+ * single most curiosity-shaped thing in the game, and it's the one source
+ * available from birth, before either species minigame unlocks.
+ */
+void rewardDiscovery(CreatureState& s, time_t now);
 
 /**
  * How much a food kind ("mushroom", "berry", "shellfish", ...) tops up
@@ -37,16 +51,25 @@ FeedEffect feedEffectForKind(const char* kind);
 // selects the FeedEffect (see above) applied to happiness/energy.
 void feedForaged(CreatureState& s, time_t now, bool inSeason, const char* kind);
 
+// Which bar a minigame feeds. Every lethal stat has a game attached (see
+// main.cpp's statForGame()), so no bar can run down with nothing the player
+// can do about it.
+enum class Stat : uint8_t { Hunger, Happiness, Energy, Curiosity };
+
 /**
- * Finishing a minigame run with a non-zero score counts as attention: a
- * happiness bump scaled to the score (capped below what a single feed
- * gives) plus a lastPlayed reset, so playing holds off the boredom/energy
- * decay the same way feeding or resolving an event does. Hunger is
- * untouched -- games aren't food. Applied at most once per wake session
- * (see main.cpp's minigameRewarded flag) so a good run can't be replayed
- * for unlimited happiness.
+ * Finishing a minigame run counts as attention.
+ *
+ * `lastPlayed` is reset on EVERY finished run, score or no score -- that's
+ * what lifts the happiness and energy decay ceilings (see evaluate()), so
+ * simply sitting down to play is enough to hold off both. On top of that, a
+ * run with a non-zero score tops up the one bar `stat` names, scaled to the
+ * score and capped below what a single feed gives.
+ *
+ * Callers pass score 0 to get the lastPlayed reset without the top-up --
+ * main.cpp does that after the first scoring run of a wake, so a good run
+ * can't be replayed for unlimited stat.
  */
-void rewardMinigame(CreatureState& s, time_t now, int score);
+void rewardMinigame(CreatureState& s, time_t now, int score, Stat stat);
 
 /**
  * Growth stage from distinct species foraged so far (journal::totalEaten(),
