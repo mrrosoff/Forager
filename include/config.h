@@ -140,6 +140,17 @@ static const uint32_t INACTIVITY_SLEEP_MS = 120UL * 1000UL;
  * loop()'s idle check); the menu and every other view keep the short window.
  */
 static const uint32_t MINIGAME_IDLE_SLEEP_MS = 300UL * 1000UL;
+
+/**
+ * A marmot younger than this when winter arrives gets no winter-stash screen
+ * at all -- the year is settled silently (see main.cpp's
+ * resolveWinterStashIfDue()). Distinct from
+ * minigames::WINTER_GRACE_DAYS, which waives the *penalty* but still shows
+ * the screen: a week-old marmot has at least seen the game, whereas one
+ * born minutes ago on a device first switched on in December would meet a
+ * "you failed to stockpile" ceremony before its own home view.
+ */
+static const int WINTER_TOO_YOUNG_DAYS = 7;
 static const uint32_t BTN_DEBOUNCE_MS = 40;
 static const uint32_t WIFI_TIMEOUT_MS = 12UL * 1000UL;
 

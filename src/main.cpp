@@ -528,15 +528,27 @@ static void waitForEnterOrSleep() {
 static void resolveWinterStashIfDue() {
   int year = ctx.now.tm_year + 1900, month = ctx.now.tm_mon + 1;
   if (!minigames::stashResolveDue(year, month)) return;
+
+  time_t nowUtc = time(nullptr);
+  int64_t daysAlive = ctx.creature.birthDate > 0 ? (nowUtc - ctx.creature.birthDate) / 86400 : 0;
+
+  // Settle the year silently for a marmot that has barely existed. Powering
+  // a fresh device on in December otherwise put a full-screen "you didn't
+  // stockpile for winter" ceremony between the naming screen and the
+  // marmot's own home view, aimed at a marmot minutes old. Banking the year
+  // here still stops it firing again this December, and next winter resolves
+  // normally.
+  if (daysAlive < WINTER_TOO_YOUNG_DAYS) {
+    minigames::stashResolve(year);
+    return;
+  }
+
   int points = minigames::stashPoints();
   bool made = minigames::stashResolve(year);
 
-  // A marmot born in late autumn never had a season to gather in, so it
-  // isn't punished for a thin larder on a goal it couldn't have reached --
-  // it just gets told the winter came early. Measured from birth to now,
-  // which is within days of December 1st by definition here.
-  time_t nowUtc = time(nullptr);
-  int64_t daysAlive = ctx.creature.birthDate > 0 ? (nowUtc - ctx.creature.birthDate) / 86400 : 0;
+  // A marmot born in late autumn had a season, just not much of one, so it
+  // isn't punished for a goal it couldn't have reached -- it's told the
+  // winter came early instead.
   bool grace = !made && daysAlive < minigames::WINTER_GRACE_DAYS;
 
   display::renderWinterStash(made, grace, points, ctx.creature.name);

@@ -103,7 +103,9 @@ from the rest) and not a wake source, so Settings only works once awake.
   fall short and it goes into winter hungry — unless it was born within 60
   days of winter, in which case it's let off, since it never had a season to
   gather in. Settled once on the first December wake, then cleared for the
-  next year. Progress shows on the Status view as well as in the game.
+  next year. A marmot less than a week old at winter skips the screen
+  entirely — the year settles quietly rather than opening with a failure
+  notice. Progress shows on the Status view as well as in the game.
 - **Wake-time events**: roughly every 6h of wall-clock time, a chance of a
   Discovery/sighting/find/mishap/weather/treasure/encounter event takes over
   the Main view until resolved. Frequent use raises the odds; browsing all
