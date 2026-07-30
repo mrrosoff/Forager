@@ -234,10 +234,17 @@ int snackPick(State& s) {
   return points;
 }
 
+// Games available from birth aren't announced: their "unlock" is just the
+// game existing, and a brand-new marmot already walks through a birth reveal
+// and a naming screen before reaching Main -- two more ceremony screens for
+// things that were never locked is all ritual and no news.
+static bool unlockedAtBirth(Game g) { return g == Game::Snack || g == Game::Simon; }
+
 uint8_t pendingUnlocks(Stage stage) {
   uint8_t pending = 0;
   for (int i = 0; i < (int)Game::COUNT; i++) {
     if (sAnnounced & (1 << i)) continue;
+    if (unlockedAtBirth((Game)i)) continue;
     if (isUnlocked((Game)i, stage)) pending |= (uint8_t)(1 << i);
   }
   return pending;
@@ -405,6 +412,7 @@ bool memoryBoardCleared(const State& s) { return s.memory.pairsFound >= MemoryRo
 
 void startSimonRun(State& s) {
   s.simon.len = 0;
+  s.won = false;
   // One icon per button, shuffled -- so which button means which call has to
   // be read off the screen each run rather than remembered from the last.
   for (int i = 0; i < 3; i++) s.simon.icon[i] = (uint8_t)i;

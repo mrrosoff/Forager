@@ -47,7 +47,9 @@ from the rest) and not a wake source, so Settings only works once awake.
 ## Behavior
 
 - **Sleep/wake**: deep sleep between interactions (screen holds its image at
-  zero power); ENTER wakes it, or a 24h timer backstop. On wake: WiFi → NTP
+  zero power); ENTER wakes it, or a 24h timer backstop. Idle sleep is two
+  minutes, stretched to five while a minigame run is in progress — run state
+  is RAM-only, so sleeping mid-run would throw the run away. On wake: WiFi → NTP
   → weather → recompute mood/growth/death → check for an event → render.
 - **Growing up**: three stages (Baby / Juvenile / Adult) based on distinct
   species eaten, not elapsed time. Species only appear in the Foraging list
@@ -81,7 +83,8 @@ from the rest) and not a wake source, so Settings only works once awake.
     nothing at all, a harmless critter, or — rarely — a predator, which ends
     the run early. Nothing already banked is ever lost; the cost is the rest
     of the day's picks.
-  - **Marmot Says** — Simon: repeat a growing LEFT/RIGHT/ENTER sequence.
+  - **Marmot Says** — Simon: repeat a growing sequence of three calls.
+    Reaching 25 wins the run outright.
   - **Forest Memory** — concentration on a 4×3 grid of forest tokens, with a
     miss budget.
   - **Burrow Maze** — a tunnel dig that grows 5×5 → 6×6 → 7×7 as you clear

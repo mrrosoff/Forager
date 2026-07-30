@@ -229,6 +229,12 @@ mental permutation arithmetic rather than the game anyone means by a shell
 game. Motion is not available here, so games that are *about* motion are
 out, not just games that are fast.
 
+Games unlocked at birth (Snack Hunt, Marmot Says) are excluded from the
+unlock *reveal* -- see `unlockedAtBirth()` in minigames.cpp. First boot
+already runs a birth reveal plus the naming flow, and announcing two games
+that were never locked was pure ceremony. `mgSeen` therefore only ever
+records the three progress-gated ones.
+
 The unlock ladder (see `minigames::isUnlocked()`) mixes two axes: Snack Hunt
 and Marmot Says from birth, Forest Memory at Juvenile, Burrow Maze at Adult,
 Species Quiz at 50 discovered species. Locked rows stay visible on the menu
