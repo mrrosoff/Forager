@@ -17,8 +17,10 @@ void load(CreatureState& s) {
   s.hunger = p.getUChar("hunger", 30);
   s.happiness = p.getUChar("happy", 60);
   s.energy = p.getUChar("energy", 70);
+  s.curiosity = p.getUChar("curio", 60);
   s.lastFed = (time_t)p.getULong64("lastFed", 0);
   s.lastPlayed = (time_t)p.getULong64("lastPlayed", 0);
+  s.lastCurious = (time_t)p.getULong64("lastCur", 0);
   s.birthDate = (time_t)p.getULong64("birthDate", 0);
   s.feedStreakDays = p.getUShort("streak", 0);
   s.lastStreakDay = (time_t)p.getULong64("streakDay", 0);
@@ -37,8 +39,10 @@ void save(const CreatureState& s) {
   p.putUChar("hunger", s.hunger);
   p.putUChar("happy", s.happiness);
   p.putUChar("energy", s.energy);
+  p.putUChar("curio", s.curiosity);
   p.putULong64("lastFed", (uint64_t)s.lastFed);
   p.putULong64("lastPlayed", (uint64_t)s.lastPlayed);
+  p.putULong64("lastCur", (uint64_t)s.lastCurious);
   p.putULong64("birthDate", (uint64_t)s.birthDate);
   p.putUShort("streak", s.feedStreakDays);
   p.putULong64("streakDay", (uint64_t)s.lastStreakDay);
@@ -48,11 +52,29 @@ void save(const CreatureState& s) {
   p.end();
 }
 
+/**
+ * Multiplier on every decay period, by growth stage. A Baby can reach only
+ * Snack Hunt and Marmot Says, and a Juvenile adds Forest Memory -- Burrow
+ * Maze (energy) and the Species Quiz stay locked for a long while. Slowing
+ * the clock early means the bars a young marmot has no tool for aren't
+ * running down at adult speed while it waits.
+ */
+static double decayScale(Stage stage) {
+  switch (stage) {
+    case Stage::Baby:
+      return 1.8;
+    case Stage::Juvenile:
+      return 1.35;
+    default:
+      return 1.0;
+  }
+}
+
 // Recompute hunger as a 0..100 ramp over HUNGER_PERIOD_HOURS since last fed.
-static void agingHunger(CreatureState& s, time_t now) {
+static void agingHunger(CreatureState& s, time_t now, double scale) {
   if (s.lastFed == 0 || now <= s.lastFed) return;
   double hrs = (double)(now - s.lastFed) / 3600.0;
-  double frac = hrs / (double)HUNGER_PERIOD_HOURS;
+  double frac = hrs / ((double)HUNGER_PERIOD_HOURS * scale);
   frac = std::max(0.0, std::min(1.0, frac));
   s.hunger = (uint8_t)(frac * 100.0);
 
@@ -67,10 +89,10 @@ static void agingHunger(CreatureState& s, time_t now) {
  * long-neglected marmot's happiness gets pulled down regardless of what it
  * was before. Independent of hunger: staying fed doesn't prevent boredom.
  */
-static void agingBoredom(CreatureState& s, time_t now) {
+static void agingBoredom(CreatureState& s, time_t now, double scale) {
   if (s.lastPlayed == 0 || now <= s.lastPlayed) return;
   double hrs = (double)(now - s.lastPlayed) / 3600.0;
-  double frac = hrs / (double)PLAY_PERIOD_HOURS;
+  double frac = hrs / ((double)PLAY_PERIOD_HOURS * scale);
   frac = std::max(0.0, std::min(1.0, frac));
   uint8_t ceiling = (uint8_t)((1.0 - frac) * 100.0);
   if (ceiling < s.happiness) s.happiness = ceiling;
@@ -79,20 +101,34 @@ static void agingBoredom(CreatureState& s, time_t now) {
 // Same ceiling-clamp shape as agingBoredom(), same lastPlayed trigger, but
 // its own (longer) decay period -- energy and happiness both track neglect
 // since the last interaction, just at different rates.
-static void agingEnergy(CreatureState& s, time_t now) {
+static void agingEnergy(CreatureState& s, time_t now, double scale) {
   if (s.lastPlayed == 0 || now <= s.lastPlayed) return;
   double hrs = (double)(now - s.lastPlayed) / 3600.0;
-  double frac = hrs / (double)ENERGY_PERIOD_HOURS;
+  double frac = hrs / ((double)ENERGY_PERIOD_HOURS * scale);
   frac = std::max(0.0, std::min(1.0, frac));
   uint8_t ceiling = (uint8_t)((1.0 - frac) * 100.0);
   if (ceiling < s.energy) s.energy = ceiling;
 }
 
-Mood evaluate(CreatureState& s, const struct tm& now, const WeatherData& weather) {
+// Same ceiling-clamp shape as agingBoredom()/agingEnergy(), but on its own
+// (slower) clock and driven by lastCurious rather than lastPlayed -- a marmot
+// can be fed and played with and still have seen nothing new.
+static void agingCuriosity(CreatureState& s, time_t now, double scale) {
+  if (s.lastCurious == 0 || now <= s.lastCurious) return;
+  double hrs = (double)(now - s.lastCurious) / 3600.0;
+  double frac = hrs / ((double)CURIOSITY_PERIOD_HOURS * scale);
+  frac = std::max(0.0, std::min(1.0, frac));
+  uint8_t ceiling = (uint8_t)((1.0 - frac) * 100.0);
+  if (ceiling < s.curiosity) s.curiosity = ceiling;
+}
+
+Mood evaluate(CreatureState& s, const struct tm& now, const WeatherData& weather, Stage stage) {
   time_t nowEpoch = mktime(const_cast<struct tm*>(&now));
-  agingHunger(s, nowEpoch);
-  agingEnergy(s, nowEpoch);
-  agingBoredom(s, nowEpoch);
+  double scale = decayScale(stage);
+  agingHunger(s, nowEpoch, scale);
+  agingEnergy(s, nowEpoch, scale);
+  agingBoredom(s, nowEpoch, scale);
+  agingCuriosity(s, nowEpoch, scale);
 
   int month = now.tm_mon + 1;  // 1..12
   int hour = now.tm_hour;
@@ -167,17 +203,47 @@ void feedForaged(CreatureState& s, time_t now, bool inSeason, const char* kind) 
   }
 }
 
-void rewardMinigame(CreatureState& s, time_t now, int score) {
+void rewardMinigame(CreatureState& s, time_t now, int score, Stat stat) {
+  // Any finished run counts as play, which is what lifts the happiness and
+  // energy ceilings -- so sitting down to a game is itself enough to hold
+  // off both, whatever the score.
+  s.lastPlayed = now;
+  if (stat == Stat::Curiosity) s.lastCurious = now;
   if (score <= 0) return;
-  // Scales with how well the run went, but caps well under a feed's
-  // happiness bump -- playing is attention, not food, and shouldn't become
-  // a way to keep a never-fed marmot topped up. Deliberately leaves hunger
-  // alone for the same reason.
+
+  // Scales with the run, capped below what a single feed gives: playing is
+  // attention, not a substitute for food.
   int boost = 4 + score * 2;
   if (boost > 15) boost = 15;
-  int h = (int)s.happiness + boost;
-  s.happiness = (uint8_t)(h > 100 ? 100 : h);
-  s.lastPlayed = now;  // same boredom/energy clock feeding and events reset
+  switch (stat) {
+    case Stat::Hunger:
+      // Gathering turns up things worth eating, so this one feeds -- but
+      // less than actually eating a species does (that's 25).
+      s.hunger = s.hunger > (uint8_t)boost ? (uint8_t)(s.hunger - boost) : 0;
+      break;
+    case Stat::Energy: {
+      int e = (int)s.energy + boost;
+      s.energy = (uint8_t)(e > 100 ? 100 : e);
+      break;
+    }
+    case Stat::Curiosity: {
+      int c = (int)s.curiosity + boost;
+      s.curiosity = (uint8_t)(c > 100 ? 100 : c);
+      break;
+    }
+    case Stat::Happiness:
+    default: {
+      int h = (int)s.happiness + boost;
+      s.happiness = (uint8_t)(h > 100 ? 100 : h);
+      break;
+    }
+  }
+}
+
+void rewardDiscovery(CreatureState& s, time_t now) {
+  int c = (int)s.curiosity + 20;
+  s.curiosity = (uint8_t)(c > 100 ? 100 : c);
+  s.lastCurious = now;
 }
 
 /**

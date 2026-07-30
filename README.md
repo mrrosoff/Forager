@@ -67,9 +67,12 @@ from the rest) and not a wake source, so Settings only works once awake.
   unplayable, so every game is one that was always turn-based. Each keeps a
   persisted high score, a scoring run bumps happiness once per wake, and
   crossing an unlock threshold shows a one-time reveal screen.
-  - **Snack Hunt** — four bushes, rummage under one; each bush independently
-    hides something or nothing (~30% each), then all four lift so you see
-    what you walked past. Five picks a run.
+  - **Snack Hunt** — four bushes, rummage under one; every bush shifts aside
+    afterward so you see what you walked past. Five picks a run. Under a bush
+    there might be stash material (dry grass, leaves, wood, a wildflower),
+    nothing at all, a harmless critter, or — rarely — a predator, which ends
+    the run early. Nothing already banked is ever lost; the cost is the rest
+    of the day's picks.
   - **Marmot Says** — Simon: repeat a growing LEFT/RIGHT/ENTER sequence.
   - **Forest Memory** — concentration on a 4×3 grid of forest tokens, with a
     miss budget.

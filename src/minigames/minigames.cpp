@@ -72,7 +72,7 @@ const char* stashKindName(uint8_t kind) {
     case STASH_LEAVES:
       return "leaves";
     case STASH_TWIGS:
-      return "twigs";
+      return "wood";
     case STASH_FLOWER:
       return "a wildflower";
     default:
@@ -117,24 +117,77 @@ bool stashResolve(int year) {
  * meant to be something you chip away at rather than clear in an evening.
  */
 static void rollBush(SnackRound& r, int i) {
+#if DEV_MODE_SHOW_ALL_CONTENT
+  // Walk a fixed list covering every possible bush content, four per round
+  // (all four open on the reveal), so two or three rounds shows the lot.
+  struct DevBush {
+    uint8_t kind, amount;
+  };
+  static const DevBush kAll[] = {
+      {KIND_NONE, 0},    {STASH_GRASS, 1},  {STASH_GRASS, 4},  {STASH_LEAVES, 2}, {STASH_TWIGS, 1},
+      {STASH_TWIGS, 2},  {STASH_FLOWER, 1}, {KIND_CRITTER, 0}, {KIND_CRITTER, 1}, {KIND_CRITTER, 2},
+      {KIND_CRITTER, 3}, {KIND_SCARE, 0},   {KIND_SCARE, 1},   {KIND_SCARE, 2},   {KIND_SCARE, 3},
+  };
+  static int devIdx = 0;
+  const DevBush& b = kAll[devIdx % (int)(sizeof(kAll) / sizeof(kAll[0]))];
+  devIdx++;
+  r.kind[i] = b.kind;
+  r.amount[i] = b.amount;
+  return;
+#else
   int roll = (int)random(1000);
-  if (roll < 700) {
+  if (roll < 620) {
     r.kind[i] = KIND_NONE;
     r.amount[i] = 0;
-    return;
-  }
-  if (roll < 870) {
+  } else if (roll < 780) {
     r.kind[i] = STASH_GRASS;
     r.amount[i] = (uint8_t)(1 + random(4));
-  } else if (roll < 940) {
+  } else if (roll < 845) {
     r.kind[i] = STASH_LEAVES;
     r.amount[i] = (uint8_t)(1 + random(3));
-  } else if (roll < 985) {
+  } else if (roll < 885) {
     r.kind[i] = STASH_TWIGS;
     r.amount[i] = (uint8_t)(1 + random(2));
-  } else {
+  } else if (roll < 898) {
     r.kind[i] = STASH_FLOWER;
     r.amount[i] = 1;
+  } else if (roll < 965) {
+    // Something living, but harmless -- no stash value, just the small
+    // surprise of turning over a rock.
+    r.kind[i] = KIND_CRITTER;
+    r.amount[i] = (uint8_t)random(CRITTER_COUNT);
+  } else {
+    // A predator. Not fatal: the marmot bolts, which costs the rest of the
+    // run's picks but never what's already banked (see snackPick()).
+    r.kind[i] = KIND_SCARE;
+    r.amount[i] = (uint8_t)random(PREDATOR_COUNT);
+  }
+#endif
+}
+
+const char* critterName(int i) {
+  switch (i) {
+    case 0:
+      return "a ground beetle";
+    case 1:
+      return "an alligator lizard";
+    case 2:
+      return "a spider";
+    default:
+      return "a cricket";
+  }
+}
+
+const char* predatorName(int i) {
+  switch (i) {
+    case 0:
+      return "A coyote";
+    case 1:
+      return "A cougar";
+    case 2:
+      return "A red fox";
+    default:
+      return "A barred owl";
   }
 }
 
@@ -165,10 +218,18 @@ int snackPick(State& s) {
   int i = s.snack.sel;
   s.snack.picked = i;
   s.snack.picksLeft--;
-  if (s.snack.kind[i] == KIND_NONE) return 0;
-  int points = stashKindValue(s.snack.kind[i]) * s.snack.amount[i];
+  uint8_t kind = s.snack.kind[i];
+  if (kind == KIND_SCARE) {
+    // Bolting ends the run, so spend the remaining picks -- but everything
+    // already found stays banked. The cost is the rest of today's foraging,
+    // not the day's haul.
+    s.snack.picksLeft = 0;
+    return 0;
+  }
+  if (kind == KIND_NONE || kind == KIND_CRITTER) return 0;
+  int points = stashKindValue(kind) * s.snack.amount[i];
   if (!s.snack.banking) return points;  // practice run: scores, doesn't gather
-  sStash.count[s.snack.kind[i]] += s.snack.amount[i];
+  sStash.count[kind] += s.snack.amount[i];
   saveStash();
   return points;
 }
@@ -229,7 +290,7 @@ const char* gameBlurb(Game g) {
     case Game::Memory:
       return "Match pairs of forest tokens";
     case Game::Maze:
-      return "Dig your way to the exit";
+      return "Outrun the meltwater to the exit";
     default:
       return "Name a species from a clue";
   }
@@ -342,6 +403,20 @@ bool memoryBoardCleared(const State& s) { return s.memory.pairsFound >= MemoryRo
 
 // --------------------------------------------------------------- Simon
 
+void startSimonRun(State& s) {
+  s.simon.len = 0;
+  // One icon per button, shuffled -- so which button means which call has to
+  // be read off the screen each run rather than remembered from the last.
+  for (int i = 0; i < 3; i++) s.simon.icon[i] = (uint8_t)i;
+  for (int i = 2; i > 0; i--) {
+    int j = (int)random(i + 1);
+    uint8_t t = s.simon.icon[i];
+    s.simon.icon[i] = s.simon.icon[j];
+    s.simon.icon[j] = t;
+  }
+  startSimonRound(s);
+}
+
 void startSimonRound(State& s) {
   if (s.simon.len < SimonRound::MAX_LEN) s.simon.seq[s.simon.len++] = (uint8_t)random(3);
   s.simon.showIdx = 0;
@@ -368,23 +443,39 @@ static const uint8_t kMazeWall[4] = {MazeRound::WALL_N, MazeRound::WALL_E, MazeR
 static bool mazeOpen(const MazeRound& m, int x, int y, int dir) {
   if (m.wall[y][x] & kMazeWall[dir]) return false;
   int nx = x + kMazeDx[dir], ny = y + kMazeDy[dir];
-  return nx >= 0 && nx < MazeRound::N && ny >= 0 && ny < MazeRound::N;
+  return nx >= 0 && nx < m.n && ny >= 0 && ny < m.n;
+}
+
+int mazeSizeFor(int score) {
+  if (score < 2) return 5;
+  if (score < 4) return 6;
+  return MazeRound::MAX_N;
+}
+
+int mazeBudgetFor(int n) {
+  // Four moves per row of maze. Braiding (see startMaze()) means junctions
+  // are frequent, so a straight run stops more often and each move covers
+  // less ground than it did in a single-corridor maze -- three per row was
+  // tuned before that and is now unfairly tight.
+  return n * 4;
 }
 
 void startMaze(State& s) {
   MazeRound& m = s.maze;
-  for (int y = 0; y < MazeRound::N; y++) {
-    for (int x = 0; x < MazeRound::N; x++) {
+  m.n = mazeSizeFor(s.score);
+  for (int y = 0; y < m.n; y++) {
+    for (int x = 0; x < m.n; x++) {
       m.wall[y][x] = 0x0F;  // every wall up
       m.seen[y][x] = false;
     }
   }
 
-  // Depth-first backtracker with an explicit stack -- 25 cells, so recursion
-  // would be fine too, but the loop version keeps stack use flat and
-  // predictable on a device that also runs a WiFi stack.
-  bool visited[MazeRound::N][MazeRound::N] = {};
-  uint8_t stackX[MazeRound::N * MazeRound::N], stackY[MazeRound::N * MazeRound::N];
+  // Depth-first backtracker with an explicit stack -- at most 49 cells, so
+  // recursion would be fine too, but the loop version keeps stack use flat
+  // and predictable on a device that also runs a WiFi stack.
+  bool visited[MazeRound::MAX_N][MazeRound::MAX_N] = {};
+  uint8_t stackX[MazeRound::MAX_N * MazeRound::MAX_N];
+  uint8_t stackY[MazeRound::MAX_N * MazeRound::MAX_N];
   int top = 0;
   int cx = 0, cy = 0;
   visited[0][0] = true;
@@ -394,18 +485,18 @@ void startMaze(State& s) {
   while (top > 0) {
     cx = stackX[top - 1];
     cy = stackY[top - 1];
-    int cand[4], n = 0;
+    int cand[4], nc = 0;
     for (int d = 0; d < 4; d++) {
       int nx = cx + kMazeDx[d], ny = cy + kMazeDy[d];
-      if (nx < 0 || nx >= MazeRound::N || ny < 0 || ny >= MazeRound::N) continue;
+      if (nx < 0 || nx >= m.n || ny < 0 || ny >= m.n) continue;
       if (visited[ny][nx]) continue;
-      cand[n++] = d;
+      cand[nc++] = d;
     }
-    if (n == 0) {
+    if (nc == 0) {
       top--;
       continue;
     }
-    int d = cand[random(n)];
+    int d = cand[random(nc)];
     int nx = cx + kMazeDx[d], ny = cy + kMazeDy[d];
     m.wall[cy][cx] &= (uint8_t)~kMazeWall[d];
     m.wall[ny][nx] &= (uint8_t)~kMazeWall[(d + 2) % 4];  // the same wall, other side
@@ -415,12 +506,50 @@ void startMaze(State& s) {
     top++;
   }
 
+  // Braid the maze. A plain depth-first maze is a *perfect* maze: exactly
+  // one route between any two cells, which means most cells have a single
+  // way onward and "which tunnel?" is usually no choice at all -- a long
+  // corridor with occasional dead ends. Knocking extra walls out creates
+  // loops, so cells routinely offer two or three real options and there's
+  // more than one way through.
+  int extra = m.n * m.n / 2;
+  for (int k = 0; k < extra; k++) {
+    int x = (int)random(m.n), y = (int)random(m.n);
+    int d = (int)random(4);
+    int nx = x + kMazeDx[d], ny = y + kMazeDy[d];
+    if (nx < 0 || nx >= m.n || ny < 0 || ny >= m.n) continue;
+    m.wall[y][x] &= (uint8_t)~kMazeWall[d];
+    m.wall[ny][nx] &= (uint8_t)~kMazeWall[(d + 2) % 4];
+  }
+
+  // Then open out most dead ends, which is what "braided" usually means:
+  // a dead end is a move spent on nothing, and with the meltwater rising
+  // behind you a maze full of them is just punishing rather than tricky.
+  for (int y = 0; y < m.n; y++) {
+    for (int x = 0; x < m.n; x++) {
+      int open = 0;
+      for (int d = 0; d < 4; d++) {
+        if (mazeOpen(m, x, y, d)) open++;
+      }
+      if (open != 1 || random(100) < 25) continue;  // leave a quarter of them
+      for (int t = 0; t < 8; t++) {
+        int d = (int)random(4);
+        int nx = x + kMazeDx[d], ny = y + kMazeDy[d];
+        if (nx < 0 || nx >= m.n || ny < 0 || ny >= m.n) continue;
+        if (!(m.wall[y][x] & kMazeWall[d])) continue;  // already open
+        m.wall[y][x] &= (uint8_t)~kMazeWall[d];
+        m.wall[ny][nx] &= (uint8_t)~kMazeWall[(d + 2) % 4];
+        break;
+      }
+    }
+  }
+
   m.x = 0;
   m.y = 0;
   m.seen[0][0] = true;
   m.cameFrom = -1;
   m.sel = 0;
-  m.movesLeft = MazeRound::MOVE_BUDGET;
+  m.movesLeft = mazeBudgetFor(m.n);
 }
 
 int mazeOptions(const State& s, int* out) {
@@ -437,9 +566,7 @@ int mazeOptions(const State& s, int* out) {
   return n;
 }
 
-bool mazeSolved(const State& s) {
-  return s.maze.x == MazeRound::N - 1 && s.maze.y == MazeRound::N - 1;
-}
+bool mazeSolved(const State& s) { return s.maze.x == s.maze.n - 1 && s.maze.y == s.maze.n - 1; }
 
 void mazeAdvance(State& s) {
   MazeRound& m = s.maze;
@@ -455,7 +582,7 @@ void mazeAdvance(State& s) {
   // move is always exactly the direction chosen: it runs on while the way
   // ahead stays open and there's nothing to decide, and stops the moment
   // the corridor turns, branches, or ends.
-  for (int guard = 0; guard < MazeRound::N; guard++) {
+  for (int guard = 0; guard < m.n; guard++) {
     m.x += kMazeDx[dir];
     m.y += kMazeDy[dir];
     m.seen[m.y][m.x] = true;

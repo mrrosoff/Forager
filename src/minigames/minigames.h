@@ -116,7 +116,24 @@ struct SnackRound {
  * blur two systems that mean different things.
  */
 enum StashKind : uint8_t { STASH_GRASS = 0, STASH_LEAVES, STASH_TWIGS, STASH_FLOWER, STASH_KINDS };
+
+/**
+ * Sentinels for the two things under a bush that aren't stash material.
+ * They live in the same `kind` field as StashKind, above the real values.
+ * When either is set, `amount` holds which critter/predator it is rather
+ * than a quantity.
+ */
 static const uint8_t KIND_NONE = 0xFF;
+static const uint8_t KIND_CRITTER = 0xFE;  // harmless; flavour, no stash value
+static const uint8_t KIND_SCARE = 0xFD;    // a predator: the run ends here
+
+static const int CRITTER_COUNT = 4;
+static const int PREDATOR_COUNT = 4;
+
+// Names for the reveal line. Predator order must match the art table in
+// display.cpp's snackPredatorArt().
+const char* critterName(int i);
+const char* predatorName(int i);
 
 /**
  * The persisted stockpile. Unlike everything else in this module it is
@@ -176,6 +193,13 @@ struct SimonRound {
   int len;
   int showIdx;   // element being played back during Screen::Sequence
   int inputIdx;  // how many correct presses so far this round
+  /**
+   * Which of three icons stands for each button this run, indexed by button
+   * (0 = LEFT, 1 = RIGHT, 2 = ENTER) and holding an icon id the display
+   * maps to art. Reshuffled every run, so the calls have to be read rather
+   * than memorised as "left, left, right" from a previous game.
+   */
+  uint8_t icon[3];
 };
 
 /**
@@ -197,16 +221,39 @@ struct SimonRound {
  * agreeing; `seen` is the trail already dug, drawn behind the marmot.
  */
 struct MazeRound {
-  static const int N = 5;
-  static const int MOVE_BUDGET = 20;  // decisions, not cells
+  // Grid grows 5x5 -> 6x6 -> 7x7 as mazes are cleared (see mazeSizeFor()),
+  // so a run gets harder rather than just longer. Storage is fixed at the
+  // largest; `n` is the live size.
+  static const int MAX_N = 7;
   static const uint8_t WALL_N = 1, WALL_E = 2, WALL_S = 4, WALL_W = 8;
-  uint8_t wall[N][N];
-  bool seen[N][N];
+  uint8_t wall[MAX_N][MAX_N];
+  bool seen[MAX_N][MAX_N];
+  int n;          // this maze's side length
   int x, y;       // marmot's cell
   int cameFrom;   // direction it entered this cell from; -1 at the start
   int sel;        // index into this cell's option list (see mazeOptions())
   int movesLeft;  // running out ends the run
 };
+
+// Side length for the given number of mazes already solved.
+int mazeSizeFor(int score);
+
+/**
+ * Moves allowed for an n-wide maze, i.e. how far ahead of the rising
+ * snowmelt the marmot is when it starts.
+ *
+ * The fail state needed a *reason*: a burrow with no threat in it makes a
+ * dead end merely a detour, and "you ran out of moves" is an arbitrary
+ * rule. So the tunnels are flooding behind you -- spring meltwater, which
+ * is a real hazard for a real marmot burrow -- and every move lets it gain
+ * a step. Backtracking out of a dead end costs you ground you can't get
+ * back, which is exactly the tension the budget was supposed to create.
+ *
+ * It's counted in moves rather than seconds on purpose: the panel only
+ * redraws when a button is pressed, so a wall clock would sit frozen and
+ * then jump, and the player would drown to a timer they never saw move.
+ */
+int mazeBudgetFor(int n);
 
 /**
  * Species Quiz: three species names, one of which owns the clue on screen.
@@ -311,8 +358,12 @@ bool memoryResolveTurn(State& s);
 
 bool memoryBoardCleared(const State& s);
 
+// Fresh run: empties the sequence, shuffles which icon each button carries,
+// then deals the first call.
+void startSimonRun(State& s);
+
 // Appends one element to the sequence and rewinds playback/input. Called
-// once at the start of a run and again after every cleared round.
+// after every cleared round.
 void startSimonRound(State& s);
 
 /**
