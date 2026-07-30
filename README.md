@@ -5,7 +5,7 @@ marmot lives on the display, born the first time you power it on, and grows
 up as you feed it real Pacific Northwest species — reflecting real Seattle
 weather/season and what's worth foraging right now. It sleeps almost all
 the time; ENTER wakes it, it refreshes, and it drops back to deep sleep
-after 60s idle. Neglect it for about a week and it dies.
+after two minutes idle. Neglect it for about a week and it dies.
 
 <p align="center">
   <img src="assets/device.jpg" alt="Forager device: a hand-held e-ink marmot tamagotchi in a green 3D-printed enclosure" width="480">
@@ -55,7 +55,15 @@ from the rest) and not a wake source, so Settings only works once awake.
 - **Staying alive**: Hunger, Happiness, and Energy are persisted bars that
   each decay over about a week without feeding/interaction; any one maxing
   out (Hunger) or bottoming out (Happiness/Energy) kills the marmot and
-  resets to a fresh birth.
+  resets to a fresh birth. Curiosity is a fourth bar but is **not** lethal —
+  it tracks whether anything new has turned up lately. Decay slows for young
+  marmots (×1.8 as a Baby, ×1.35 as a Juvenile), since they have fewer of
+  the games unlocked to do anything about it.
+- **Every bar has an activity**: eating and Snack Hunt fill Hunger, Marmot
+  Says and resolved events lift Happiness, Burrow Maze restores Energy, and
+  the two species games plus Discovery events feed Curiosity. Any finished
+  run also counts as play, which holds off the Happiness and Energy decay
+  regardless of score.
 - **Views** (LEFT/RIGHT cycle, ENTER acts): Minigames ← Status ← **Main**
   → Foraging. Main shows the marmot + mood + weather + pending events;
   Foraging pages the discovered species list and eats on ENTER; Status shows
@@ -65,8 +73,8 @@ from the rest) and not a wake source, so Settings only works once awake.
   (Juvenile), Burrow Maze (Adult), and Species Quiz (50 species discovered).
   Nothing here is scored on reaction time; the panel refresh makes that
   unplayable, so every game is one that was always turn-based. Each keeps a
-  persisted high score, a scoring run bumps happiness once per wake, and
-  crossing an unlock threshold shows a one-time reveal screen.
+  persisted high score, a scoring run tops up that game's stat once per wake,
+  and crossing an unlock threshold shows a one-time reveal screen.
   - **Snack Hunt** — four bushes, rummage under one; every bush shifts aside
     afterward so you see what you walked past. Five picks a run. Under a bush
     there might be stash material (dry grass, leaves, wood, a wildflower),
@@ -76,13 +84,14 @@ from the rest) and not a wake source, so Settings only works once awake.
   - **Marmot Says** — Simon: repeat a growing LEFT/RIGHT/ENTER sequence.
   - **Forest Memory** — concentration on a 4×3 grid of forest tokens, with a
     miss budget.
-  - **Burrow Maze** — a 5×5 tunnel dig. Three buttons can't steer in four
+  - **Burrow Maze** — a tunnel dig that grows 5×5 → 6×6 → 7×7 as you clear
+    them, with meltwater rising behind you. Three buttons can't steer in four
     directions, so it never asks for one: at each junction it lists the
     tunnels out of that cell, LEFT/RIGHT cycle them, ENTER commits, and the
     marmot walks the whole corridor by itself. One press per *decision*.
   - **Species Quiz** — name a species from a clue, photo revealed on a right
     answer.
-- **Winter Stash**: what Snack Hunt turns up (dry grass, leaves, twigs, the
+- **Winter Stash**: what Snack Hunt turns up (dry grass, leaves, wood, the
   odd wildflower — den-stuffing, deliberately not foraging species)
   accumulates in a persisted stockpile across days. **Only the first run of
   each calendar day stocks it**; later runs still play and still score, they
