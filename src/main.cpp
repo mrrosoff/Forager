@@ -618,6 +618,7 @@ static bool startMinigame(minigames::Game g) {
   mg.game = g;
   mg.score = 0;
   mg.newBest = false;
+  mg.won = false;
   switch (g) {
     case minigames::Game::Snack:
       // Day index, so only the first run of each calendar day stocks the
@@ -867,6 +868,13 @@ static bool handleMinigamesInput() {
         renderCurrent(true);
       } else if (minigames::simonRoundComplete(mg)) {
         mg.score++;
+        if (mg.score >= minigames::SIMON_WIN_ROUNDS) {
+          // Beat the game rather than failed out of it.
+          mg.won = true;
+          endMinigameRun();
+          renderCurrent(true);
+          return true;
+        }
         minigames::startSimonRound(mg);
         mg.screen = Screen::Sequence;
         mgNextFrameMs = millis() + MG_FRAME_MS;
@@ -1371,8 +1379,13 @@ void loop() {
   }
 #endif
 
+  // A run in progress gets the longer window (see MINIGAME_IDLE_SLEEP_MS):
+  // its state is RAM-only, so sleeping mid-run throws the run away.
+  bool inRun = currentView == View::Minigames && mg.screen != minigames::Screen::Menu;
+  uint32_t idleWindow = inRun ? MINIGAME_IDLE_SLEEP_MS : INACTIVITY_SLEEP_MS;
+
   static bool loggedIdle = false;
-  if (millis() - lastActivityMs > INACTIVITY_SLEEP_MS) {
+  if (millis() - lastActivityMs > idleWindow) {
     if (!loggedIdle) {
       log_i("Idle; sleeping");
       loggedIdle = true;

@@ -1698,7 +1698,13 @@ static void renderMinigameOver(const minigames::State& s) {
     return;
   }
 
-  textCentered(0, SCREEN_W, 60, s.score > 0 ? "Nice run!" : "That's the game", 2);
+  textCentered(0, SCREEN_W, 60,
+               s.won ? "You beat it!" : (s.score > 0 ? "Nice run!" : "That's the game"), 2);
+  if (s.won) {
+    textCentered(0, SCREEN_W, 88,
+                 "All " + std::to_string(minigames::SIMON_WIN_ROUNDS) + " calls, start to finish.",
+                 1);
+  }
   textCentered(0, SCREEN_W, 110, "Score", 1);
   textCentered(0, SCREEN_W, 130, std::to_string(s.score), 4);
   textCentered(0, SCREEN_W, 190, "Best: " + std::to_string(minigames::highScore(s.game)), 1);

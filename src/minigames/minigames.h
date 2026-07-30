@@ -183,12 +183,20 @@ bool stashResolveDue(int year, int month);
 bool stashResolve(int year);
 
 /**
+ * Repeating this many calls back correctly wins the run outright. Without a
+ * ceiling the sequence hit MAX_LEN and then replayed the same length forever,
+ * scoring each time -- an unbounded score rather than a win.
+ */
+static const int SIMON_WIN_ROUNDS = 25;
+
+/**
  * Marmot Says: a growing button sequence the player repeats. Elements are
  * 0 = LEFT, 1 = RIGHT, 2 = ENTER -- i.e. the physical buttons themselves,
  * so there's nothing to map on screen beyond the arrow glyphs.
  */
 struct SimonRound {
-  static const int MAX_LEN = 24;
+  // 25 is the win, so the sequence has to be able to reach it.
+  static const int MAX_LEN = 25;
   uint8_t seq[MAX_LEN];
   int len;
   int showIdx;   // element being played back during Screen::Sequence
@@ -275,6 +283,7 @@ struct State {
   int menuSel = 0;
   int score = 0;         // this run
   bool newBest = false;  // set by finishRun() when score beat the stored best
+  bool won = false;      // run ended by beating the game, not by failing
   SnackRound snack;
   MemoryRound memory;
   SimonRound simon;

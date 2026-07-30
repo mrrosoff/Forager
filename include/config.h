@@ -130,6 +130,16 @@ static const float BATT_VOLTAGE_FULL = 4.2f;
 static const float BATT_VOLTAGE_EMPTY = 3.3f;
 
 static const uint32_t INACTIVITY_SLEEP_MS = 120UL * 1000UL;
+
+/**
+ * The idle window while a minigame run is actually in progress. Longer than
+ * INACTIVITY_SLEEP_MS because Forest Memory and Burrow Maze ask the player to
+ * *think*, and minigame state lives in RAM -- dropping into deep sleep
+ * mid-run destroys the run, so a two-minute pause over a 7x7 maze used to
+ * lose it. Only applies between the first press of a run and its last (see
+ * loop()'s idle check); the menu and every other view keep the short window.
+ */
+static const uint32_t MINIGAME_IDLE_SLEEP_MS = 300UL * 1000UL;
 static const uint32_t BTN_DEBOUNCE_MS = 40;
 static const uint32_t WIFI_TIMEOUT_MS = 12UL * 1000UL;
 
