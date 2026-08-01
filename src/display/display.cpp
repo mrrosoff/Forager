@@ -1100,9 +1100,11 @@ static void renderMinigameMenu(const AppContext& ctx, const minigames::State& s)
   textAt(8, 10, "Minigames", 2);
   textAt(8, 36, std::string("A break with ") + ctx.creature.name, 1);
 
-  for (int i = 0; i < (int)minigames::Game::COUNT; i++) {
-    minigames::Game g = (minigames::Game)i;
-    bool unlocked = minigames::isUnlocked(g, (Stage)ctx.stage);
+  // Locked games don't get a row at all -- see visibleGameAt() -- so every
+  // row drawn here is playable.
+  int count = minigames::visibleGameCount((Stage)ctx.stage);
+  for (int i = 0; i < count; i++) {
+    minigames::Game g = minigames::visibleGameAt((Stage)ctx.stage, i);
     const int x = 12, w = SCREEN_W - 24, h = 56;
     int y = 58 + i * 62;
     epd.drawRoundRect(x, y, w, h, 10, C_BLACK);
@@ -1120,20 +1122,15 @@ static void renderMinigameMenu(const AppContext& ctx, const minigames::State& s)
     // crisp text, which made the list look worse, not better.
     const int textX = x + 16;
     textAt(textX, y + 9, minigames::gameName(g), 2);
-    if (unlocked) {
-      std::string best = "Best " + std::to_string(minigames::highScore(g));
-      int16_t bx, by;
-      uint16_t bw, bh;
-      epd.setFont(nullptr);
-      epd.setTextSize(1);
-      epd.getTextBounds(best.c_str(), 0, 0, &bx, &by, &bw, &bh);
-      textAt(x + w - 12 - (int)bw, y + 15, best, 1);
-    }
+    std::string best = "Best " + std::to_string(minigames::highScore(g));
+    int16_t bx, by;
+    uint16_t bw, bh;
+    epd.setFont(nullptr);
+    epd.setTextSize(1);
+    epd.getTextBounds(best.c_str(), 0, 0, &bx, &by, &bw, &bh);
+    textAt(x + w - 12 - (int)bw, y + 15, best, 1);
     epd.drawFastHLine(textX, y + 31, w - 28, C_BLACK);
-    textAt(textX, y + 38,
-           unlocked ? std::string(minigames::gameBlurb(g))
-                    : minigames::unlockHint(g, (Stage)ctx.stage),
-           1);
+    textAt(textX, y + 38, minigames::gameBlurb(g), 1);
   }
 
   drawNavBar("Next", "Play", "Status", /*leftIsDown=*/true);

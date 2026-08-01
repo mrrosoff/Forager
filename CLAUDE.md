@@ -237,9 +237,14 @@ records the three progress-gated ones.
 
 The unlock ladder (see `minigames::isUnlocked()`) mixes two axes: Snack Hunt
 and Marmot Says from birth, Forest Memory at Juvenile, Burrow Maze at Adult,
-Species Quiz at 50 discovered species. Locked rows stay visible on the menu
-with their requirement and progress rather than being hidden, and
-`startMinigame()` refuses to start them. Crossing a threshold fires a
+Species Quiz at 50 discovered species. Locked games are **not shown on the
+menu at all** -- `visibleGameCount()`/`visibleGameAt()` in minigames.cpp
+collapse the menu to just the unlocked ones, and the menu's row index means
+"nth unlocked game", not a `Game` enum value, so both the renderer and
+main.cpp's LEFT/ENTER handling have to go through those two helpers. (They
+used to stay visible with their unlock requirement in place of the blurb;
+that read as a wall of locks on a newborn's menu, so the requirement text and
+its `unlockHint()` helper are gone.) Crossing a threshold fires a
 one-time reveal (`display::renderMinigameUnlock()`), driven by the persisted
 `mgSeen` bitmask rather than by "is it unlocked right now", and checked both
 at wake and immediately after a Discovery resolves -- that's the one thing
@@ -325,6 +330,22 @@ one-off check for that worth re-running when entries are added.
 
 ## Hardware gotchas
 
+- **WiFi will not associate at the default 20dBm TX power on this board.**
+  Every attempt ends in `AUTH_EXPIRE` (and eventually `AUTH_FAIL`) against
+  *any* AP -- confirmed against both the house network and a phone hotspot at
+  -40dBm -- with a correct password. The tell that sends you the wrong way is
+  that scanning keeps working perfectly the whole time and reports a strong
+  RSSI: a scan only needs the receive path, and it's *transmit* that the cheap
+  PA/antenna (in a tight enclosure, with hot glue near the antenna) can't do
+  cleanly at full power. `net::connectStrongest()` drops to 8.5dBm, after
+  which it associates in ~1.6s.
+  **The ordering is the subtle part**: `WiFi.mode(WIFI_STA)` does not actually
+  start the STA, so `WiFi.setTxPower()` on its own silently no-ops (it logs
+  `Neither AP or STA has been started` and the power reads back as 20dBm).
+  `esp_wifi_start()` must come first. Note ../Lander's `connectWifi()` sets TX
+  power *without* that call, so its version is a no-op too -- don't copy that
+  ordering back over. `connectStrongest()` logs the actual readback for this
+  reason; if it ever says 20.00 again, the ordering broke, not the network.
 - Deep-sleep wake uses `esp_sleep_enable_ext1_wakeup()` (ANY_HIGH) across all
   three of LEFT/RIGHT/ENTER, which only works on RTC-capable GPIOs (0-21 on
   the S3). GPIO11-20 are ADC2 channels that share hardware with the WiFi/BT

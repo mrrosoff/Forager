@@ -36,9 +36,14 @@ static const int QUIZ_UNLOCK_DISCOVERED = 50;
 
 bool isUnlocked(Game g, Stage stage);
 
-// What a locked row shows in place of its blurb, e.g.
-// "Locked: discover 50 species (12/50)".
-std::string unlockHint(Game g, Stage stage);
+// How many games are unlocked right now -- i.e. how many rows the menu
+// shows. Locked games don't appear on the menu at all (see visibleGameAt()),
+// so the row count and the unlocked count are the same thing.
+int visibleGameCount(Stage stage);
+
+// The game behind menu row `idx` (0-based, in Game enum/unlock order among
+// just the unlocked games). Undefined if idx >= visibleGameCount(stage).
+Game visibleGameAt(Stage stage, int idx);
 
 /**
  * Which screen the minigames view is showing. Menu is the only one LEFT/
