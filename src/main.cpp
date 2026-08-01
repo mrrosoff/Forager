@@ -85,9 +85,10 @@ static minigames::State mg;
  * 900ms was too fast: the panel spends a few hundred of those milliseconds
  * refreshing, so consecutive frames read as one continuous flicker rather
  * than as distinct calls -- and a sequence you can't visually separate is
- * one you can't memorise. 2000ms leaves a clearly still frame between flips.
+ * one you can't memorise. 2000ms still read as rushed on real hardware, so
+ * this leaves a longer, clearly still frame between flips.
  */
-static const uint32_t MG_FRAME_MS = 2000;
+static const uint32_t MG_FRAME_MS = 2800;
 static uint32_t mgNextFrameMs = 0;
 // A finished run tops the marmot up at most once per wake (see
 // creature::rewardMinigame()) -- otherwise replaying a good run is a
@@ -677,7 +678,7 @@ static bool handleMinigamesInput() {
   if (mg.screen == Screen::Menu) {
     bool acted = false;
     if (pressed(bLeft)) {
-      mg.menuSel = (mg.menuSel + 1) % (int)minigames::Game::COUNT;
+      mg.menuSel = (mg.menuSel + 1) % minigames::visibleGameCount((Stage)ctx.stage);
       renderCurrent();
       acted = true;
     }
@@ -686,9 +687,9 @@ static bool handleMinigamesInput() {
       return true;
     }
     if (pressed(bEnter)) {
-      // A locked (or unaskable) game just doesn't start -- its menu row
-      // already says what it's waiting on, so there's nothing to add.
-      acted = startMinigame((minigames::Game)mg.menuSel);
+      // Locked games don't have a row to select in the first place now, so
+      // every menuSel here is unlocked and startable.
+      acted = startMinigame(minigames::visibleGameAt((Stage)ctx.stage, mg.menuSel));
     }
     return acted;
   }
@@ -1190,22 +1191,14 @@ void setup() {
       delay(15);
     }
     // Name the marmot right after the birth reveal, before the normal loop()
-    // idle machinery exists yet -- so this uses its own bounded wait rather
-    // than lastActivityMs, resetting the timeout on every keypress
-    // (handleTextEntryInput()'s return value) rather than only at the end,
-    // since naming can legitimately take longer than one idle window.
+    // idle machinery exists yet. Deliberately no idle timeout here (unlike
+    // the birth-reveal wait above, or the transition wait below): timing out
+    // into a default "Marmot" name defeats the point of naming, so an
+    // unnamed marmot just keeps the panel on until a real name is entered,
+    // however long that takes.
     startTextEntry(TextEntryPurpose::MarmotName, "");
-    uint32_t waitStart = millis();
     while (tePurpose != TextEntryPurpose::None) {
-      if (handleTextEntryInput()) waitStart = millis();
-      if (millis() - waitStart > INACTIVITY_SLEEP_MS) {
-        strncpy(ctx.creature.name, "Marmot", sizeof(ctx.creature.name) - 1);
-        ctx.creature.name[sizeof(ctx.creature.name) - 1] = '\0';
-        ctx.creature.named = true;
-        creature::save(ctx.creature);
-        tePurpose = TextEntryPurpose::None;
-        break;
-      }
+      handleTextEntryInput();
       delay(15);
     }
 #endif

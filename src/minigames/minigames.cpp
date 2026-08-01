@@ -323,20 +323,21 @@ bool isUnlocked(Game g, Stage stage) {
 #endif
 }
 
-std::string unlockHint(Game g, Stage stage) {
-  (void)stage;
-  switch (g) {
-    case Game::Memory:
-      return "Locked: grow to Juvenile";
-    case Game::Maze:
-      return "Locked: grow to Adult";
-    case Game::Quiz:
-      return "Locked: discover " + std::to_string(QUIZ_UNLOCK_DISCOVERED) + " species (" +
-             std::to_string(journal::totalDiscovered()) + "/" +
-             std::to_string(QUIZ_UNLOCK_DISCOVERED) + ")";
-    default:
-      return "";
+int visibleGameCount(Stage stage) {
+  int n = 0;
+  for (int i = 0; i < (int)Game::COUNT; i++) {
+    if (isUnlocked((Game)i, stage)) n++;
   }
+  return n;
+}
+
+Game visibleGameAt(Stage stage, int idx) {
+  for (int i = 0; i < (int)Game::COUNT; i++) {
+    if (!isUnlocked((Game)i, stage)) continue;
+    if (idx == 0) return (Game)i;
+    idx--;
+  }
+  return Game::Snack;  // unreachable in practice: Snack is always unlocked
 }
 
 // Collects the raw species indices the player has discovered, up to `max`.
