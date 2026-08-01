@@ -77,7 +77,11 @@ static double hungerPeriodSec(double scale) {
 
 // Recompute hunger as a 0..100 ramp over HUNGER_PERIOD_HOURS since last fed.
 static void agingHunger(CreatureState& s, time_t now, double scale) {
-  if (s.lastFed == 0 || now <= s.lastFed) return;
+  if (s.lastFed == 0) return;  // never fed -- ramp not running
+  if (now <= s.lastFed) {      // just fed, or shiftHunger() clamped to now
+    s.hunger = 0;
+    return;
+  }
   double frac = (double)(now - s.lastFed) / hungerPeriodSec(scale);
   frac = std::max(0.0, std::min(1.0, frac));
   s.hunger = (uint8_t)(frac * 100.0);
