@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Preferences.h>
+#include <driver/rtc_io.h>
 
 #include <algorithm>
 #include <string>
@@ -183,7 +184,18 @@ static void goToSleep() {
   // ext0 only supports a single GPIO. All three pins are RTC-capable
   // (LEFT=1, RIGHT=2, ENTER=4) and read HIGH when pressed (INPUT_PULLDOWN),
   // so ANY_HIGH wakes on whichever one is pressed.
-  uint64_t wakeMask = (1ULL << PIN_BTN_LEFT) | (1ULL << PIN_BTN_RIGHT) | (1ULL << PIN_BTN_ENTER);
+  //
+  // The RTC pulldowns are not optional: pinMode()'s INPUT_PULLDOWN is a
+  // digital IO-mux pull, and that block is powered down in deep sleep, which
+  // leaves these three floating under ANY_HIGH. Floating was enough for body
+  // capacitance to trip a wake just from picking the device up.
+  const int wakePins[] = {PIN_BTN_LEFT, PIN_BTN_RIGHT, PIN_BTN_ENTER};
+  uint64_t wakeMask = 0;
+  for (int pin : wakePins) {
+    rtc_gpio_pullup_dis((gpio_num_t)pin);
+    rtc_gpio_pulldown_en((gpio_num_t)pin);
+    wakeMask |= 1ULL << pin;
+  }
   esp_sleep_enable_ext1_wakeup(wakeMask, ESP_EXT1_WAKEUP_ANY_HIGH);
   esp_sleep_enable_timer_wakeup(FORCE_REFRESH_INTERVAL_US);
   esp_deep_sleep_start();
@@ -1086,7 +1098,14 @@ void setup() {
   // 11db attenuation for the full ~3.3V range -- the battery divider's
   // midpoint reaches ~2.1V at a full 4.2V charge, comfortably inside it.
   analogSetPinAttenuation(PIN_BATT_ADC, ADC_11db);
-  log_i("Woke");
+  // Names the pin on an ext1 wake, so a wake nobody asked for can be told
+  // apart from a power glitch (which reports no wakeup cause at all).
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1) {
+    log_i("Woke: buttons 0x%llx", esp_sleep_get_ext1_wakeup_status());
+  } else {
+    log_i("Woke: cause %d, reset reason %d", (int)esp_sleep_get_wakeup_cause(),
+          (int)esp_reset_reason());
+  }
 
 #if DEV_MODE_EVENT_CYCLE
   // Review-only loop -- see DEV_MODE_EVENT_CYCLE's doc comment in config.h.
