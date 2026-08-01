@@ -105,7 +105,9 @@ uint8_t animalIndex(const PendingEvent& ev);
 
 // Applies this event's stat effect to the creature, clears the pending
 // event, and stamps the cooldown so the next one waits its turn.
-void resolve(const PendingEvent& ev, CreatureState& creature, time_t now);
+// `stage` is needed for the hunger effects: hunger is derived from lastFed on
+// a stage-scaled ramp, so moving it goes through creature::shiftHunger().
+void resolve(const PendingEvent& ev, CreatureState& creature, time_t now, Stage stage);
 
 // Pool sizes for the small curated flavor tables -- exposed only so a
 // review tool can cycle every distinct entry (e.g. every mishap) rather

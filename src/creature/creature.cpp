@@ -70,11 +70,15 @@ static double decayScale(Stage stage) {
   }
 }
 
+// How long the 0..100 hunger ramp takes at this stage, in seconds.
+static double hungerPeriodSec(double scale) {
+  return (double)HUNGER_PERIOD_HOURS * 3600.0 * scale;
+}
+
 // Recompute hunger as a 0..100 ramp over HUNGER_PERIOD_HOURS since last fed.
 static void agingHunger(CreatureState& s, time_t now, double scale) {
   if (s.lastFed == 0 || now <= s.lastFed) return;
-  double hrs = (double)(now - s.lastFed) / 3600.0;
-  double frac = hrs / ((double)HUNGER_PERIOD_HOURS * scale);
+  double frac = (double)(now - s.lastFed) / hungerPeriodSec(scale);
   frac = std::max(0.0, std::min(1.0, frac));
   s.hunger = (uint8_t)(frac * 100.0);
 
@@ -178,7 +182,9 @@ FeedEffect feedEffectForKind(const char* kind) {
 }
 
 void feedForaged(CreatureState& s, time_t now, bool inSeason, const char* kind) {
-  s.hunger = s.hunger > 25 ? s.hunger - 25 : 0;
+  // A real meal restarts the ramp outright -- lastFed below is what does it
+  // (see shiftHunger()); this just keeps s.hunger consistent until then.
+  s.hunger = 0;
   FeedEffect effect = feedEffectForKind(kind);
   int h = (int)s.happiness + (inSeason ? 15 : 10) + effect.happinessBoost;
   s.happiness = (uint8_t)(h > 100 ? 100 : h);
@@ -203,7 +209,18 @@ void feedForaged(CreatureState& s, time_t now, bool inSeason, const char* kind) 
   }
 }
 
-void rewardMinigame(CreatureState& s, time_t now, int score, Stat stat) {
+void shiftHunger(CreatureState& s, time_t now, int deltaPoints, Stage stage) {
+  if (deltaPoints == 0) return;
+  if (s.lastFed == 0) s.lastFed = now;  // ramp not running yet -- anchor it
+  double scale = decayScale(stage);
+  double periodSec = hungerPeriodSec(scale);
+  s.lastFed -= (time_t)((double)deltaPoints / 100.0 * periodSec);  // hungrier == longer ago
+  s.lastFed = std::min(s.lastFed, now);                            // no fuller than just-fed
+  s.lastFed = std::max(s.lastFed, now - (time_t)periodSec);        // no hungrier than starved
+  agingHunger(s, now, scale);  // keep s.hunger consistent before the next evaluate()
+}
+
+void rewardMinigame(CreatureState& s, time_t now, int score, Stat stat, Stage stage) {
   // Any finished run counts as play, which is what lifts the happiness and
   // energy ceilings -- so sitting down to a game is itself enough to hold
   // off both, whatever the score.
@@ -217,9 +234,10 @@ void rewardMinigame(CreatureState& s, time_t now, int score, Stat stat) {
   if (boost > 15) boost = 15;
   switch (stat) {
     case Stat::Hunger:
-      // Gathering turns up things worth eating, so this one feeds -- but
-      // less than actually eating a species does (that's 25).
-      s.hunger = s.hunger > (uint8_t)boost ? (uint8_t)(s.hunger - boost) : 0;
+      // Gathering turns up something to eat, but less than a real meal (which
+      // resets the ramp outright). Via shiftHunger(), since a write to
+      // s.hunger wouldn't survive the caller's next evaluate().
+      shiftHunger(s, now, -boost, stage);
       break;
     case Stat::Energy: {
       int e = (int)s.energy + boost;

@@ -81,11 +81,12 @@ static const char* activePage(const State& s, int* outLen) {
   return s.noDigits ? CHARSET_LOWER_NODIGITS : CHARSET_LOWER;
 }
 
-void init(State& s, const char* initial, bool noDigits) {
+void init(State& s, const char* initial, bool noDigits, int maxLen) {
+  s.maxLen = (maxLen > 0 && maxLen < MAX_LEN) ? maxLen : MAX_LEN;
   s.buffer.clear();
   if (initial) {
     s.buffer = initial;
-    if ((int)s.buffer.size() > MAX_LEN) s.buffer.resize(MAX_LEN);
+    if ((int)s.buffer.size() > s.maxLen) s.buffer.resize(s.maxLen);
   }
   s.caps = false;
   s.symbols = false;
@@ -149,7 +150,7 @@ bool commit(State& s) {
     s.pickerIndex = 0;  // different page shape -- reset to a safe index
     return false;
   }
-  if ((int)s.buffer.size() < MAX_LEN) {
+  if ((int)s.buffer.size() < s.maxLen) {
     s.buffer.push_back(c);
   }
   return false;

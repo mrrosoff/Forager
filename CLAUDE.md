@@ -84,7 +84,8 @@ Everything persisted lives in one `Preferences` namespace, `"forager"`,
 opened independently (own `p.begin()`/`p.end()` block) in each of
 `creature.cpp`, `events.cpp`, `journal.cpp`, and `minigames.cpp` — no shared
 wrapper. Current keys: `hunger`, `happy`, `energy`, `lastFed`, `lastPlayed`,
-`birthDate`, `streak`, `streakDay`, `lastStage`, `name`, `curio`, `lastCur` (creature.cpp
+`birthDate`, `streak`, `streakDay`, `lastStage`, `name`, `named`, `curio`,
+`lastCur` (creature.cpp
 — `curio`/`lastCur` are the curiosity stat and its own decay clock);
 `evType`, `evData`, `evExact`, `evLastAt`, `lastWake`, `engage` (events.cpp —
 pending-event + spawn-cooldown state, plus the engagement streak counter);
@@ -95,9 +96,29 @@ journal.cpp); `hsSnack`, `hsSimon`, `hsMemory`, `hsMaze`, `hsQuiz`,
 (minigames.cpp —
 one high score per game, indexed by the `Game` enum so that array's order
 tracks the enum's; a bitmask of which games have already shown their unlock
-screen; and the Winter Stash counts plus the last year settled). A single `Preferences::clear()` on
-`"forager"` wipes all of it at once, which is exactly what Settings → Reset
-Game relies on.
+screen; and the Winter Stash counts plus the last year settled); and
+`wifiCount`, `wifiNets`, `wifiSeeded` (wifistore.cpp — the runtime-editable
+network list, plus the marker that stops it re-seeding from `secrets.h`).
+
+A single `Preferences::clear()` on `"forager"` wipes all of it at once, which
+is what Settings → Reset Game relies on. **The WiFi keys are the one
+exception**: `doResetGame()` reloads them, clears, then calls
+`wifistore::persist()` to write them back, because they're device setup rather
+than game state — otherwise a reset would drop the networks the owner added
+and hand them back whatever `secrets.h` happened to be compiled in.
+
+### Hunger is derived, not stored
+
+`creature::evaluate()` **recomputes** `hunger` outright from `lastFed` every
+time it runs (`agingHunger()`), so assigning to `s.hunger` does nothing that
+survives — and every caller re-evaluates immediately after, so in practice the
+write is dead on the next line. Anything that means to move hunger has to go
+through `creature::shiftHunger()`, which shifts `lastFed` instead. This bit
+three separate places before it was noticed (Snack Hunt's reward, TrailMishap's
+penalty, and `feedForaged()`'s subtraction, which was masked by its own
+`lastFed = now`). The other three bars are ceiling-clamps keyed to
+`lastPlayed`/`lastCurious`, so they don't have this problem — direct writes to
+happiness/energy/curiosity are fine.
 
 ## Display: official Waveshare driver, 1-bit + dithering
 
