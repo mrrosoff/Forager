@@ -6,6 +6,7 @@
 #include <cstring>
 #include <string>
 
+#include "creature.h"
 #include "foraging.h"
 #include "journal.h"
 
@@ -350,21 +351,21 @@ const char* eventEffectPreview(const PendingEvent& ev) {
   }
 }
 
-void resolve(const PendingEvent& ev, CreatureState& creature, time_t now) {
+void resolve(const PendingEvent& ev, CreatureState& creature, time_t now, Stage stage) {
   creature.lastPlayed = now;  // any acknowledged event counts as play, good or bad
 
   switch (ev.type) {
     case EventType::ForagingFind: {
       int h = (int)creature.happiness + 15;
       creature.happiness = (uint8_t)(h > 100 ? 100 : h);
-      creature.hunger = creature.hunger > 20 ? creature.hunger - 20 : 0;
-      creature.lastFed = now;  // the only remaining way "Foraged X days ago" updates
+      // Resolved by eating the matching species, so feedForaged() has already
+      // refilled hunger; this just keeps "Foraged X days ago" honest.
+      creature.lastFed = now;
       break;
     }
     case EventType::TrailMishap: {
       creature.happiness = creature.happiness > 10 ? creature.happiness - 10 : 0;
-      int hu = (int)creature.hunger + 15;
-      creature.hunger = (uint8_t)(hu > 100 ? 100 : hu);
+      creature::shiftHunger(creature, now, 15, stage);
       break;
     }
     default: {

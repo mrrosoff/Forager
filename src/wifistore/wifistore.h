@@ -25,6 +25,12 @@ const Network& at(int index);
 // Returns false if the list is already at MAX_NETWORKS or ssid is empty.
 bool add(const char* ssid, const char* password);
 
+// Re-persists the in-RAM list after something wiped the shared "forager"
+// namespace (see main.cpp's doResetGame()), including the "seeded" marker --
+// without that, the next boot re-seeds from secrets.h on top of the restored
+// list.
+void persist();
+
 void remove(int index);
 
 }  // namespace wifistore

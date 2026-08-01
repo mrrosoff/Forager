@@ -66,6 +66,14 @@ bool add(const char* ssid, const char* password) {
   return true;
 }
 
+void persist() {
+  save();
+  Preferences p;
+  p.begin(NVS_NS, /*readOnly=*/false);
+  p.putBool("wifiSeeded", true);
+  p.end();
+}
+
 void remove(int index) {
   if (index < 0 || index >= networkCount) return;
   for (int i = index; i < networkCount - 1; i++) networks[i] = networks[i + 1];

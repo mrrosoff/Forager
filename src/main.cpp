@@ -210,10 +210,15 @@ static void doPowerOff() {
  * straight into the first-ever-boot path, triggering the birth sequence.
  */
 static void doResetGame() {
+  // The WiFi list shares the namespace but isn't game state -- wiping it would
+  // lose the networks the player set up and hand them back whatever secrets.h
+  // was compiled with.
+  wifistore::load();
   Preferences p;
   p.begin("forager", /*readOnly=*/false);
   p.clear();
   p.end();
+  wifistore::persist();
   esp_restart();
 }
 
@@ -250,14 +255,17 @@ static bool buildContext() {
   bool firstBoot = !ctx.creature.named;
   if (ctx.creature.birthDate == 0) ctx.creature.birthDate = nowUtc;
 
-  creature::evaluate(ctx.creature, ctx.now, ctx.weather, (Stage)ctx.stage);
-  creature::save(ctx.creature);
-
   journal::load();
   minigames::load();
 
+  // Before evaluate(): decay is stage-scaled (see decayScale()), and ctx.stage
+  // is still 0 (= Baby) this early in a fresh boot, so evaluating first aged
+  // every marmot at Baby speed regardless of how grown it actually was.
   Stage stage = creature::computeStage(journal::totalEaten());
   ctx.stage = (uint8_t)stage;
+
+  creature::evaluate(ctx.creature, ctx.now, ctx.weather, stage);
+  creature::save(ctx.creature);
 
   // A stage advance since the last acknowledged wake gets a one-time
   // transition screen (see setup()) -- skipped on first boot, since the
@@ -424,7 +432,7 @@ static void onEnter() {
                    ev.type == events::EventType::MarmotEncounter) {
           journal::bumpOtherEvents();
         }
-        events::resolve(ev, ctx.creature, time(nullptr));
+        events::resolve(ev, ctx.creature, time(nullptr), (Stage)ctx.stage);
         creature::evaluate(ctx.creature, ctx.now, ctx.weather, (Stage)ctx.stage);
         creature::save(ctx.creature);
         ctx.eventType = (uint8_t)events::EventType::None;
@@ -446,7 +454,7 @@ static void onEnter() {
       journal::markEaten(foraging::indexAtRank(forageIdx));
       journal::save();
       if (events::eventMatchesSpecies(ev, current)) {
-        events::resolve(ev, ctx.creature, time(nullptr));
+        events::resolve(ev, ctx.creature, time(nullptr), (Stage)ctx.stage);
         ctx.eventType = (uint8_t)events::EventType::None;
       }
       creature::evaluate(ctx.creature, ctx.now, ctx.weather, (Stage)ctx.stage);
@@ -614,7 +622,8 @@ static void endMinigameRun() {
   // ceilings), but the stat top-up itself is once per wake -- pass 0 after
   // that so replaying can't farm it.
   int score = minigameRewarded ? 0 : mg.score;
-  creature::rewardMinigame(ctx.creature, time(nullptr), score, statForGame(mg.game));
+  creature::rewardMinigame(ctx.creature, time(nullptr), score, statForGame(mg.game),
+                           (Stage)ctx.stage);
   if (score > 0) minigameRewarded = true;
   creature::evaluate(ctx.creature, ctx.now, ctx.weather, (Stage)ctx.stage);
   creature::save(ctx.creature);
@@ -924,7 +933,11 @@ static void renderCurrentTextEntry() {
 // keeps the helper general).
 static void startTextEntry(TextEntryPurpose purpose, const char* initial) {
   tePurpose = purpose;
-  textentry::init(teState, initial, purpose == TextEntryPurpose::MarmotName);
+  bool naming = purpose == TextEntryPurpose::MarmotName;
+  // Names are capped to what CreatureState::name can actually hold, so a long
+  // one can't be typed out in full and then silently truncated on commit.
+  textentry::init(teState, initial, naming,
+                  naming ? (int)sizeof(ctx.creature.name) - 1 : textentry::MAX_LEN);
   renderCurrentTextEntry();
 }
 

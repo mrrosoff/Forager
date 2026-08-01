@@ -25,6 +25,7 @@ struct State {
   bool caps;         // SHIFT toggle -- uppercase letters when true
   bool symbols;       // SYMBOLS toggle -- symbols page instead of letters
   bool noDigits;      // drops the digit row on every page -- for marmot naming
+  int maxLen;         // buffer cap; must match the caller's storage, see init()
 };
 
 // initial may be "" for a blank entry, or a starting value (e.g. re-editing
@@ -32,7 +33,9 @@ struct State {
 // noDigits drops the leading digit row from every keyboard page (letters and
 // symbols) -- used for marmot naming, where digits aren't wanted; WiFi
 // SSID/password entry passes false since credentials commonly need digits.
-void init(State& s, const char* initial, bool noDigits = false);
+// maxLen caps the buffer -- pass the caller's own storage size, so the picker
+// can't accept characters that would be silently truncated on commit.
+void init(State& s, const char* initial, bool noDigits = false, int maxLen = MAX_LEN);
 
 void moveNext(State& s);  // RIGHT
 void movePrev(State& s);  // LEFT

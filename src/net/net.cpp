@@ -42,18 +42,11 @@ bool connectStrongest() {
 
   WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
 
-  // This board cannot authenticate at the default 20dBm: every attempt ends
-  // in AUTH_EXPIRE, against any AP, with a correct password and a strong
-  // signal. Scanning keeps working the whole time because that only needs the
-  // receive path -- it's transmit that the cheap PA and antenna (made worse
-  // by the enclosure and the hot glue around it) can't do cleanly at full
-  // power. At 8.5dBm it associates in ~1.6s.
-  //
-  // esp_wifi_start() is load-bearing: WiFi.mode(WIFI_STA) does not actually
-  // start the STA, so setTxPower() on its own silently no-ops ("Neither AP or
-  // STA has been started") and the power stays at 20dBm. That is why this hid
-  // for so long, and why the log line below is worth keeping -- if it ever
-  // reads 20.00 again, the call ordering broke rather than the network.
+  // This board can't authenticate at the default 20dBm against any AP -- see
+  // CLAUDE.md's hardware gotchas. esp_wifi_start() is load-bearing:
+  // WiFi.mode() doesn't start the STA, so setTxPower() would silently no-op
+  // and leave the power at 20dBm. The readback is logged because a 20.00 there
+  // means this ordering broke, not that the network did.
   esp_wifi_start();
   delay(100);
   WiFi.setTxPower(WIFI_POWER_8_5dBm);

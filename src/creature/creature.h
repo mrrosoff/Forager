@@ -69,7 +69,16 @@ enum class Stat : uint8_t { Hunger, Happiness, Energy, Curiosity };
  * main.cpp does that after the first scoring run of a wake, so a good run
  * can't be replayed for unlimited stat.
  */
-void rewardMinigame(CreatureState& s, time_t now, int score, Stat stat);
+void rewardMinigame(CreatureState& s, time_t now, int score, Stat stat, Stage stage);
+
+/**
+ * Moves hunger by `deltaPoints` (positive = hungrier), durably. Hunger is
+ * derived, not stored: evaluate() recomputes it from `lastFed` (see
+ * agingHunger()), so assigning to `s.hunger` is discarded on the next
+ * evaluate() -- shifting `lastFed`, as this does, is what sticks. The ramp is
+ * stage-scaled, hence `stage`.
+ */
+void shiftHunger(CreatureState& s, time_t now, int deltaPoints, Stage stage);
 
 /**
  * Growth stage from distinct species foraged so far (journal::totalEaten(),
