@@ -104,10 +104,6 @@ void renderSettings(int selected, bool confirmPending, uint8_t batteryPercent);
 // correct resting state.
 void renderPowerOff();
 
-// Shown while the clock is being set on a cold boot -- the one wake that
-// still waits on the radio, so it needs to say so rather than look frozen.
-void renderConnecting();
-
 /**
  * On-screen QWERTY keyboard grid -- prompt at top, what's typed so far
  * below it, then the keyboard (see textentry.h: LEFT/RIGHT scroll the
