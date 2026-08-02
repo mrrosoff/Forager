@@ -448,7 +448,19 @@ yesterday's.
 
 The one case that still blocks at wake is an unset clock (`net::clockUnset()`,
 i.e. after a power-cycle with no NTP since): nothing time-derived means
-anything until that's fixed, so it's worth the wait.
+anything until that's fixed, so it's worth the wait. `display::begin()` and
+`renderConnecting()` run *before* that pass, so a cold boot says what it's
+doing instead of sitting on a stale frame for 20 seconds.
+
+**`http.useHTTP10(true)` in `fetchWeather()` is load-bearing.** wttr.in
+replies with chunked transfer encoding, `http.getStream()` does not de-chunk,
+and ArduinoJson then parses the chunk-size lines into an *empty document with
+no parse error* — so the fetch failed silently and weather never worked at
+all (confirmed on hardware: `no current_condition (doc 0 bytes, len -1)`,
+where `len -1` is `getSize()` reporting chunked). HTTP/1.0 gets a plain
+Content-Length body. Note how this hid: three of `fetchWeather()`'s exits
+returned an invalid struct without logging anything, so a dead feature looked
+exactly like "no weather today". They all log now.
 
 ## Time persists across deep sleep
 

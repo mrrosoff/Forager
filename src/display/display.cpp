@@ -2155,6 +2155,13 @@ void renderWifiMenu(int selected, bool confirmRemove) {
  * wake source armed -- only the physical power switch brings the device
  * back after this.
  */
+void renderConnecting() {
+  epd.beginFrame();
+  textCentered(0, SCREEN_W, SCREEN_H / 2 - 20, "Setting the clock", 2);
+  textCentered(0, SCREEN_W, SCREEN_H / 2 + 6, "This only happens on a cold start.", 1);
+  epd.endFrame(true);
+}
+
 void renderPowerOff() {
   // Genuinely off (no wake source armed) -- a blank panel is the correct
   // resting state here, not a lingering message that'd sit on an
