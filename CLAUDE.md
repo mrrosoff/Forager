@@ -448,8 +448,7 @@ yesterday's.
 
 The one case that still blocks at wake is an unset clock (`net::clockUnset()`,
 i.e. after a power-cycle with no NTP since): nothing time-derived means
-anything until that's fixed, so it's worth the wait. `AppContext::netOk` is
-now only meaningful inside that branch, and nothing reads it.
+anything until that's fixed, so it's worth the wait.
 
 ## Time persists across deep sleep
 

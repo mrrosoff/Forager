@@ -341,14 +341,10 @@ bool eventIsNegative(const PendingEvent& ev) {
 }
 
 const char* eventEffectPreview(const PendingEvent& ev) {
-  switch (ev.type) {
-    case EventType::ForagingFind:
-      return "Happiness +15, Hunger -20";
-    case EventType::TrailMishap:
-      return "Happiness -10, Hunger +15";
-    default:
-      return eventIsNegative(ev) ? "Happiness -15" : "Happiness +10";
-  }
+  // No ForagingFind case: that screen shows how to settle the find instead of
+  // an effect preview, so it never reaches here (see renderEvent()).
+  if (ev.type == EventType::TrailMishap) return "Happiness -10, Hunger +15";
+  return eventIsNegative(ev) ? "Happiness -15" : "Happiness +10";
 }
 
 void resolve(const PendingEvent& ev, CreatureState& creature, time_t now, Stage stage) {

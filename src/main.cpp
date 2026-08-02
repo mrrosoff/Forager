@@ -1193,11 +1193,9 @@ void setup() {
   // is the exception -- nothing time-derived means anything until it's fixed,
   // so that still blocks here.
   if (net::clockUnset(time(nullptr))) {
-    ctx.netOk = net::connectStrongest();
-    if (ctx.netOk) {
+    if (net::connectStrongest()) {
       if (!net::syncTime(ctx.now)) log_w("Using prior clock");
-      WeatherData fresh = net::fetchWeather();
-      net::saveWeather(fresh);
+      net::saveWeather(net::fetchWeather());
     } else {
       log_w("Offline with an unset clock; running dateless");
     }
