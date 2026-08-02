@@ -254,15 +254,53 @@ static void doResetGame() {
   esp_restart();
 }
 
-// Reads the BATT_ADC divider (see config.h) and maps it to a 0-100 percent
-// across BATT_VOLTAGE_EMPTY..BATT_VOLTAGE_FULL. analogReadMilliVolts()
-// applies the ESP32's factory ADC calibration, so this is a real voltage
-// reading, not a raw uncalibrated ADC count.
+/**
+ * Battery volts off the divider. The 2x200k pair leaves ~100k of source
+ * impedance at the tap, well above the ~10k the ESP32 ADC wants, so a single
+ * conversion reads low -- the sample-and-hold cap can't charge inside one
+ * sampling window. Repeated conversions let it settle, and the first is
+ * thrown away. analogReadMilliVolts() applies the factory ADC calibration,
+ * so this is real millivolts rather than a raw count.
+ */
+static float readBatteryVolts() {
+  analogReadMilliVolts(PIN_BATT_ADC);  // discard: first read after idle is low
+  uint32_t sum = 0;
+  const int kSamples = 16;
+  for (int i = 0; i < kSamples; i++) sum += analogReadMilliVolts(PIN_BATT_ADC);
+  return (sum / (float)kSamples / 1000.0f) * BATT_DIVIDER_RATIO;
+}
+
+/**
+ * A LiPo sits between 3.7V and 3.9V for most of its capacity, so mapping
+ * 3.3-4.2V linearly badly overstated the middle -- 3.7V read as 44% when the
+ * cell is nearly flat, which is how a "67%" marmot died with no warning.
+ * Piecewise curve, interpolated between points.
+ */
+static uint8_t percentForVolts(float v) {
+  static const struct {
+    float volts;
+    uint8_t pct;
+  } kCurve[] = {
+      {4.20f, 100}, {4.10f, 90}, {4.00f, 80}, {3.95f, 70}, {3.90f, 60}, {3.86f, 50},
+      {3.83f, 40},  {3.80f, 30}, {3.76f, 20}, {3.71f, 10}, {3.63f, 5},  {3.30f, 0},
+  };
+  const int n = sizeof(kCurve) / sizeof(kCurve[0]);
+  if (v >= kCurve[0].volts) return 100;
+  for (int i = 1; i < n; i++) {
+    if (v < kCurve[i].volts) continue;
+    float span = kCurve[i - 1].volts - kCurve[i].volts;
+    float frac = span > 0.0f ? (v - kCurve[i].volts) / span : 0.0f;
+    return (uint8_t)(kCurve[i].pct + frac * (kCurve[i - 1].pct - kCurve[i].pct) + 0.5f);
+  }
+  return 0;
+}
+
 static uint8_t readBatteryPercent() {
-  float vBatt = (analogReadMilliVolts(PIN_BATT_ADC) / 1000.0f) * BATT_DIVIDER_RATIO;
-  float frac = (vBatt - BATT_VOLTAGE_EMPTY) / (BATT_VOLTAGE_FULL - BATT_VOLTAGE_EMPTY);
-  frac = std::max(0.0f, std::min(1.0f, frac));
-  return (uint8_t)(frac * 100.0f + 0.5f);
+  float v = readBatteryVolts();
+  uint8_t pct = percentForVolts(v);
+  // Logged so the reading can be checked against a multimeter on the cell.
+  log_i("Battery: %.3fV -> %u%%", v, pct);
+  return pct;
 }
 
 // Returns true the very first time this ever runs (birthDate == 0, no prior
