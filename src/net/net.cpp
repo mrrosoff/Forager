@@ -99,12 +99,22 @@ WeatherData fetchWeather() {
   WeatherData w{};
   w.valid = false;
 
-  if (WiFi.status() != WL_CONNECTED) return w;
+  if (WiFi.status() != WL_CONNECTED) {
+    log_w("Weather: not connected");
+    return w;
+  }
 
   HTTPClient http;
   http.setTimeout(8000);
-  if (!http.begin(WEATHER_URL)) return w;
+  if (!http.begin(WEATHER_URL)) {
+    log_w("Weather: http.begin failed for %s", WEATHER_URL);
+    return w;
+  }
   http.addHeader("User-Agent", "Forager/1.0");
+  // wttr.in replies chunked, and getStream() hands the chunk-size lines
+  // straight to the parser -- which yields an empty document and no parse
+  // error, i.e. a silent no-op. HTTP/1.0 gets a plain Content-Length body.
+  http.useHTTP10(true);
 
   int code = http.GET();
   if (code != HTTP_CODE_OK) {
@@ -131,7 +141,11 @@ WeatherData fetchWeather() {
   }
 
   JsonObject cur = doc["current_condition"][0];
-  if (cur.isNull()) return w;
+  if (cur.isNull()) {
+    log_w("Weather: no current_condition (doc %u bytes, len %d)", (unsigned)doc.memoryUsage(),
+          http.getSize());
+    return w;
+  }
 
   w.tempC = cur["temp_C"].as<float>();
   w.condition = cur["weatherDesc"][0]["value"] | "Unknown";

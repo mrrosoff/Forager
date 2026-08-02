@@ -1186,13 +1186,19 @@ void setup() {
   }
 #endif
 
+  display::begin();
+
   // No radio on a normal wake: the scan plus connect ran to ~17s with the
   // panel still showing the sleep screen, which is most of what a button
   // press felt like. Weather comes out of the cache and the refresh happens
-  // before sleeping instead (see refreshNetworkBeforeSleep()). An unset clock
-  // is the exception -- nothing time-derived means anything until it's fixed,
-  // so that still blocks here.
+  // before sleeping instead (see refreshNetworkBeforeSleep()).
+  //
+  // A cold boot is the exception -- an unset clock makes everything
+  // time-derived meaningless (hunger, streaks, seasons), so it has to be
+  // fixed before buildContext() runs. The panel comes up first and says so,
+  // rather than sitting on a stale frame looking dead for 20 seconds.
   if (net::clockUnset(time(nullptr))) {
+    display::renderConnecting();
     if (net::connectStrongest()) {
       if (!net::syncTime(ctx.now)) log_w("Using prior clock");
       net::saveWeather(net::fetchWeather());
@@ -1204,8 +1210,6 @@ void setup() {
   ctx.weather = net::cachedWeather(time(nullptr));
 
   bool firstBoot = buildContext();
-
-  display::begin();
 
   if (marmotDeathCause != DeathCause::None) {
     // Terminal -- preempts birth/transition/normal-view entirely. Blocks on
