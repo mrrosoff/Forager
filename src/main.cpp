@@ -1150,6 +1150,13 @@ static void handleWifiMenuInput() {
 
 void setup() {
   Serial.begin(115200);
+  // Serial IS the USB port here (ARDUINO_USB_CDC_ON_BOOT), so with no host
+  // attached every write stalls on its TX timeout -- and at CORE_DEBUG_LEVEL 3
+  // there are dozens through setup plus the WiFi stack's own. That is why the
+  // device ran perfectly on USB and appeared dead on battery: booting once,
+  // never reaching loop(), panel never drawn, buttons never armed. Zero means
+  // drop the write instead of waiting for a reader.
+  Serial.setTxTimeoutMs(0);
 
   pinMode(PIN_BTN_LEFT, INPUT_PULLDOWN);
   pinMode(PIN_BTN_RIGHT, INPUT_PULLDOWN);
@@ -1158,6 +1165,21 @@ void setup() {
   // 11db attenuation for the full ~3.3V range -- the battery divider's
   // midpoint reaches ~2.1V at a full 4.2V charge, comfortably inside it.
   analogSetPinAttenuation(PIN_BATT_ADC, ADC_11db);
+  // Boot forensics. Nothing can be watched over serial while the device runs
+  // on battery, so every boot banks its reset reason; plug in afterwards and
+  // the history says whether it booted once or looped. Reason 9 is a
+  // brownout, i.e. the supply sagging under the panel/radio load.
+  {
+    Preferences p;
+    p.begin("forager", /*readOnly=*/false);
+    uint32_t count = p.getULong("bootN", 0) + 1;
+    uint32_t hist = (p.getULong("bootHist", 0) << 4) | ((uint32_t)esp_reset_reason() & 0x0F);
+    p.putULong("bootN", count);
+    p.putULong("bootHist", hist);
+    p.end();
+    log_i("Boot #%u, reset reason %d, last 8 reasons %08X", count, (int)esp_reset_reason(), hist);
+  }
+
   // Names the pin on an ext1 wake, so a wake nobody asked for can be told
   // apart from a power glitch (which reports no wakeup cause at all).
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1) {
