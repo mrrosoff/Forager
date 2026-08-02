@@ -350,6 +350,18 @@ one-off check for that worth re-running when entries are added.
 
 ## Hardware gotchas
 
+- **The BAT pads on the first ESP32-S3 Super Mini stopped feeding the system
+  rail.** Symptom: 4.3V present on BAT+, but the 3V3 and 5V pins both sat at
+  1.8V, so the chip never left reset — no boot, no panel, no button response,
+  while USB worked perfectly. Measured 0.9M between BAT+ and the 5V pin, i.e.
+  no connection. Battery, switch, wiring and firmware were all ruled out by
+  measurement. Whatever the board does with those pads, don't assume a
+  Super Mini can run from a cell wired to them — **test unplugged before
+  sealing an enclosure.** Everything about this session was verified over USB,
+  which is exactly the condition that hides it.
+- `BATT_CUTOFF_VOLTS` parks the device (no wake source armed) rather than
+  running the cell flat, since doing that once preceded the above.
+
 - **WiFi will not associate at the default 20dBm TX power on this board.**
   Every attempt ends in `AUTH_EXPIRE` (and eventually `AUTH_FAIL`) against
   *any* AP -- confirmed against both the house network and a phone hotspot at

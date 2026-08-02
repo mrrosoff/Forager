@@ -104,6 +104,11 @@ void renderSettings(int selected, bool confirmPending, uint8_t batteryPercent);
 // correct resting state.
 void renderPowerOff();
 
+// Shown when the cell is too low to keep running (see BATT_CUTOFF_VOLTS).
+// The caller then sleeps with no wake source, so this stays on the panel
+// until the device is charged.
+void renderLowBattery();
+
 /**
  * On-screen QWERTY keyboard grid -- prompt at top, what's typed so far
  * below it, then the keyboard (see textentry.h: LEFT/RIGHT scroll the

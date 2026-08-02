@@ -69,6 +69,21 @@ static const int PIN_BTN_SETTINGS = 5;
 static const int PIN_BATT_ADC = 6;
 static const float BATT_DIVIDER_RATIO = 2.0f;
 
+/**
+ * Below this the device parks itself: it draws a "charge me" screen and deep
+ * sleeps with no wake source, so nothing can wake it to drain further. Only
+ * charging revives it.
+ *
+ * Deliberately well above a LiPo's ~3.0V damage threshold, because the ADC
+ * reads a little low through the 400k divider and it's better to park early
+ * than to run a cell flat. Doing that once is what preceded the first board's
+ * battery path failing.
+ */
+static const float BATT_CUTOFF_VOLTS = 3.40f;
+
+// Percentage at or below which the header flags the battery as low.
+static const uint8_t BATT_WARN_PERCENT = 15;
+
 static const uint32_t INACTIVITY_SLEEP_MS = 120UL * 1000UL;
 
 // Longer window mid-run: run state is RAM-only, so sleeping over a 7x7 maze

@@ -1165,20 +1165,6 @@ void setup() {
   // 11db attenuation for the full ~3.3V range -- the battery divider's
   // midpoint reaches ~2.1V at a full 4.2V charge, comfortably inside it.
   analogSetPinAttenuation(PIN_BATT_ADC, ADC_11db);
-  // Boot forensics. Nothing can be watched over serial while the device runs
-  // on battery, so every boot banks its reset reason; plug in afterwards and
-  // the history says whether it booted once or looped. Reason 9 is a
-  // brownout, i.e. the supply sagging under the panel/radio load.
-  {
-    Preferences p;
-    p.begin("forager", /*readOnly=*/false);
-    uint32_t count = p.getULong("bootN", 0) + 1;
-    uint32_t hist = (p.getULong("bootHist", 0) << 4) | ((uint32_t)esp_reset_reason() & 0x0F);
-    p.putULong("bootN", count);
-    p.putULong("bootHist", hist);
-    p.end();
-    log_i("Boot #%u, reset reason %d, last 8 reasons %08X", count, (int)esp_reset_reason(), hist);
-  }
 
   // Names the pin on an ext1 wake, so a wake nobody asked for can be told
   // apart from a power glitch (which reports no wakeup cause at all).
@@ -1249,6 +1235,16 @@ void setup() {
 #endif
 
   display::begin();
+
+  // Park before the cell is damaged. No wake source is armed, so nothing can
+  // wake it to drain further -- only charging brings it back. Checked before
+  // any of the heavy work, since the panel and radio are what finish a weak
+  // cell off.
+  if (readBatteryVolts() < BATT_CUTOFF_VOLTS) {
+    display::renderLowBattery();
+    display::hibernate();
+    esp_deep_sleep_start();
+  }
 
   // No radio on a normal wake: the scan plus connect ran to ~17s with the
   // panel still showing the sleep screen, which is most of what a button

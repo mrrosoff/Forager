@@ -327,7 +327,8 @@ static const int BATT_TEXT_GAP = 6;
 
 static void drawBatteryWithPercent(int iconX, int y, uint8_t percent) {
   drawBatteryIcon(iconX, y, percent);
-  std::string pct = std::to_string(percent) + "%";
+  std::string pct =
+      (percent <= BATT_WARN_PERCENT ? "LOW " : "") + std::to_string(percent) + "%";
   int16_t bx, by;
   uint16_t bw, bh;
   epd.setFont(nullptr);
@@ -2172,6 +2173,14 @@ void renderWifiMenu(int selected, bool confirmRemove) {
  * wake source armed -- only the physical power switch brings the device
  * back after this.
  */
+void renderLowBattery() {
+  epd.beginFrame();
+  textCentered(0, SCREEN_W, SCREEN_H / 2 - 30, "Battery empty", 2);
+  textCentered(0, SCREEN_W, SCREEN_H / 2, "Plug me in to charge.", 1);
+  textCentered(0, SCREEN_W, SCREEN_H / 2 + 16, "The marmot is safe until then.", 1);
+  epd.endFrame(true);
+}
+
 void renderPowerOff() {
   // Genuinely off (no wake source armed) -- a blank panel is the correct
   // resting state here, not a lingering message that'd sit on an
