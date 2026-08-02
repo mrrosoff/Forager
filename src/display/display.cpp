@@ -2130,7 +2130,10 @@ void renderWifiMenu(int selected, bool confirmRemove) {
     return;
   }
 
-  int y = 40;
+  textAt(20, 32, "Used to set the clock and fetch weather.", 1);
+  textAt(20, 44, "The marmot works offline without it.", 1);
+
+  int y = 64;
   if (count == 0) {
     textAt(20, y, "(no saved networks)", 1);
     y += 20;

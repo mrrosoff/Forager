@@ -160,6 +160,24 @@ static const uint32_t WIFI_TIMEOUT_MS = 12UL * 1000UL;
 // timer is a backstop for when nobody presses it.
 static const uint64_t FORCE_REFRESH_INTERVAL_US = 24ULL * 60 * 60 * 1000000ULL;
 
+/**
+ * How stale cached weather may get before the device bothers going online
+ * again. The radio is the most expensive thing here and weather doesn't move
+ * on a per-wake timescale, so a wake reads the cache and costs no radio at
+ * all; the refresh happens just before deep sleep instead (see main.cpp's
+ * refreshNetworkBeforeSleep()), where nobody is waiting on the screen.
+ */
+static const uint32_t WEATHER_MAX_AGE_HOURS = 6;
+
+/**
+ * Past this age the cache stops being used at all and the device behaves as
+ * if it has no weather (valid == false) rather than acting on yesterday's
+ * reading -- a stale postRain would keep boosting mushroom relevance days
+ * after it dried out. Deliberately well beyond WEATHER_MAX_AGE_HOURS, so a
+ * single missed refresh doesn't drop the weather.
+ */
+static const uint32_t WEATHER_USABLE_HOURS = 24;
+
 static const char* const NTP_SERVER = "pool.ntp.org";
 static const char* const TZ_SEATTLE = "PST8PDT,M3.2.0,M11.1.0";
 static const char* const WEATHER_URL = "https://wttr.in/Seattle?format=j1";

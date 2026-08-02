@@ -2,6 +2,7 @@
 
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
+#include <Preferences.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <time.h>
@@ -148,6 +149,65 @@ WeatherData fetchWeather() {
 void shutdown() {
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
+}
+
+// Epoch the clock has to beat to count as NTP-set (2021-01-01), same check
+// syncTime() waits on.
+static const time_t kSaneEpoch = 1609459200;
+
+bool clockUnset(time_t now) { return now < kSaneEpoch; }
+
+WeatherData cachedWeather(time_t now) {
+  WeatherData w{};
+  w.valid = false;
+  Preferences p;
+  p.begin("forager", /*readOnly=*/true);
+  bool stored = p.getBool("wxValid", false);
+  uint64_t fetchedAt = p.getULong64("wxAt", 0);
+  float tempC = p.getFloat("wxTemp", 0.0f);
+  float rain = p.getFloat("wxRain", 0.0f);
+  bool wet = p.getBool("wxWet", false);
+  char buf[48] = {0};
+  p.getString("wxCond", buf, sizeof(buf));
+  p.end();
+
+  // Anything we can't date, or that's too old to describe today, is treated
+  // as no weather at all rather than as current conditions.
+  if (!stored || fetchedAt == 0) return w;
+  if (clockUnset(now) || (uint64_t)now < fetchedAt) return w;
+  if ((uint64_t)now - fetchedAt >= (uint64_t)WEATHER_USABLE_HOURS * 3600ULL) return w;
+
+  w.valid = true;
+  w.tempC = tempC;
+  w.rainLast24hMm = rain;
+  w.postRain = wet;
+  w.condition = buf;
+  return w;
+}
+
+void saveWeather(const WeatherData& w) {
+  if (!w.valid) return;  // never overwrite good cached data with a failed fetch
+  Preferences p;
+  p.begin("forager", /*readOnly=*/false);
+  p.putBool("wxValid", true);
+  p.putFloat("wxTemp", w.tempC);
+  p.putFloat("wxRain", w.rainLast24hMm);
+  p.putBool("wxWet", w.postRain);
+  p.putString("wxCond", w.condition.c_str());
+  p.putULong64("wxAt", (uint64_t)time(nullptr));
+  p.end();
+}
+
+bool refreshDue(time_t now) {
+  if (clockUnset(now)) return true;
+  Preferences p;
+  p.begin("forager", /*readOnly=*/true);
+  bool haveCache = p.getBool("wxValid", false);
+  uint64_t fetchedAt = p.getULong64("wxAt", 0);
+  p.end();
+  if (!haveCache || fetchedAt == 0) return true;
+  if ((uint64_t)now < fetchedAt) return true;  // clock moved back -- cache age unknowable
+  return (uint64_t)now - fetchedAt >= (uint64_t)WEATHER_MAX_AGE_HOURS * 3600ULL;
 }
 
 }  // namespace net
