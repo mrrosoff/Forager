@@ -96,9 +96,11 @@ journal.cpp); `hsSnack`, `hsSimon`, `hsMemory`, `hsMaze`, `hsQuiz`,
 (minigames.cpp —
 one high score per game, indexed by the `Game` enum so that array's order
 tracks the enum's; a bitmask of which games have already shown their unlock
-screen; and the Winter Stash counts plus the last year settled); and
+screen; and the Winter Stash counts plus the last year settled);
 `wifiCount`, `wifiNets`, `wifiSeeded` (wifistore.cpp — the runtime-editable
-network list, plus the marker that stops it re-seeding from `secrets.h`).
+network list, plus the marker that stops it re-seeding from `secrets.h`); and
+`wxValid`, `wxTemp`, `wxRain`, `wxWet`, `wxCond`, `wxAt` (net.cpp — the
+cached weather reading and when it was fetched).
 
 A single `Preferences::clear()` on `"forager"` wipes all of it at once, which
 is what Settings → Reset Game relies on. **The WiFi keys are the one
@@ -425,6 +427,29 @@ one-off check for that worth re-running when entries are added.
   becomes unreachable dead code the linker strips — don't be alarmed by the
   smaller flash-usage percentage while it's on, and always flip it back off
   before committing.
+
+## The radio runs before sleep, not at wake
+
+A scan plus connect takes ~17s, and `display::begin()` used to sit behind it,
+so every button press left the sleep screen up for most of that. Now a wake
+reads weather from NVS (`net::cachedWeather()`) and touches no radio at all;
+`refreshNetworkBeforeSleep()` does the NTP + weather pass from `goToSleep()`,
+*after* the sleep screen is drawn and the player has walked away, and only
+when `net::refreshDue()` says the cache is older than `WEATHER_MAX_AGE_HOURS`.
+That also cuts the biggest power draw on the device to a few times a day.
+
+Two thresholds, deliberately different: `WEATHER_MAX_AGE_HOURS` (6) triggers a
+refresh, `WEATHER_USABLE_HOURS` (24) is when `cachedWeather()` stops returning
+the reading at all and reports `valid == false`. Stale conditions are worse
+than none — a `postRain` from three days ago would keep boosting mushroom
+relevance long after the ground dried — so one missed refresh degrades
+quietly, but a long offline stretch reads as "no weather" rather than as
+yesterday's.
+
+The one case that still blocks at wake is an unset clock (`net::clockUnset()`,
+i.e. after a power-cycle with no NTP since): nothing time-derived means
+anything until that's fixed, so it's worth the wait. `AppContext::netOk` is
+now only meaningful inside that branch, and nothing reads it.
 
 ## Time persists across deep sleep
 

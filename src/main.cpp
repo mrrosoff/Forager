@@ -170,6 +170,25 @@ static const uint32_t TE_HOLD_INITIAL_MS = 400;
 static const uint32_t TE_HOLD_FLOOR_MS = 150;
 static const uint32_t TE_HOLD_ACCEL_MS = 25;
 
+/**
+ * Tops up time and weather on the way out, after the sleep screen is already
+ * drawn and the player has walked away -- the radio costs ~17s, and this is
+ * the one moment nobody is waiting on the panel. Skipped entirely while the
+ * cache is fresh, so most sleeps never power the radio at all.
+ */
+static void refreshNetworkBeforeSleep() {
+  time_t now = time(nullptr);
+  if (!net::refreshDue(now)) return;
+  if (!net::connectStrongest()) {
+    net::shutdown();
+    return;
+  }
+  struct tm discard;
+  net::syncTime(discard);
+  net::saveWeather(net::fetchWeather());
+  net::shutdown();
+}
+
 static void goToSleep() {
 #if DEV_MODE_NO_SLEEP
   return;
@@ -179,6 +198,7 @@ static void goToSleep() {
   // unpowered, until the next wake redraws it.
   currentView = View::Main;
   display::renderSleep((Stage)ctx.stage);
+  refreshNetworkBeforeSleep();
   display::hibernate();
   // ext1 (not ext0) so all three buttons wake the board, not just ENTER --
   // ext0 only supports a single GPIO. All three pins are RTC-capable
@@ -1166,15 +1186,24 @@ void setup() {
   }
 #endif
 
-  ctx.netOk = net::connectStrongest();
-  if (ctx.netOk) {
-    if (!net::syncTime(ctx.now)) log_w("Using prior clock");
-    ctx.weather = net::fetchWeather();
-  } else {
-    log_w("Offline; using cached state");
-    ctx.weather.valid = false;
+  // No radio on a normal wake: the scan plus connect ran to ~17s with the
+  // panel still showing the sleep screen, which is most of what a button
+  // press felt like. Weather comes out of the cache and the refresh happens
+  // before sleeping instead (see refreshNetworkBeforeSleep()). An unset clock
+  // is the exception -- nothing time-derived means anything until it's fixed,
+  // so that still blocks here.
+  if (net::clockUnset(time(nullptr))) {
+    ctx.netOk = net::connectStrongest();
+    if (ctx.netOk) {
+      if (!net::syncTime(ctx.now)) log_w("Using prior clock");
+      WeatherData fresh = net::fetchWeather();
+      net::saveWeather(fresh);
+    } else {
+      log_w("Offline with an unset clock; running dateless");
+    }
+    net::shutdown();
   }
-  net::shutdown();
+  ctx.weather = net::cachedWeather(time(nullptr));
 
   bool firstBoot = buildContext();
 
