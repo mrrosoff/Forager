@@ -320,6 +320,22 @@ static void drawBatteryIcon(int x, int y, uint8_t percent) {
   epd.fillRect(x + 2, y + 2, fillW, BATT_ICON_H - 4, C_BLACK);
 }
 
+// Gauge plus its percentage, the text right-aligned against the icon so the
+// gap stays put whether it reads 9% or 100% (left-anchoring it moved the gap
+// around with the digit count).
+static const int BATT_TEXT_GAP = 6;
+
+static void drawBatteryWithPercent(int iconX, int y, uint8_t percent) {
+  drawBatteryIcon(iconX, y, percent);
+  std::string pct = std::to_string(percent) + "%";
+  int16_t bx, by;
+  uint16_t bw, bh;
+  epd.setFont(nullptr);
+  epd.setTextSize(1);
+  epd.getTextBounds(pct.c_str(), 0, 0, &bx, &by, &bw, &bh);
+  textAt(iconX - BATT_TEXT_GAP - (int)bw, y + 2, pct, 1);
+}
+
 #include "display_marmot_art.h"
 
 // A hoary marmot -- hardcoded, dithered pen-and-ink-style/photo bitmaps (see
@@ -675,8 +691,7 @@ static void renderMain(const AppContext& ctx) {
   // Battery flush against the top-right corner (icon's right edge, nub
   // included, lands at SCREEN_W - 8, matching the right margin other views
   // use).
-  drawBatteryIcon(SCREEN_W - 30, 10, ctx.batteryPercent);
-  textAt(SCREEN_W - 60, 12, std::to_string(ctx.batteryPercent) + "%", 1);
+  drawBatteryWithPercent(SCREEN_W - 30, 10, ctx.batteryPercent);
 
   char buf[24];
   strftime(buf, sizeof(buf), "%a %b %d", &ctx.now);
@@ -2018,8 +2033,7 @@ void renderDeath(DeathCause cause) {
 void renderSettings(int selected, bool confirmPending, uint8_t batteryPercent) {
   epd.beginFrame();
   textAt(8, 10, "Settings", 2);
-  drawBatteryIcon(SCREEN_W - 52, 10, batteryPercent);
-  textAt(SCREEN_W - 52 - 30, 12, std::to_string(batteryPercent) + "%", 1);
+  drawBatteryWithPercent(SCREEN_W - 52, 10, batteryPercent);
 
   if (confirmPending) {
     if (selected == SETTINGS_RESET_GAME) {
