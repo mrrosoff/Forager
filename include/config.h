@@ -56,22 +56,18 @@ static const int PIN_BTN_ENTER = 4;
 static const int PIN_BTN_SETTINGS = 5;
 
 /**
- * Battery voltage sense -- a 2-resistor (200k/200k) divider from BAT+ to
- * GND, tapped at the midpoint into GPIO6. Free, ADC1-capable (unaffected
- * by the WiFi/BT radio conflict that rules out GPIO11-20), not a strapping
- * pin. The divider halves whatever's on the battery, so the real voltage
- * is 2x the ADC reading (see creature::batteryPercent() or wherever this
- * gets consumed) -- comfortably inside the ESP32-S3 ADC's ~3.1-3.3V usable
- * range even at a full 4.2V charge (2.1V at the pin).
+ * Battery sense -- a 200k/200k divider from BAT+ to GND, tapped into GPIO6
+ * (ADC1, so unaffected by the radio conflict that rules out GPIO11-20; not a
+ * strapping pin). Halves the cell, so 4.2V full sits at 2.1V, inside the
+ * ADC's usable range.
+ *
+ * 400k total also means ~100k of source impedance at the tap, well above the
+ * ~10k the ADC wants -- readBatteryVolts() oversamples to compensate. The
+ * voltage-to-percent curve lives there too, since a LiPo is nowhere near
+ * linear.
  */
 static const int PIN_BATT_ADC = 6;
-static const float BATT_DIVIDER_RATIO = 2.0f;  // equal-value divider -- Vbat = Vadc * 2
-// Typical single-cell LiPo range: ~4.2V full (freshly off the charger) down
-// to ~3.3V, which this project treats as "empty" -- well above the LiPo's
-// real over-discharge danger zone (~3.0V), leaving margin so "0%" on
-// screen is a low-battery warning, not an already-damaging-the-cell state.
-static const float BATT_VOLTAGE_FULL = 4.2f;
-static const float BATT_VOLTAGE_EMPTY = 3.3f;
+static const float BATT_DIVIDER_RATIO = 2.0f;
 
 static const uint32_t INACTIVITY_SLEEP_MS = 120UL * 1000UL;
 
