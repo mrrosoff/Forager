@@ -171,31 +171,39 @@ static const time_t kSaneEpoch = 1609459200;
 
 bool clockUnset(time_t now) { return now < kSaneEpoch; }
 
-WeatherData cachedWeather(time_t now) {
-  WeatherData w{};
-  w.valid = false;
+// Is anything stored, and when? Kept separate from the payload so a miss
+// costs one read instead of five NOT_FOUND lookups.
+static bool cacheStamp(uint64_t& fetchedAt) {
   Preferences p;
   p.begin("forager", /*readOnly=*/true);
   bool stored = p.getBool("wxValid", false);
-  uint64_t fetchedAt = p.getULong64("wxAt", 0);
-  float tempC = p.getFloat("wxTemp", 0.0f);
-  float rain = p.getFloat("wxRain", 0.0f);
-  bool wet = p.getBool("wxWet", false);
+  fetchedAt = p.getULong64("wxAt", 0);
+  p.end();
+  return stored && fetchedAt != 0;
+}
+
+// A reading older than `withinHours` -- or one we can't date, because the
+// clock is unset or has moved backwards -- doesn't describe `now`.
+static bool cacheFresh(time_t now, uint64_t fetchedAt, uint32_t withinHours) {
+  if (clockUnset(now) || (uint64_t)now < fetchedAt) return false;
+  return (uint64_t)now - fetchedAt < (uint64_t)withinHours * 3600ULL;
+}
+
+WeatherData cachedWeather(time_t now) {
+  WeatherData w{};
+  uint64_t fetchedAt = 0;
+  if (!cacheStamp(fetchedAt) || !cacheFresh(now, fetchedAt, WEATHER_USABLE_HOURS)) return w;
+
+  Preferences p;
+  p.begin("forager", /*readOnly=*/true);
+  w.tempC = p.getFloat("wxTemp", 0.0f);
+  w.rainLast24hMm = p.getFloat("wxRain", 0.0f);
+  w.postRain = p.getBool("wxWet", false);
   char buf[48] = {0};
   p.getString("wxCond", buf, sizeof(buf));
   p.end();
-
-  // Anything we can't date, or that's too old to describe today, is treated
-  // as no weather at all rather than as current conditions.
-  if (!stored || fetchedAt == 0) return w;
-  if (clockUnset(now) || (uint64_t)now < fetchedAt) return w;
-  if ((uint64_t)now - fetchedAt >= (uint64_t)WEATHER_USABLE_HOURS * 3600ULL) return w;
-
-  w.valid = true;
-  w.tempC = tempC;
-  w.rainLast24hMm = rain;
-  w.postRain = wet;
   w.condition = buf;
+  w.valid = true;
   return w;
 }
 
@@ -213,15 +221,8 @@ void saveWeather(const WeatherData& w) {
 }
 
 bool refreshDue(time_t now) {
-  if (clockUnset(now)) return true;
-  Preferences p;
-  p.begin("forager", /*readOnly=*/true);
-  bool haveCache = p.getBool("wxValid", false);
-  uint64_t fetchedAt = p.getULong64("wxAt", 0);
-  p.end();
-  if (!haveCache || fetchedAt == 0) return true;
-  if ((uint64_t)now < fetchedAt) return true;  // clock moved back -- cache age unknowable
-  return (uint64_t)now - fetchedAt >= (uint64_t)WEATHER_MAX_AGE_HOURS * 3600ULL;
+  uint64_t fetchedAt = 0;
+  return !cacheStamp(fetchedAt) || !cacheFresh(now, fetchedAt, WEATHER_MAX_AGE_HOURS);
 }
 
 }  // namespace net
