@@ -111,16 +111,13 @@ and hand them back whatever `secrets.h` happened to be compiled in.
 
 ### Hunger is derived, not stored
 
-`creature::evaluate()` **recomputes** `hunger` outright from `lastFed` every
-time it runs (`agingHunger()`), so assigning to `s.hunger` does nothing that
-survives — and every caller re-evaluates immediately after, so in practice the
-write is dead on the next line. Anything that means to move hunger has to go
-through `creature::shiftHunger()`, which shifts `lastFed` instead. This bit
-three separate places before it was noticed (Snack Hunt's reward, TrailMishap's
-penalty, and `feedForaged()`'s subtraction, which was masked by its own
-`lastFed = now`). The other three bars are ceiling-clamps keyed to
-`lastPlayed`/`lastCurious`, so they don't have this problem — direct writes to
-happiness/energy/curiosity are fine.
+`evaluate()` recomputes `hunger` from `lastFed` every run (`agingHunger()`),
+so assigning to `s.hunger` is discarded — usually on the next line, since
+callers re-evaluate immediately. Move it via `creature::shiftHunger()`, which
+shifts `lastFed`. This silently broke three places before it was caught: Snack
+Hunt's reward, TrailMishap's penalty, and `feedForaged()`'s subtraction. The
+other three bars are ceiling-clamps on `lastPlayed`/`lastCurious`, so direct
+writes to those are fine.
 
 ## Display: official Waveshare driver, 1-bit + dithering
 
@@ -415,10 +412,9 @@ one-off check for that worth re-running when entries are added.
   every predator) instead of rolling, and Forest Memory deals every card
   face-up. Purely for proofreading the art without grinding for a rare
   outcome; it makes Memory trivially winnable, which is the point.
-- Both flip to `0` before any real gameplay testing session — flip back to
-  `1` only while actively iterating on stage/growth-adjacent or hardware
-  timing-adjacent features, and remember to flip back before handing the
-  device off for a normal playtest.
+- All of these flip to `0` before any real gameplay testing session — flip one
+  back to `1` only while actively iterating on what it covers, and flip it
+  back before handing the device off for a normal playtest.
 - A third flag, `DEV_MODE_EVENT_CYCLE`, exists in `main.cpp`/`config.h` as a
   review-only loop (bypasses WiFi/game state, shows every distinct
   wake-time-event flavor back-to-back, ENTER advances) for proofreading
@@ -430,21 +426,20 @@ one-off check for that worth re-running when entries are added.
 
 ## The radio runs before sleep, not at wake
 
-A scan plus connect takes ~17s, and `display::begin()` used to sit behind it,
-so every button press left the sleep screen up for most of that. Now a wake
-reads weather from NVS (`net::cachedWeather()`) and touches no radio at all;
+A scan plus connect takes ~17s and `display::begin()` used to sit behind it,
+so every button press held the sleep screen for most of that. A wake now reads
+weather from NVS (`net::cachedWeather()`) and touches no radio at all;
 `refreshNetworkBeforeSleep()` does the NTP + weather pass from `goToSleep()`,
-*after* the sleep screen is drawn and the player has walked away, and only
-when `net::refreshDue()` says the cache is older than `WEATHER_MAX_AGE_HOURS`.
-That also cuts the biggest power draw on the device to a few times a day.
+after the sleep screen is drawn and the player has walked away, and only when
+`net::refreshDue()` says the cache is stale. Measured: ~2.4s wake. It also
+cuts the biggest power draw here to a few times a day.
 
 Two thresholds, deliberately different: `WEATHER_MAX_AGE_HOURS` (6) triggers a
-refresh, `WEATHER_USABLE_HOURS` (24) is when `cachedWeather()` stops returning
-the reading at all and reports `valid == false`. Stale conditions are worse
-than none — a `postRain` from three days ago would keep boosting mushroom
-relevance long after the ground dried — so one missed refresh degrades
-quietly, but a long offline stretch reads as "no weather" rather than as
-yesterday's.
+refresh; `WEATHER_USABLE_HOURS` (24) is when `cachedWeather()` gives up and
+reports `valid == false`. Stale conditions are worse than none — a three-day
+-old `postRain` would keep boosting mushroom relevance long after the ground
+dried — so one missed refresh degrades quietly while a long offline stretch
+reads as "no weather" rather than as yesterday's.
 
 The one case that still blocks at wake is an unset clock (`net::clockUnset()`,
 i.e. after a power-cycle with no NTP since): nothing time-derived means
@@ -464,9 +459,10 @@ exactly like "no weather today". They all log now.
 
 ## Time persists across deep sleep
 
-The ESP32 RTC clock keeps running through deep sleep, so NTP only truly matters
-on the first wake after a power-cycle (the inline BAT switch). On later wakes
-`time()` is already valid; we still attempt a refresh when online.
+The ESP32 RTC keeps running through deep sleep, so NTP only truly matters on
+the first boot after a power-cycle (the inline BAT switch) — that's exactly
+the `net::clockUnset()` case above. On every other wake `time()` is already
+valid, which is what makes skipping the radio safe.
 
 ## Commits
 

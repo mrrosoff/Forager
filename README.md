@@ -49,8 +49,13 @@ from the rest) and not a wake source, so Settings only works once awake.
 - **Sleep/wake**: deep sleep between interactions (screen holds its image at
   zero power); ENTER wakes it, or a 24h timer backstop. Idle sleep is two
   minutes, stretched to five while a minigame run is in progress — run state
-  is RAM-only, so sleeping mid-run would throw the run away. On wake: WiFi → NTP
-  → weather → recompute mood/growth/death → check for an event → render.
+  is RAM-only, so sleeping mid-run would throw the run away. A wake reads
+  cached weather, recomputes mood/growth/death, checks for an event and
+  renders — no radio, so it responds in about a second. The WiFi/NTP/weather
+  pass runs *before* sleeping instead, and only when the cached weather is
+  over 6h old. The exception is a cold boot with an unset clock, which has to
+  sync before anything time-derived means anything, and says so on screen
+  while it does.
 - **Growing up**: three stages (Baby / Juvenile / Adult) based on distinct
   species eaten, not elapsed time. Species only appear in the Foraging list
   once discovered via a wake-time event.
@@ -74,9 +79,11 @@ from the rest) and not a wake source, so Settings only works once awake.
   journal fills — Snack Hunt and Marmot Says (from birth), Forest Memory
   (Juvenile), Burrow Maze (Adult), and Species Quiz (50 species discovered).
   Nothing here is scored on reaction time; the panel refresh makes that
-  unplayable, so every game is one that was always turn-based. Each keeps a
-  persisted high score, a scoring run tops up that game's stat once per wake,
-  and crossing an unlock threshold shows a one-time reveal screen.
+  unplayable, so every game is one that was always turn-based. Locked games
+  aren't listed at all — the menu grows as they unlock, rather than opening on
+  a wall of locks. Each keeps a persisted high score, a scoring run tops up
+  that game's stat once per wake, and crossing an unlock threshold shows a
+  one-time reveal screen.
   - **Snack Hunt** — four bushes, rummage under one; every bush shifts aside
     afterward so you see what you walked past. Five picks a run. Under a bush
     there might be stash material (dry grass, leaves, wood, a wildflower),
@@ -111,8 +118,10 @@ from the rest) and not a wake source, so Settings only works once awake.
   the Main view until resolved. Frequent use raises the odds; browsing all
   views quickly guarantees one.
 - **Settings** (via SETTINGS button): Achievements (Adult only; 9 unlockable
-  badges), WiFi Networks (add/remove, on-screen keyboard), Reset Game (wipes
-  progress, confirm required), Power Off (true off, confirm required).
+  badges), WiFi Networks (add/remove, on-screen keyboard — used for the clock
+  and the weather; the marmot works offline without it, and Reset Game leaves
+  saved networks alone), Reset Game (wipes progress, confirm required), Power
+  Off (true off, confirm required).
 
 See `CLAUDE.md` for implementation details (NVS layout, display driver
 quirks, hardware gotchas, art-sourcing pipeline) not covered here.
