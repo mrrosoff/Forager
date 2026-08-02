@@ -178,6 +178,8 @@ static const uint32_t TE_HOLD_ACCEL_MS = 25;
  */
 static void refreshNetworkBeforeSleep() {
   time_t now = time(nullptr);
+  // Banked every sleep, so a power-cycle resumes from here rather than 1970.
+  net::rememberClock();
   if (!net::refreshDue(now)) return;
   if (!net::connectStrongest()) {
     net::shutdown();
@@ -1231,20 +1233,11 @@ void setup() {
   // press felt like. Weather comes out of the cache and the refresh happens
   // before sleeping instead (see refreshNetworkBeforeSleep()).
   //
-  // A cold boot is the exception -- an unset clock makes everything
-  // time-derived meaningless (hunger, streaks, seasons), so it has to be
-  // fixed before buildContext() runs. The panel comes up first and says so,
-  // rather than sitting on a stale frame looking dead for 20 seconds.
-  if (net::clockUnset(time(nullptr))) {
-    display::renderConnecting();
-    if (net::connectStrongest()) {
-      if (!net::syncTime(ctx.now)) log_w("Using prior clock");
-      net::saveWeather(net::fetchWeather());
-    } else {
-      log_w("Offline with an unset clock; running dateless");
-    }
-    net::shutdown();
-  }
+  // A power-cycle resets the RTC to 1970, which would corrupt everything
+  // time-derived. Seeding from the last known time keeps it sane without
+  // going online, so a cold boot is as quick as any other wake; the next
+  // pre-sleep refresh corrects it properly.
+  if (net::clockUnset(time(nullptr))) net::restoreClock();
   ctx.weather = net::cachedWeather(time(nullptr));
 
   bool firstBoot = buildContext();

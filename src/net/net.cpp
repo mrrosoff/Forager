@@ -5,6 +5,7 @@
 #include <Preferences.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <sys/time.h>
 #include <time.h>
 
 #include "config.h"
@@ -170,6 +171,27 @@ void shutdown() {
 static const time_t kSaneEpoch = 1609459200;
 
 bool clockUnset(time_t now) { return now < kSaneEpoch; }
+
+void rememberClock() {
+  time_t now = time(nullptr);
+  if (clockUnset(now)) return;
+  Preferences p;
+  p.begin("forager", /*readOnly=*/false);
+  p.putULong64("clockAt", (uint64_t)now);
+  p.end();
+}
+
+void restoreClock() {
+  Preferences p;
+  p.begin("forager", /*readOnly=*/true);
+  uint64_t saved = p.getULong64("clockAt", 0);
+  p.end();
+  time_t seed = saved > (uint64_t)kSaneEpoch ? (time_t)saved : kSaneEpoch;
+  struct timeval tv = {};
+  tv.tv_sec = seed;
+  settimeofday(&tv, nullptr);
+  log_i("Clock seeded from %s", saved ? "last known time" : "build floor");
+}
 
 // Is anything stored, and when? Kept separate from the payload so a miss
 // costs one read instead of five NOT_FOUND lookups.
