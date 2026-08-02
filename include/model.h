@@ -143,7 +143,6 @@ struct AppContext {
   WeatherData weather;
   Forageable featured;
   CreatureState creature;
-  bool netOk;
 
   // A pending interaction event (see src/events/), shown as a takeover of
   // the Main view until ENTER resolves it. eventType mirrors
