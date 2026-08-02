@@ -62,79 +62,46 @@ struct CreatureState {
   Mood mood;
   uint8_t hunger;     // 0 = full, 100 = starving
   uint8_t happiness;  // 0..100
-  uint8_t energy;     // 0..100 -- decays like happiness, refilled by feeding
-                      // (more so by protein/fat-rich food kinds; see
-                      // creature::feedEffectForKind())
-  /**
-   * 0..100. Unlike the three above this one is NOT lethal (see
-   * creature::checkDeath()) -- it's the "is there anything interesting going
-   * on" stat, raised by the two species games and by discoveries, and
-   * decaying on its own clock. The Status bar adds a transient weather bonus
-   * on top at render time (see display's curiosityDisplay()); only this base
-   * value is persisted, so good weather can't inflate the save.
-   */
+  uint8_t energy;     // 0..100
+  // 0..100, and the one bar that is NOT lethal -- "has anything interesting
+  // happened lately". Status adds a transient weather bonus at render time
+  // (curiosityDisplay()); only this base value is persisted.
   uint8_t curiosity;
 
-  time_t lastFed;  // epoch, 0 = never
-
-  /**
-   * Epoch of the last "play" interaction -- feeding or resolving a wake-time
-   * event -- distinct from lastFed. Drives a happiness decay independent of
-   * hunger (see creature::evaluate()): you can keep the marmot fed and
-   * still neglect it by never resolving events.
-   */
+  // Epochs, 0 = never. hunger ramps from lastFed; happiness/energy clamp
+  // against lastPlayed (feeding or resolving an event); curiosity against
+  // lastCurious (a species game or a Discovery), so a marmot can be fed and
+  // played with and still have seen nothing new.
+  time_t lastFed;
   time_t lastPlayed;
-
-  // Epoch of the last curiosity-feeding activity -- a species game or a
-  // Discovery. Curiosity decays from here, on its own slower clock, rather
-  // than sharing lastPlayed with happiness and energy.
   time_t lastCurious;
+  time_t birthDate;
 
-  time_t birthDate;  // epoch, 0 = never born yet (first-ever boot sentinel)
-
-  /**
-   * Consecutive days fed at least once, for the Status/Achievements streak
-   * display. lastStreakDay is day-truncated (see creature::feedForaged()).
-   */
+  // Consecutive days fed at least once; lastStreakDay is day-truncated.
   uint16_t feedStreakDays;
   time_t lastStreakDay;
 
-  /**
-   * Mirrors Stage -- the last growth stage the player has acknowledged (see
-   * main.cpp's transition-screen check). Lets a new wake detect "the marmot
-   * just grew up" by comparing this against the freshly computed stage,
-   * without needing a separate persisted flag.
-   */
+  // Last stage the player has acknowledged -- compared against the freshly
+  // computed stage each wake to fire the "grew up" screen once.
   uint8_t lastSeenStage;
 
-  // Chosen at birth via the on-screen text entry (see textentry.h);
-  // defaults to "Marmot" if the player leaves it blank.
-  char name[16];
+  char name[16];  // textentry caps input to fit this; blank defaults to "Marmot"
 
   /**
-   * True once the birth-naming flow has actually completed (see main.cpp's
-   * finishTextEntry()) -- distinct from birthDate != 0, which gets
-   * persisted right away on first boot (before naming) so growth timing
-   * starts at the true creation moment. Without this separate flag, losing
-   * power mid-naming would leave birthDate already persisted, so the next
-   * boot's firstBoot check would incorrectly skip straight to Main with a
-   * default name instead of returning to the birth/naming screen.
+   * True once naming actually completed. Distinct from birthDate != 0, which
+   * is persisted before naming so growth timing starts at the real creation
+   * moment -- keying firstBoot off birthDate would send a power-loss
+   * mid-naming straight to Main with a default name.
    */
   bool named = false;
 };
 
 /**
- * Minigames sits LEFT of Status, Status LEFT of Main, Foraging RIGHT of
- * Main -- the numeric order here is what LEFT(-1)/RIGHT(+1) step through in
- * main.cpp. Minigames goes leftmost (not appended after Foraging) because
- * Foraging's RIGHT button is fully consumed by accelerating hold-to-scroll,
- * so RIGHT can never reach a view past it -- and because being leftmost
- * frees up LEFT (dead at the end of the cycle) for the game menu's own
- * selection stepping.
- *
- * Achievements used to be the leftmost view; it moved under Settings (see
- * display::renderAchievements()) so the LEFT/RIGHT cycle stays four screens
- * long with the minigames added.
+ * Numeric order is what LEFT(-1)/RIGHT(+1) step through. Minigames is
+ * leftmost rather than appended after Foraging for two reasons: Foraging
+ * consumes RIGHT entirely for hold-to-scroll, so nothing can sit past it,
+ * and being leftmost frees up LEFT (dead at the end of the cycle) for the
+ * game menu's own selection stepping.
  */
 enum class View : uint8_t { Minigames = 0, Status, Main, Foraging, COUNT };
 
@@ -144,27 +111,14 @@ struct AppContext {
   Forageable featured;
   CreatureState creature;
 
-  // A pending interaction event (see src/events/), shown as a takeover of
-  // the Main view until ENTER resolves it. eventType mirrors
-  // events::EventType (0 = None); kept as raw fields here (rather than an
-  // events:: type) so model.h doesn't depend on that module -- events.h
-  // itself depends on model.h for CreatureState.
+  // Pending event, mirroring events::EventType (0 = None). Raw fields rather
+  // than an events:: type so model.h doesn't depend on that module -- events.h
+  // already depends on this one.
   uint8_t eventType = 0;
   uint8_t eventDataId = 0;
   uint8_t eventExact = 0;
 
-  /**
-   * Mirrors Stage; computed once per wake in main.cpp's buildContext() from
-   * creature.birthDate, and used to gate Foraging visibility and the
-   * baby-appropriate event pool.
-   */
-  uint8_t stage = 0;
-
-  /**
-   * 0-100, read fresh each wake in main.cpp's buildContext() from the
-   * BATT_ADC voltage divider (see config.h) -- not persisted, since it's
-   * cheap to re-read and would go stale across the days between wakes
-   * otherwise.
-   */
+  // Both recomputed once per wake in buildContext(), neither persisted.
+  uint8_t stage = 0;  // mirrors Stage
   uint8_t batteryPercent = 0;
 };

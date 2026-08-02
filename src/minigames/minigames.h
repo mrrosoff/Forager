@@ -1,14 +1,7 @@
-// minigames.h — the four button-only diversions reachable LEFT of Status.
-//
-// Pure game state + rules; no rendering (see display::renderMinigames()) and
-// no button reading (see main.cpp's handleMinigamesInput()).
-//
-// **Every game here is turn-based, and that is a hard constraint, not a
-// style choice.** A panel refresh is hundreds of milliseconds (see CLAUDE.md's
-// display notes), so anything scored on reaction time -- a runner, a dodger,
-// anything that moves on its own -- is unplayable no matter how it's tuned.
-// What's left, and what these are, are the classics that were always
-// turn-based: concentration, Simon, hangman, a quiz.
+// minigames.h — game state + rules only; no rendering (display.cpp) and no
+// button reading (main.cpp). Every game is turn-based, and that's a hard
+// constraint: a panel refresh is hundreds of milliseconds, so anything scored
+// on reaction time is unplayable. See CLAUDE.md for what that ruled out.
 #pragma once
 
 #include <string>
@@ -216,22 +209,16 @@ struct SimonRound {
 };
 
 /**
- * Burrow Maze: a 5x5 tunnel dig from the top-left corner to the bottom-right.
+ * Burrow Maze: a tunnel dig from the top-left corner to the bottom-right.
  *
- * **Three buttons cannot steer in four directions**, and turn-turn-step
- * (the usual workaround) spends presses on rotating rather than on
- * deciding, which is miserable at one panel refresh per press. So the maze
- * never asks for a direction: at every junction it lists the tunnels
- * actually leading out of this cell, LEFT/RIGHT cycle that short list, and
- * ENTER commits. The marmot then walks the whole corridor by itself, all
- * the way to the next junction, dead end, or the exit -- so one press is
- * one *decision*, not one cell, and a 5x5 maze is four or five presses.
+ * Three buttons can't steer in four directions, so the maze never asks for
+ * one: each junction lists the tunnels actually leaving this cell, LEFT/RIGHT
+ * cycle that list, ENTER commits, and the marmot walks the corridor to the
+ * next junction by itself. One press is one *decision*, not one cell. A dead
+ * end offers the way you came, so backing out isn't a stuck state.
  *
- * A dead end offers the way you came as its only option, so backing out is
- * a normal move rather than a stuck state.
- *
- * `wall` is a per-cell bitmask (N/E/S/W) with both sides of every wall
- * agreeing; `seen` is the trail already dug, drawn behind the marmot.
+ * `wall` is a per-cell N/E/S/W bitmask with both sides agreeing; `seen` is the
+ * trail already dug.
  */
 struct MazeRound {
   // Grid grows 5x5 -> 6x6 -> 7x7 as mazes are cleared (see mazeSizeFor()),
@@ -252,19 +239,10 @@ struct MazeRound {
 int mazeSizeFor(int score);
 
 /**
- * Moves allowed for an n-wide maze, i.e. how far ahead of the rising
- * snowmelt the marmot is when it starts.
- *
- * The fail state needed a *reason*: a burrow with no threat in it makes a
- * dead end merely a detour, and "you ran out of moves" is an arbitrary
- * rule. So the tunnels are flooding behind you -- spring meltwater, which
- * is a real hazard for a real marmot burrow -- and every move lets it gain
- * a step. Backtracking out of a dead end costs you ground you can't get
- * back, which is exactly the tension the budget was supposed to create.
- *
- * It's counted in moves rather than seconds on purpose: the panel only
- * redraws when a button is pressed, so a wall clock would sit frozen and
- * then jump, and the player would drown to a timer they never saw move.
+ * Moves allowed for an n-wide maze -- how far ahead of the rising meltwater
+ * the marmot starts. Counted in moves, not seconds, because the panel only
+ * redraws on a press: a wall clock would sit frozen and then jump, drowning
+ * the player to a timer they never saw move.
  */
 int mazeBudgetFor(int n);
 

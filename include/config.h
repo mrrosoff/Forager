@@ -8,74 +8,18 @@
 // supports the GDEY042T81 revision; kept as documentation of the assumption.
 #define EPD_PANEL_GDEY042T81 1
 
-// Dev-mode: disable deep sleep entirely so the board stays on USB serial
-// while iterating. Flip to 0 before shipping.
-#define DEV_MODE_NO_SLEEP 0
-
-// Dev-mode: creature::computeStage() always returns Adult, skipping the
-// real-time Baby/Juvenile wait so Adult-only content (Foraging,
-// Achievements, the full adult pose pool) can be tested immediately. Flip
-// to 0 before shipping.
-#define DEV_MODE_SKIP_GROWTH 0
-
-// Dev-mode: minigames::isUnlocked() returns true for every game, so the
-// whole menu is playable regardless of growth stage or journal progress --
-// the games are otherwise gated behind Juvenile/Adult and 50 discovered
-// species, which is days of real play before some of them can be tested at
-// all. Doesn't touch the unlock *reveal* screens: those are driven by the
-// persisted `mgSeen` bitmask (see minigames::pendingUnlocks()), so with this
-// on they all fire on the next wake after a reset, one after another, which
-// is itself a convenient way to proofread them. Flip to 0 before shipping.
-#define DEV_MODE_UNLOCK_MINIGAMES 0
-
-/**
- * Dev-mode: makes the minigames show their whole content set instead of
- * rolling for it, so the art can be proofread without grinding for a rare
- * outcome.
- *
- * - **Snack Hunt** deals bushes from a fixed list covering every possibility
- *   -- empty, each stash kind, every critter, every predator -- four per
- *   round in order, so a couple of rounds walks the entire table. All four
- *   bushes open on the reveal, so each round shows four of them at once.
- * - **Forest Memory** deals every card face-up. That also makes the game
- *   trivially winnable, which is the point: it's for checking that the six
- *   faces are distinguishable, not for playing.
- *
- * Flip to 0 before shipping.
- */
-#define DEV_MODE_SHOW_ALL_CONTENT 0
-
-// Dev-mode: journal::load() marks every species discovered (visible in the
-// Foraging browse list) on every wake, regardless of what's actually been
-// found -- lets Foraging/species-icon work be tested without grinding
-// Discovery events first. Doesn't affect eaten/growth-stage progress, only
-// visibility. Flip to 0 before shipping.
-#define DEV_MODE_UNLOCK_SPECIES 0
-
-// Dev-mode: foraging::rebuildBrowseOrder() sorts the Foraging list
-// alphabetically by name instead of by relevance score -- pairs with
-// DEV_MODE_UNLOCK_SPECIES for systematically paging through every species
-// (e.g. reviewing/replacing art) in a stable, predictable order. Flip to 0
-// before shipping.
-#define DEV_MODE_ALPHABETIZE_BROWSE 0
-
-// Dev-mode: Foraging's browse position starts here instead of species 1 --
-// pairs with DEV_MODE_ALPHABETIZE_BROWSE for resuming a systematic
-// species-art review partway through the alphabet without re-paging past
-// already-reviewed/approved species every time. 0-based index into the
-// alphabetized list -- "start from species N" (1-based, as the user counts
-// species while paging) means N-1 here. 0 = normal (start at species 1).
-// Flip to 0 before shipping.
-#define DEV_MODE_SPECIES_BROWSE_START 0
-
-// Dev-mode: setup() shows every wake-time event's encounter screen
-// back-to-back in a loop instead of the normal wake flow -- one
-// representative AnimalSighting/Discovery/ForagingFind plus every distinct
-// entry in the small curated pools (mishaps, weather, treasures,
-// encounters, baby care), so the flavor text/layout can all be proofread
-// on real hardware. ENTER advances to the next one. Flip to 0 before
-// shipping.
-#define DEV_MODE_EVENT_CYCLE 0
+// Dev flags -- all ship at 0. CLAUDE.md's "Dev-mode flags" section covers
+// what each one does to the rest of the system, including the surprises
+// (SKIP_GROWTH also unlocks Adult-only events; UNLOCK_MINIGAMES doesn't
+// touch the unlock reveals; EVENT_CYCLE strips the real setup()/loop()).
+#define DEV_MODE_NO_SLEEP 0            // never deep-sleep; stay on USB serial
+#define DEV_MODE_SKIP_GROWTH 0         // computeStage() always returns Adult
+#define DEV_MODE_UNLOCK_MINIGAMES 0    // every game playable, ignoring the ladder
+#define DEV_MODE_SHOW_ALL_CONTENT 0    // deal every bush/card instead of rolling
+#define DEV_MODE_UNLOCK_SPECIES 0      // every species discovered, for browsing
+#define DEV_MODE_ALPHABETIZE_BROWSE 0  // browse A-Z instead of by relevance
+#define DEV_MODE_SPECIES_BROWSE_START 0  // 0-based start index for that browse
+#define DEV_MODE_EVENT_CYCLE 0         // loop every event screen for proofreading
 
 static const int PIN_EPD_SCK = 12;
 static const int PIN_EPD_MOSI = 11;
@@ -131,25 +75,13 @@ static const float BATT_VOLTAGE_EMPTY = 3.3f;
 
 static const uint32_t INACTIVITY_SLEEP_MS = 120UL * 1000UL;
 
-/**
- * The idle window while a minigame run is actually in progress. Longer than
- * INACTIVITY_SLEEP_MS because Forest Memory and Burrow Maze ask the player to
- * *think*, and minigame state lives in RAM -- dropping into deep sleep
- * mid-run destroys the run, so a two-minute pause over a 7x7 maze used to
- * lose it. Only applies between the first press of a run and its last (see
- * loop()'s idle check); the menu and every other view keep the short window.
- */
+// Longer window mid-run: run state is RAM-only, so sleeping over a 7x7 maze
+// throws the run away. Only applies between a run's first and last press.
 static const uint32_t MINIGAME_IDLE_SLEEP_MS = 300UL * 1000UL;
 
-/**
- * A marmot younger than this when winter arrives gets no winter-stash screen
- * at all -- the year is settled silently (see main.cpp's
- * resolveWinterStashIfDue()). Distinct from
- * minigames::WINTER_GRACE_DAYS, which waives the *penalty* but still shows
- * the screen: a week-old marmot has at least seen the game, whereas one
- * born minutes ago on a device first switched on in December would meet a
- * "you failed to stockpile" ceremony before its own home view.
- */
+// Younger than this at winter and the stash screen is skipped entirely, not
+// just its penalty (that's minigames::WINTER_GRACE_DAYS) -- a marmot born
+// days ago shouldn't open with a "you failed to stockpile" ceremony.
 static const int WINTER_TOO_YOUNG_DAYS = 7;
 static const uint32_t BTN_DEBOUNCE_MS = 40;
 static const uint32_t WIFI_TIMEOUT_MS = 12UL * 1000UL;
@@ -160,92 +92,39 @@ static const uint32_t WIFI_TIMEOUT_MS = 12UL * 1000UL;
 // timer is a backstop for when nobody presses it.
 static const uint64_t FORCE_REFRESH_INTERVAL_US = 24ULL * 60 * 60 * 1000000ULL;
 
-/**
- * How stale cached weather may get before the device bothers going online
- * again. The radio is the most expensive thing here and weather doesn't move
- * on a per-wake timescale, so a wake reads the cache and costs no radio at
- * all; the refresh happens just before deep sleep instead (see main.cpp's
- * refreshNetworkBeforeSleep()), where nobody is waiting on the screen.
- */
+// Cache older than this triggers a refresh (before sleep, never at wake).
 static const uint32_t WEATHER_MAX_AGE_HOURS = 6;
-
-/**
- * Past this age the cache stops being used at all and the device behaves as
- * if it has no weather (valid == false) rather than acting on yesterday's
- * reading -- a stale postRain would keep boosting mushroom relevance days
- * after it dried out. Deliberately well beyond WEATHER_MAX_AGE_HOURS, so a
- * single missed refresh doesn't drop the weather.
- */
+// Older than this and it stops being used at all -- a stale postRain would
+// keep boosting mushroom relevance days after the ground dried.
 static const uint32_t WEATHER_USABLE_HOURS = 24;
 
 static const char* const NTP_SERVER = "pool.ntp.org";
 static const char* const TZ_SEATTLE = "PST8PDT,M3.2.0,M11.1.0";
 static const char* const WEATHER_URL = "https://wttr.in/Seattle?format=j1";
 
-// 1 week -- see DEATH_* below: this is the outer edge of the death timeline,
-// not a "gets hungry" ramp on its own, so it needs to be genuinely long.
+// Decay clocks. All 1 week except curiosity, which is slower because it
+// isn't lethal and shouldn't nag. Hunger ramps from lastFed; the other three
+// are ceiling-clamps from lastPlayed/lastCurious (see creature::evaluate()).
+// A week is the outer edge of the death timeline, not a "gets hungry" ramp,
+// hence the length.
 static const uint32_t HUNGER_PERIOD_HOURS = 168;
-
-/**
- * Happiness decays toward 0 the longer it's been since the marmot was last
- * "played with" (fed, or had a wake-time event resolved) -- see
- * creature::evaluate()'s boredom-ceiling clamp. Separate from hunger: you
- * can keep the marmot fed and still neglect it by never resolving events.
- * 1 week, same reasoning as HUNGER_PERIOD_HOURS.
- */
 static const uint32_t PLAY_PERIOD_HOURS = 168;
+static const uint32_t ENERGY_PERIOD_HOURS = 168;
+static const uint32_t CURIOSITY_PERIOD_HOURS = 240;
 
-/**
- * Growth-stage thresholds (distinct species foraged -- journal::totalEaten()
- * -- not elapsed time; see creature::computeStage()): Baby until
- * BABY_STAGE_SPECIES eaten, Juvenile until ADULT_STAGE_SPECIES eaten, Adult
- * after that. Foraging is unlocked from birth so a Baby can actually reach
- * the first threshold.
- */
+// Growth is distinct species eaten (journal::totalEaten()), not elapsed time.
 static const int BABY_STAGE_SPECIES = 5;
 static const int ADULT_STAGE_SPECIES = 15;
 
-/**
- * Energy decays toward 0 the longer it's been since the marmot was last
- * "played with" (same trigger as happiness's boredom clock -- see
- * creature::evaluate()'s ceiling clamp) -- feeding restores it, with
- * protein/fat-rich food kinds (see creature::feedEffectForKind()) restoring
- * more than a plain green does. 1 week, same reasoning as
- * HUNGER_PERIOD_HOURS.
- */
-static const uint32_t ENERGY_PERIOD_HOURS = 168;
-
-/**
- * Curiosity decays from CreatureState::lastCurious on a deliberately slower
- * clock than the other three -- 10 days rather than 1 week -- because it
- * isn't lethal (see creature::checkDeath()) and shouldn't nag. Raised by the
- * two species games and by Discovery events.
- */
-static const uint32_t CURIOSITY_PERIOD_HOURS = 240;
-
-/**
- * Death thresholds (see creature::checkDeath()): if hunger reaches
- * DEATH_HUNGER_THRESHOLD (fully starved), or happiness or energy drops to
- * DEATH_*_THRESHOLD (utterly miserable/exhausted), the marmot dies on the
- * spot -- checked every wake, not a multi-day timer, so it's a direct
- * consequence of a bar actually bottoming out rather than a separate
- * neglect clock. Feeding restores all three (see feedForaged()), so normal
- * play never approaches these -- only sustained neglect does.
- */
+// Any one bar bottoming out kills the marmot, checked every wake rather than
+// on a separate neglect clock. Curiosity is deliberately absent.
 static const uint8_t DEATH_HUNGER_THRESHOLD = 100;
 static const uint8_t DEATH_HAPPINESS_THRESHOLD = 0;
 static const uint8_t DEATH_ENERGY_THRESHOLD = 0;
 
-/**
- * Mid-session event trigger (see main.cpp's screen-change-count hook,
- * separate from events::checkForEvent()'s once-per-wake background roll):
- * SCREEN_CHANGE_EVENT_TRIGGER view changes (LEFT/RIGHT navigation, not
- * Foraging's within-view species scroll) within SCREEN_CHANGE_WINDOW_MS of
- * each other guarantee a new event, as long as one hasn't already been
- * resolved in the last EVENT_RECENCY_GATE_SECONDS -- an actively-browsing
- * session earns an event rather than waiting on the same odds as an idle
- * device.
- */
+// Mid-session event trigger: this many view changes inside the window
+// guarantee an event, unless one resolved within the recency gate. Lets an
+// actively-browsing session earn one instead of waiting on idle odds.
 static const int SCREEN_CHANGE_EVENT_TRIGGER = 8;
 static const uint32_t SCREEN_CHANGE_WINDOW_MS = 90UL * 1000UL;
 static const uint32_t EVENT_RECENCY_GATE_SECONDS = 180;
