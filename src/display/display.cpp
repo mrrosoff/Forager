@@ -283,26 +283,27 @@ static int textWrapped(int x, int y, int maxChars, const char* s, uint8_t size =
 // just the horizontal span the creature is centered within.
 static const int STAGE_X = 10, STAGE_Y = 34, STAGE_W = 280, STAGE_H = 330;
 
-// Small weather glyph (sun / rain / cloud) so the creature's world reflects
-// current conditions, independent of mood.
+// Weather glyph (sun / rain / cloud), sized to sit in the same header row as
+// the battery gauge -- about 15x14, against the battery's 20x10, rather than
+// the ~28px it used to be.
 static void drawWeatherGlyph(int x, int y, const WeatherData& w) {
   if (!w.valid) return;
   if (w.postRain) {
-    dFillCircle(x + 12, y + 8, 9, SHADE_LIGHT);
-    epd.drawCircle(x + 12, y + 8, 9, C_BLACK);
-    for (int i = 0; i < 3; i++) epd.drawLine(x + 4 + i * 8, y + 16, x + 2 + i * 8, y + 24, C_BLACK);
+    dFillCircle(x + 7, y + 5, 5, SHADE_LIGHT);
+    epd.drawCircle(x + 7, y + 5, 5, C_BLACK);
+    for (int i = 0; i < 3; i++) epd.drawLine(x + 3 + i * 4, y + 10, x + 2 + i * 4, y + 14, C_BLACK);
   } else if (w.tempC >= 18.0f) {
-    epd.drawCircle(x + 12, y + 10, 7, C_BLACK);
+    epd.drawCircle(x + 7, y + 7, 4, C_BLACK);
     for (int a = 0; a < 360; a += 45) {
       float ra = a * (float)M_PI / 180.0f;
-      epd.drawLine(x + 12 + (int)(9 * cosf(ra)), y + 10 + (int)(9 * sinf(ra)),
-                   x + 12 + (int)(14 * cosf(ra)), y + 10 + (int)(14 * sinf(ra)), C_BLACK);
+      epd.drawLine(x + 7 + (int)(5 * cosf(ra)), y + 7 + (int)(5 * sinf(ra)),
+                   x + 7 + (int)(7 * cosf(ra)), y + 7 + (int)(7 * sinf(ra)), C_BLACK);
     }
   } else {
-    dFillCircle(x + 8, y + 12, 8, SHADE_LIGHT);
-    dFillCircle(x + 18, y + 10, 10, SHADE_LIGHT);
-    epd.drawCircle(x + 8, y + 12, 8, C_BLACK);
-    epd.drawCircle(x + 18, y + 10, 10, C_BLACK);
+    dFillCircle(x + 5, y + 8, 4, SHADE_LIGHT);
+    dFillCircle(x + 11, y + 6, 5, SHADE_LIGHT);
+    epd.drawCircle(x + 5, y + 8, 4, C_BLACK);
+    epd.drawCircle(x + 11, y + 6, 5, C_BLACK);
   }
 }
 
@@ -667,11 +668,13 @@ static void renderMain(const AppContext& ctx) {
   }
 
   textAt(8, 10, ctx.creature.name, 2);
-  drawWeatherGlyph(SCREEN_W - 100, 8, ctx.weather);
+  // Sits just left of the battery percentage, on the same row rather than
+  // towering over it.
+  drawWeatherGlyph(SCREEN_W - 80, 8, ctx.weather);
 
   // Battery flush against the top-right corner (icon's right edge, nub
   // included, lands at SCREEN_W - 8, matching the right margin other views
-  // use), with the weather glyph bumped further left to make room.
+  // use).
   drawBatteryIcon(SCREEN_W - 30, 10, ctx.batteryPercent);
   textAt(SCREEN_W - 60, 12, std::to_string(ctx.batteryPercent) + "%", 1);
 
