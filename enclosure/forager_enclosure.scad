@@ -101,7 +101,7 @@ win_w = disp_w - win_margin_left - win_margin_right; // = 65.0, real measured vi
 mcu_w = 22.52;
 mcu_l = 18.0;
 mcu_component_h = 4.0; // clearance for USB-C connector / header stubs
-mcu_standoff_h = 3.25;  // tall enough to actually contact the board
+
 
 // ---- Battery: 2000mAh LiPo, 60 x 36 x 7mm ----
 batt_w = 60.0;
@@ -159,16 +159,6 @@ bottom_rim = side_screw_edge_clearance_bottom + side_boss_od / 2 + 0.3;
 // ---- USB-C access (in tray side wall, aligned to MCU edge) ----
 usbc_slot_w = 9.5;
 usbc_slot_h = 4.0;
-
-// ---- Slide switch ----
-// Real switch measures 4 x 8mm. sw_body_w/sw_body_l follow from the slot
-// plus a uniform 1mm containment-wall margin on every side.
-sw_slot_w = 9.0;
-sw_slot_h = 4.5;
-sw_wall_margin = 1.0;
-sw_body_w  = sw_slot_h + 2 * sw_wall_margin;
-sw_body_l  = sw_slot_w + 2 * sw_wall_margin;
-sw_pocket_h = 6.5;
 
 // ---- Derived footprint ----
 pocket_w = disp_w + 2 * clearance;
@@ -303,7 +293,8 @@ module rear_tray() {
     // buttons (shifted right, see btn_center_offset) and lines the
     // USB-C cutout up with the board. Shifted another 10mm right from
     // real-print feedback.
-    mcu_usbc_x_center = outer_w * 0.25 + 10.0; // battery side (case-X low, physical RIGHT), clear of its footprint
+    // Centered on the case; the MCU pocket follows so the port stays aligned.
+    mcu_usbc_x_center = outer_w / 2;
     mcu_x = mcu_usbc_x_center - mcu_fp_x / 2;
     mcu_y = wall + 4;
 
@@ -317,17 +308,6 @@ module rear_tray() {
     batt_x = wall_x_lo + 4;
     batt_y = mcu_y + mcu_fp_y + 4.0 + 1.75;
 
-    // Slide switch hole, well to the right of the battery bay in X (not
-    // stacked -- switch Y is unconstrained by the battery), pushed up
-    // near the top rim, clear of the display's ribbon cable near the MCU.
-    // ASSUMPTION: confirm before printing.
-    sw_x = outer_w * 0.7 - 1.0 - sw_slot_h / 2;
-    sw_top_clearance = 8.0; // gap below the pocket's top edge
-    sw_center_y = bottom_rim + button_area_h + pocket_h - sw_top_clearance - sw_body_l / 2;
-    sw_y = sw_center_y - sw_slot_w / 2;
-    sw_center_x = sw_x + sw_slot_h / 2;
-
-    // USB-C slot Z, anchored to the MCU's standoff height.
     usbc_slot_z = tray_floor_t + 1.0;
 
     difference() {
@@ -348,15 +328,6 @@ module rear_tray() {
                         linear_extrude(height = tray_interior_depth + 0.2)
                             rounded_rect(outer_w - 2 * wall, outer_h - 2 * wall, max(corner_r - wall, 0.5));
                 }
-            // Slide switch containment pocket -- the switch's body nests
-            // here so only its slide-tab pokes through the hole below.
-            translate([sw_center_x - sw_body_w / 2, sw_center_y - sw_body_l / 2, tray_floor_t]) {
-                difference() {
-                    cube([sw_body_w, sw_body_l, sw_pocket_h]);
-                    translate([(sw_body_w - sw_slot_h) / 2, (sw_body_l - sw_slot_w) / 2, -0.1])
-                        cube([sw_slot_h, sw_slot_w, sw_pocket_h + 0.2]);
-                }
-            }
         }
 
         // USB-C access slot, shifted left with the MCU (see mcu_usbc_x_center)
@@ -398,7 +369,7 @@ module rear_tray() {
         // had nothing to do with where the real KEY1 button sits. Anchored
         // to the top instead, using the same real-world-validated 7.0mm
         // the old formula worked out to before that drift.
-        disp_btn_top_offset = 7.0;
+        disp_btn_top_offset = 5.0;  // was 7.0 -- moved 2mm toward the bezel face
         disp_btn_z = tray_wall_h - disp_btn_top_offset;
         disp_btn_inner_w = disp_btn_w + 3.0; // was exact disp_btn_w -- still centered on KEY1
         disp_btn_inner_h = disp_btn_h + 3.0; // was exact disp_btn_h
@@ -413,10 +384,6 @@ module rear_tray() {
                 cube([disp_btn_access_w, 0.01, disp_btn_access_h]);
         }
 
-        // Slide switch access hole
-        translate([sw_x, sw_y, -0.1])
-            cube([sw_slot_h, sw_slot_w, tray_floor_t + 0.2]);
-
         // "Forager by Max" -- indented text on the exterior bottom face,
         // bottom-right corner as seen from OUTSIDE. mirror() flips it to
         // read correctly from that side (model coords are the inside view).
@@ -427,16 +394,12 @@ module rear_tray() {
                          halign = "center", valign = "center");
     }
 
-    // MCU standoff -- single post centered under the USB-C port.
-    translate([mcu_usbc_x_center, mcu_y + mcu_fp_y - 5, tray_floor_t])
-        cylinder(d = 3.5, h = mcu_standoff_h);
-
     // Battery bay walls (shallow retaining lip, held by friction/tape).
     batt_wall_margin = 0.5;
     batt_fit_clearance = 2.5; // real clearance beyond the battery's own footprint
     batt_wall_h = 4.0;
     // Wire gap: the battery's wires come out near this bottom corner, on
-    // the long wall facing the switch/MCU standoff (case-X high side of
+    // the long wall on the case-X high side of
     // the bay) -- away from the switch itself, which sits up near the far
     // (top-screw) end of that same wall.
     batt_wire_gap_w = 8.0;
