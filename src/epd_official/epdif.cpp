@@ -57,9 +57,8 @@ int EpdIf::IfInit(void) {
     pinMode(RST_PIN, OUTPUT);
     pinMode(DC_PIN, OUTPUT);
     pinMode(BUSY_PIN, INPUT);
-    // Forager's wiring uses custom SPI pins (SCK=12, MOSI=11), not the
-    // board's default hardware SPI pins.
-    SPI.begin(12, -1, 11, CS_PIN);
+    // Write-only panel, so MISO is -1 and its pad carries CS instead.
+    SPI.begin(PIN_EPD_SCK, -1, PIN_EPD_MOSI, CS_PIN);
     SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
     return 0;
 }

@@ -1156,7 +1156,13 @@ void setup() {
   // device ran perfectly on USB and appeared dead on battery: booting once,
   // never reaching loop(), panel never drawn, buttons never armed. Zero means
   // drop the write instead of waiting for a reader.
+#if DEV_MODE_NO_SLEEP
+  // Tethered: block so boot logs survive the host attaching after reset.
+  Serial.setTxTimeoutMs(1000);
+  delay(4000);
+#else
   Serial.setTxTimeoutMs(0);
+#endif
 
   pinMode(PIN_BTN_LEFT, INPUT_PULLDOWN);
   pinMode(PIN_BTN_RIGHT, INPUT_PULLDOWN);
@@ -1240,11 +1246,17 @@ void setup() {
   // wake it to drain further -- only charging brings it back. Checked before
   // any of the heavy work, since the panel and radio are what finish a weak
   // cell off.
+  // Skipped when tethered: an unwired divider floats low and would hibernate
+  // the board a second into boot, taking USB serial with it.
+#if DEV_MODE_NO_SLEEP
+  log_i("Battery cutoff skipped, reads %.3fV", readBatteryVolts());
+#else
   if (readBatteryVolts() < BATT_CUTOFF_VOLTS) {
     display::renderLowBattery();
     display::hibernate();
     esp_deep_sleep_start();
   }
+#endif
 
   // No radio on a normal wake: the scan plus connect ran to ~17s with the
   // panel still showing the sleep screen, which is most of what a button

@@ -21,31 +21,24 @@
 #define DEV_MODE_SPECIES_BROWSE_START 0  // 0-based start index for that browse
 #define DEV_MODE_EVENT_CYCLE 0         // loop every event screen for proofreading
 
-static const int PIN_EPD_SCK = 12;
-static const int PIN_EPD_MOSI = 11;
-static const int PIN_EPD_CS = 10;
-static const int PIN_EPD_DC = 9;
-static const int PIN_EPD_RST = 8;
-static const int PIN_EPD_BUSY = 7;
+// GPIO numbers, not the XIAO's silkscreen D-numbers (D8 is GPIO7). DC/BUSY
+// take GPIO43/44, the only pads that are neither RTC nor ADC.
+static const int PIN_EPD_SCK = 7;    // yellow  (pad D8)
+static const int PIN_EPD_MOSI = 9;   // blue    (pad D10, "DIN")
+static const int PIN_EPD_CS = 8;     // orange  (pad D9)
+static const int PIN_EPD_DC = 43;    // green   (pad D6)
+static const int PIN_EPD_RST = 4;    // white   (pad D3)
+static const int PIN_EPD_BUSY = 44;  // purple  (pad D7)
 
 static const int EPD_WIDTH = 400;
 static const int EPD_HEIGHT = 300;
 
-// Buttons wired to 3V3 through the switch, INPUT_PULLDOWN: pressed == HIGH.
-// No PIR/light sensor on this board -- ENTER is the sole wake source, so it
-// must sit on an RTC-capable GPIO (0-21 on the S3; ext0/ext1 deep-sleep wake
-// doesn't work on any other pin). It avoids GPIO3 (a strapping pin) and
-// GPIO11-20 (ADC2 -- shares hardware with the WiFi/BT radio and reads
-// flaky/self-oscillating once that radio block has ever been powered, even
-// after WiFi.mode(WIFI_OFF); confirmed by reproducing the oscillation on
-// GPIO13 twice). GPIO4 is RTC-capable, ADC1 (unaffected by the radio
-// conflict), and free now that there's no PIR -- ENTER lives there so
-// esp_sleep_enable_ext0_wakeup() can use it directly. LEFT/RIGHT stay on
-// GPIO1/2 (also ADC1, proven reliable) for in-session bidirectional
-// navigation (clamped at each end, no wraparound).
-static const int PIN_BTN_LEFT = 1;
-static const int PIN_BTN_RIGHT = 2;
-static const int PIN_BTN_ENTER = 4;
+// Wired to 3V3 through the switch, INPUT_PULLDOWN: pressed == HIGH. All three
+// wake from deep sleep, so all three need RTC-capable GPIOs (0-21 on the S3).
+static const int PIN_BTN_LEFT = 1;   // pad D0
+static const int PIN_BTN_ENTER = 2;  // pad D1
+// GPIO3 is a strapping pin, safe here: INPUT_PULLDOWN sits low at reset.
+static const int PIN_BTN_RIGHT = 3;  // pad D2
 
 /**
  * The Waveshare display board's onboard "KEY0" button, provisionally wired

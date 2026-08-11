@@ -25,18 +25,30 @@ runs a birth sequence and prompts you to name the marmot.
 
 | Part | Detail |
 |------|--------|
-| MCU | ESP32-S3 Super Mini (onboard LiPo charging via USB-C) |
+| MCU | Seeed Studio XIAO ESP32S3, 8MB flash (onboard LiPo charging via USB-C) |
 | Display | Waveshare 4.2" e-ink, 400×300 physical / 300×400 logical portrait, SPI, 1-bit (official `epd4in2_V2` driver) |
 | Buttons | 4× tactile (LEFT / RIGHT / ENTER / SETTINGS) |
 | Battery | LiPo 3.7V, soldered to BAT+/BAT- |
-| Power switch | SPST slide switch inline on BAT+ |
 
-| Signal | GPIO |
-|--------|------|
-| E-ink SCK / MOSI / CS / DC / RST / BUSY | 12 / 11 / 10 / 9 / 8 / 7 |
-| ENTER (deep-sleep wake) | 4 |
-| SETTINGS | 5 |
-| LEFT / RIGHT | 1 / 2 |
+| Signal | Wire | GPIO | Pad |
+|--------|------|------|-----|
+| E-ink BUSY | Purple | 44 | D7 |
+| E-ink RST | White | 4 | D3 |
+| E-ink DC | Green | 43 | D6 |
+| E-ink CS | Orange | 8 | D9 |
+| E-ink SCK | Yellow | 7 | D8 |
+| E-ink DIN (MOSI) | Blue | 9 | D10 |
+| E-ink GND | Brown | GND | — |
+| E-ink VCC | Grey | 3V3 | — |
+| ENTER (deep-sleep wake) | — | 2 | D1 |
+| SETTINGS | — | 5 | D4 |
+| LEFT / RIGHT | — | 1 / 3 | D0 / D2 |
+| Battery sense (200k/200k divider) | — | 6 | D5 |
+
+The XIAO breaks out exactly 11 GPIOs (1-9, 43, 44) and this project needs
+exactly 11, so there is no spare. **GPIO43/44 are neither RTC-capable nor
+ADC**, which rules them out for LEFT/RIGHT/ENTER (all three wake from deep
+sleep) and for the battery divider — leaving them for display signals.
 
 LEFT/RIGHT/ENTER read `INPUT_PULLDOWN`, active-HIGH, and wake the board from
 deep sleep (`esp_sleep_enable_ext1_wakeup`, ANY_HIGH); ENTER needs an

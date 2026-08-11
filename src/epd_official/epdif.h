@@ -30,11 +30,13 @@
 
 #include <Arduino.h>
 
-// Pin definition
-#define RST_PIN         8
-#define DC_PIN          9
-#define CS_PIN          10
-#define BUSY_PIN        7
+#include "config.h"
+
+// From config.h -- these were separate literals until the board swap.
+#define RST_PIN         PIN_EPD_RST
+#define DC_PIN          PIN_EPD_DC
+#define CS_PIN          PIN_EPD_CS
+#define BUSY_PIN        PIN_EPD_BUSY
 
 class EpdIf {
 public:

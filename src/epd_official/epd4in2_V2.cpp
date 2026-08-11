@@ -128,8 +128,14 @@ void Epd::ReadBusy(void) {
     unsigned long start = millis();
     const unsigned long kBusyTimeoutMs = 8000;
     while (DigitalRead(busy_pin) == 1) {      //1: busy, 0: idle
-        if (millis() - start > kBusyTimeoutMs) break;
+        if (millis() - start > kBusyTimeoutMs) {
+            // Stuck high means BUSY is miswired, not a slow panel.
+            log_e("EPD BUSY stuck high %lums on GPIO%d -- check wiring",
+                  kBusyTimeoutMs, busy_pin);
+            return;
+        }
     }
+    log_i("EPD BUSY cleared in %lums", millis() - start);
 }
 
 /**
