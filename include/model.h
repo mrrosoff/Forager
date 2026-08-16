@@ -120,5 +120,8 @@ struct AppContext {
 
   // Both recomputed once per wake in buildContext(), neither persisted.
   uint8_t stage = 0;  // mirrors Stage
+  // BATT_PERCENT_UNKNOWN when the sense line looks broken.
   uint8_t batteryPercent = 0;
 };
+
+static const uint8_t BATT_PERCENT_UNKNOWN = 255;

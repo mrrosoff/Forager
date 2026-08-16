@@ -191,6 +191,86 @@ static void refreshNetworkBeforeSleep() {
   net::shutdown();
 }
 
+/**
+ * Arms the three buttons as ext1 wake sources. ext1 (not ext0) so all three
+ * wake the board -- ext0 only supports a single GPIO -- with ANY_HIGH, since
+ * they read HIGH when pressed (INPUT_PULLDOWN).
+ *
+ * The RTC pulldowns are not optional: pinMode()'s INPUT_PULLDOWN is a digital
+ * IO-mux pull, and that block is powered down in deep sleep, which leaves
+ * these three floating under ANY_HIGH. Floating was enough for body
+ * capacitance to trip a wake just from picking the device up.
+ */
+static void armButtonWake() {
+  const int wakePins[] = {PIN_BTN_LEFT, PIN_BTN_RIGHT, PIN_BTN_ENTER};
+  uint64_t wakeMask = 0;
+  for (int pin : wakePins) {
+    rtc_gpio_pullup_dis((gpio_num_t)pin);
+    rtc_gpio_pulldown_en((gpio_num_t)pin);
+    wakeMask |= 1ULL << pin;
+  }
+  esp_sleep_enable_ext1_wakeup(wakeMask, ESP_EXT1_WAKEUP_ANY_HIGH);
+}
+
+// Survives deep sleep, zeroed by a power cycle -- which is correct here,
+// since losing power should land in the parked state anyway.
+RTC_DATA_ATTR static bool rtcParked = false;
+
+/**
+ * Parks: blank panel, buttons armed, and rtcParked set so the next wake
+ * demands the LEFT+RIGHT combo. Never returns.
+ */
+static void enterParked() {
+  rtcParked = true;
+  display::renderPowerOff();  // blank frame
+  display::hibernate();
+  armButtonWake();
+  esp_deep_sleep_start();
+}
+
+/** True if LEFT and RIGHT are held together at any point within the window. */
+static bool powerComboHeld() {
+  uint32_t start = millis();
+  while (millis() - start < POWER_COMBO_WINDOW_MS) {
+    if (digitalRead(PIN_BTN_LEFT) == HIGH && digitalRead(PIN_BTN_RIGHT) == HIGH) {
+      return true;
+    }
+    delay(10);
+  }
+  return false;
+}
+
+/**
+ * Gate for waking out of the parked state. ext1 on the S3 only offers
+ * ANY_HIGH, so any single button wakes the board -- the combo has to be
+ * checked here instead, and a wake that fails it goes straight back to
+ * sleep. Runs before display::begin(), so a rejected press costs no panel
+ * refresh and is invisible.
+ */
+static void gatePowerCombo() {
+#if !DEV_MODE_NO_SLEEP
+  if (!rtcParked) return;
+  if (powerComboHeld()) {
+    rtcParked = false;
+    return;
+  }
+  armButtonWake();
+  esp_deep_sleep_start();
+#endif
+}
+
+/**
+ * There is no power switch, so connecting the battery boots straight into
+ * setup(). Park rather than waking the marmot at whatever moment the cell
+ * went in. Also catches a post-flash reboot.
+ */
+static void parkUntilFirstPress() {
+#if !DEV_MODE_NO_SLEEP
+  if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_UNDEFINED) return;
+  enterParked();
+#endif
+}
+
 static void goToSleep() {
 #if DEV_MODE_NO_SLEEP
   return;
@@ -202,38 +282,20 @@ static void goToSleep() {
   display::renderSleep((Stage)ctx.stage);
   refreshNetworkBeforeSleep();
   display::hibernate();
-  // ext1 (not ext0) so all three buttons wake the board, not just ENTER --
-  // ext0 only supports a single GPIO. All three pins are RTC-capable
-  // (LEFT=1, RIGHT=2, ENTER=4) and read HIGH when pressed (INPUT_PULLDOWN),
-  // so ANY_HIGH wakes on whichever one is pressed.
-  //
-  // The RTC pulldowns are not optional: pinMode()'s INPUT_PULLDOWN is a
-  // digital IO-mux pull, and that block is powered down in deep sleep, which
-  // leaves these three floating under ANY_HIGH. Floating was enough for body
-  // capacitance to trip a wake just from picking the device up.
-  const int wakePins[] = {PIN_BTN_LEFT, PIN_BTN_RIGHT, PIN_BTN_ENTER};
-  uint64_t wakeMask = 0;
-  for (int pin : wakePins) {
-    rtc_gpio_pullup_dis((gpio_num_t)pin);
-    rtc_gpio_pulldown_en((gpio_num_t)pin);
-    wakeMask |= 1ULL << pin;
-  }
-  esp_sleep_enable_ext1_wakeup(wakeMask, ESP_EXT1_WAKEUP_ANY_HIGH);
+  armButtonWake();
   esp_sleep_enable_timer_wakeup(FORCE_REFRESH_INTERVAL_US);
   esp_deep_sleep_start();
 #endif
 }
 
 /**
- * Settings -> Power Off: deep-sleeps with NO wake source armed at all
- * (skips both ext0 and the timer backstop goToSleep() uses) -- only the
- * physical inline power switch brings the device back, which re-runs
- * setup() fresh. This is a true "off", not just a longer sleep.
+ * Settings -> Power Off: parks exactly like a fresh power-up, so LEFT+RIGHT
+ * turns it back on. It used to arm no wake source at all, recoverable only
+ * via the inline power switch -- which no longer exists, so that version
+ * would have been a one-way trip.
  */
 static void doPowerOff() {
-  display::renderPowerOff();
-  display::hibernate();
-  esp_deep_sleep_start();
+  enterParked();
 }
 
 /**
@@ -266,10 +328,16 @@ static void doResetGame() {
  */
 static float readBatteryVolts() {
   analogReadMilliVolts(PIN_BATT_ADC);  // discard: first read after idle is low
-  uint32_t sum = 0;
-  const int kSamples = 16;
-  for (int i = 0; i < kSamples; i++) sum += analogReadMilliVolts(PIN_BATT_ADC);
-  return (sum / (float)kSamples / 1000.0f) * BATT_DIVIDER_RATIO;
+  // Median over mean to drop outliers, with a gap so the sample-and-hold cap
+  // can recharge through 100k.
+  const int kSamples = 15;
+  uint32_t mv[kSamples];
+  for (int i = 0; i < kSamples; i++) {
+    mv[i] = analogReadMilliVolts(PIN_BATT_ADC);
+    delayMicroseconds(200);
+  }
+  std::sort(mv, mv + kSamples);
+  return (mv[kSamples / 2] / 1000.0f) * BATT_DIVIDER_RATIO;
 }
 
 /**
@@ -297,8 +365,50 @@ static uint8_t percentForVolts(float v) {
   return 0;
 }
 
+// Set once the cutoff has drawn its screen, so a recheck wake that still
+// reads low can skip the panel.
+RTC_DATA_ATTR static bool rtcLowBattery = false;
+
+/**
+ * Parks on a flat cell, returning only if the cell is fine. Arms the buttons
+ * and a periodic recheck rather than no wake source at all -- the device has
+ * to be able to notice it has been charged.
+ */
+static void parkIfBatteryFlat() {
+  float v = readBatteryVolts();
+  if (v >= BATT_CUTOFF_VOLTS) {
+    rtcLowBattery = false;
+    return;
+  }
+  // Confirm before parking: a cell dies slowly, but one marginal sample
+  // parking the device means a trip to the RESET button.
+  delay(750);
+  float v2 = readBatteryVolts();
+  log_i("Battery cutoff check: %.3fV then %.3fV (cutoff %.2fV, parked %d)", v, v2,
+        BATT_CUTOFF_VOLTS, (int)rtcLowBattery);
+  if (v2 >= BATT_CUTOFF_VOLTS || v2 < BATT_SENSE_FAULT_VOLTS) {
+    rtcLowBattery = false;
+    return;
+  }
+  if (!rtcLowBattery) {
+    creature::load(ctx.creature);  // for the stage-appropriate sleeping pose
+    display::begin();
+    display::renderLowBattery((Stage)ctx.creature.lastSeenStage);
+    display::hibernate();
+    rtcLowBattery = true;
+  }
+  armButtonWake();
+  esp_sleep_enable_timer_wakeup(BATT_RECHECK_INTERVAL_US);
+  esp_deep_sleep_start();
+}
+
 static uint8_t readBatteryPercent() {
   float v = readBatteryVolts();
+  // A broken sense line reads low and steady, which would report as 0%.
+  if (v < BATT_SENSE_FAULT_VOLTS) {
+    log_i("Battery: %.3fV -- sense line looks broken, reporting unknown", v);
+    return BATT_PERCENT_UNKNOWN;
+  }
   uint8_t pct = percentForVolts(v);
   // Logged so the reading can be checked against a multimeter on the cell.
   log_i("Battery: %.3fV -> %u%%", v, pct);
@@ -1181,6 +1291,9 @@ void setup() {
           (int)esp_reset_reason());
   }
 
+  // Before display::begin(): a wake that fails the combo should cost nothing.
+  gatePowerCombo();
+
 #if DEV_MODE_EVENT_CYCLE
   // Review-only loop -- see DEV_MODE_EVENT_CYCLE's doc comment in config.h.
   // Bypasses WiFi/game state entirely; ENTER advances to the next event,
@@ -1240,23 +1353,20 @@ void setup() {
   }
 #endif
 
-  display::begin();
-
-  // Park before the cell is damaged. No wake source is armed, so nothing can
-  // wake it to drain further -- only charging brings it back. Checked before
-  // any of the heavy work, since the panel and radio are what finish a weak
-  // cell off.
+  // Before display::begin(): a panel init is one of the biggest draws here,
+  // and a recheck wake on a still-flat cell shouldn't pay for one.
   // Skipped when tethered: an unwired divider floats low and would hibernate
   // the board a second into boot, taking USB serial with it.
 #if DEV_MODE_NO_SLEEP
   log_i("Battery cutoff skipped, reads %.3fV", readBatteryVolts());
 #else
-  if (readBatteryVolts() < BATT_CUTOFF_VOLTS) {
-    display::renderLowBattery();
-    display::hibernate();
-    esp_deep_sleep_start();
-  }
+  parkIfBatteryFlat();
 #endif
+
+  display::begin();
+
+  // After the cutoff, so a flat cell still says so rather than parking blank.
+  parkUntilFirstPress();
 
   // No radio on a normal wake: the scan plus connect ran to ~17s with the
   // panel still showing the sleep screen, which is most of what a button

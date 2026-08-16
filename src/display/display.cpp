@@ -286,12 +286,20 @@ static const int STAGE_X = 10, STAGE_Y = 34, STAGE_W = 280, STAGE_H = 330;
 // Weather glyph (sun / rain / cloud), sized to sit in the same header row as
 // the battery gauge -- about 15x14, against the battery's 20x10, rather than
 // the ~28px it used to be.
+// Solid silhouette, not outlined-and-dithered: overlapping strokes cut
+// through the interior and a Bayer fill this small is speckle. The rect
+// spans the full width so the base stays flat.
+static void drawCloudShape(int x, int y) {
+  epd.fillRect(x + 1, y + 8, 14, 5, C_BLACK);
+  epd.fillCircle(x + 5, y + 8, 4, C_BLACK);
+  epd.fillCircle(x + 10, y + 6, 5, C_BLACK);
+}
+
 static void drawWeatherGlyph(int x, int y, const WeatherData& w) {
   if (!w.valid) return;
   if (w.postRain) {
-    dFillCircle(x + 7, y + 5, 5, SHADE_LIGHT);
-    epd.drawCircle(x + 7, y + 5, 5, C_BLACK);
-    for (int i = 0; i < 3; i++) epd.drawLine(x + 3 + i * 4, y + 10, x + 2 + i * 4, y + 14, C_BLACK);
+    drawCloudShape(x, y - 3);  // higher, so the drips fit in the header row
+    for (int i = 0; i < 3; i++) epd.drawLine(x + 4 + i * 4, y + 11, x + 3 + i * 4, y + 15, C_BLACK);
   } else if (w.tempC >= 18.0f) {
     epd.drawCircle(x + 7, y + 7, 4, C_BLACK);
     for (int a = 0; a < 360; a += 45) {
@@ -300,10 +308,7 @@ static void drawWeatherGlyph(int x, int y, const WeatherData& w) {
                    x + 7 + (int)(7 * cosf(ra)), y + 7 + (int)(7 * sinf(ra)), C_BLACK);
     }
   } else {
-    dFillCircle(x + 5, y + 8, 4, SHADE_LIGHT);
-    dFillCircle(x + 11, y + 6, 5, SHADE_LIGHT);
-    epd.drawCircle(x + 5, y + 8, 4, C_BLACK);
-    epd.drawCircle(x + 11, y + 6, 5, C_BLACK);
+    drawCloudShape(x, y);
   }
 }
 
@@ -316,6 +321,7 @@ static const int BATT_ICON_W = 20, BATT_ICON_H = 10, BATT_NUB_W = 2;
 static void drawBatteryIcon(int x, int y, uint8_t percent) {
   epd.drawRect(x, y, BATT_ICON_W, BATT_ICON_H, C_BLACK);
   epd.fillRect(x + BATT_ICON_W, y + BATT_ICON_H / 2 - 2, BATT_NUB_W, 4, C_BLACK);
+  if (percent == BATT_PERCENT_UNKNOWN) return;  // hollow: no level to show
   int fillW = (BATT_ICON_W - 4) * std::max<int>(percent, 20) / 100;
   epd.fillRect(x + 2, y + 2, fillW, BATT_ICON_H - 4, C_BLACK);
 }
@@ -328,7 +334,7 @@ static const int BATT_TEXT_GAP = 6;
 static void drawBatteryWithPercent(int iconX, int y, uint8_t percent) {
   drawBatteryIcon(iconX, y, percent);
   std::string pct =
-      (percent <= BATT_WARN_PERCENT ? "LOW " : "") + std::to_string(percent) + "%";
+      percent == BATT_PERCENT_UNKNOWN ? "?" : std::to_string(percent) + "%";
   int16_t bx, by;
   uint16_t bw, bh;
   epd.setFont(nullptr);
@@ -2168,29 +2174,16 @@ void renderWifiMenu(int selected, bool confirmRemove) {
   epd.endFrame(true);
 }
 
-/**
- * Brief goodbye screen shown right before a Power Off deep-sleep with no
- * wake source armed -- only the physical power switch brings the device
- * back after this.
- */
-void renderLowBattery() {
-  epd.beginFrame();
-  textCentered(0, SCREEN_W, SCREEN_H / 2 - 30, "Battery empty", 2);
-  textCentered(0, SCREEN_W, SCREEN_H / 2, "Plug me in to charge.", 1);
-  textCentered(0, SCREEN_W, SCREEN_H / 2 + 16, "The marmot is safe until then.", 1);
-  epd.endFrame(true);
-}
-
 void renderPowerOff() {
-  // Genuinely off (no wake source armed) -- a blank panel is the correct
-  // resting state here, not a lingering message that'd sit on an
-  // unpowered e-ink display until the physical switch cycles it.
+  // Off until the LEFT+RIGHT combo -- a blank panel is the correct resting
+  // state here, not a lingering message that'd sit on an unpowered e-ink
+  // display until someone turns it back on.
   epd.beginFrame();
   epd.endFrame(true);
 }
 
-void renderSleep(Stage stage) {
-  epd.beginFrame();
+// Returns the art's top edge so callers can place text clear of it.
+static int drawSleepingMarmot(Stage stage, bool withZs) {
   // Always the first variant for the stage (not the per-wake random pick
   // drawCreature() uses for the live views) so this screen reads
   // consistently as "asleep". No dedicated lounging/sleeping photo exists
@@ -2216,13 +2209,30 @@ void renderSleep(Stage stage) {
   // much further down -- at the Juvenile offset they floated well clear of
   // the head with a visible gap. Juvenile and Adult get a smaller nudge in
   // the same direction for the same reason, just less of one.
-  int headX = std::min(bx + art->w - 40, SCREEN_W - 50);
-  int zOffset = stage == Stage::Baby ? 66 : 34;
-  int headY = stage == Stage::Adult ? std::max(by - 86, 44) : std::max(topY + zOffset, 44);
-  textAt(headX, headY, "Z", 3);
-  textAt(headX + 22, headY - 24, "Z", 2);
-  textAt(headX + 38, headY - 44, "Z", 1);
+  if (withZs) {
+    int headX = std::min(bx + art->w - 40, SCREEN_W - 50);
+    int zOffset = stage == Stage::Baby ? 66 : 34;
+    int headY = stage == Stage::Adult ? std::max(by - 86, 44) : std::max(topY + zOffset, 44);
+    textAt(headX, headY, "Z", 3);
+    textAt(headX + 22, headY - 24, "Z", 2);
+    textAt(headX + 38, headY - 44, "Z", 1);
+  }
+  return topY;
+}
 
+void renderSleep(Stage stage) {
+  epd.beginFrame();
+  drawSleepingMarmot(stage, true);
+  epd.endFrame(true);
+}
+
+// No Z's: with the caption, they'd read as an ordinary nap.
+void renderLowBattery(Stage stage) {
+  epd.beginFrame();
+  drawSleepingMarmot(stage, false);
+  textCentered(0, SCREEN_W, 300, "Out of Charge", 2);
+  textCentered(0, SCREEN_W, 332, "Plug me in and I'll wake", 1);
+  textCentered(0, SCREEN_W, 348, "up once I've had a sip.", 1);
   epd.endFrame(true);
 }
 

@@ -98,16 +98,15 @@ enum : int {
 // (Reset Game and Power Off).
 void renderSettings(int selected, bool confirmPending, uint8_t batteryPercent);
 
-// Blank white screen shown right before a Power Off (no wake source armed)
-// deep sleep -- the device is genuinely off until the physical switch
-// power-cycles it, so a blank panel (not a lingering message) is the
-// correct resting state.
+// Blank white screen shown right before a Power Off park -- the device is
+// off until the LEFT+RIGHT combo turns it back on, so a blank panel (not a
+// lingering message) is the correct resting state.
 void renderPowerOff();
 
-// Shown when the cell is too low to keep running (see BATT_CUTOFF_VOLTS).
-// The caller then sleeps with no wake source, so this stays on the panel
-// until the device is charged.
-void renderLowBattery();
+// Shown when the cell is too low to keep running (see BATT_CUTOFF_VOLTS):
+// the same sleeping marmot as renderSleep(), with a charge prompt instead
+// of Zzz's. Stays on the panel until the cell recovers.
+void renderLowBattery(Stage stage);
 
 /**
  * On-screen QWERTY keyboard grid -- prompt at top, what's typed so far

@@ -40,13 +40,9 @@ static const int PIN_BTN_ENTER = 2;  // pad D1
 // GPIO3 is a strapping pin, safe here: INPUT_PULLDOWN sits low at reset.
 static const int PIN_BTN_RIGHT = 3;  // pad D2
 
-/**
- * The Waveshare display board's onboard "KEY0" button, provisionally wired
- * to GPIO5 (ADC1, not a strapping pin, so it's safe by the same criteria as
- * LEFT/RIGHT/ENTER above) -- CONFIRM against the actual board silkscreen
- * before flashing, this was not fully verified against hardware.
- */
-static const int PIN_BTN_SETTINGS = 5;
+// The display board's onboard KEY1 (the one the enclosure cuts a hole for),
+// wired switch-to-GND: INPUT_PULLUP, active LOW, unlike the other three.
+static const int PIN_BTN_SETTINGS = 5;  // pad D4
 
 /**
  * Battery sense -- a 200k/200k divider from BAT+ to GND, tapped into GPIO6
@@ -74,8 +70,18 @@ static const float BATT_DIVIDER_RATIO = 2.0f;
  */
 static const float BATT_CUTOFF_VOLTS = 3.40f;
 
-// Percentage at or below which the header flags the battery as low.
-static const uint8_t BATT_WARN_PERCENT = 15;
+// Below this the sense line is assumed broken rather than the cell flat --
+// the chip browns out long before a cell reads this low, so running code
+// can't really be seeing it. A floating GPIO6 (the D5 wire came off once)
+// looks identical to a dead battery otherwise.
+static const float BATT_SENSE_FAULT_VOLTS = 2.60f;
+
+// How often a device parked on a flat cell wakes to re-read the battery.
+static const uint64_t BATT_RECHECK_INTERVAL_US = 10ULL * 60 * 1000000ULL;
+
+// Window to get LEFT+RIGHT held together when waking from parked. Generous on
+// purpose -- it's a tolerance for pressing them slightly apart, not a reflex test.
+static const uint32_t POWER_COMBO_WINDOW_MS = 1500;
 
 static const uint32_t INACTIVITY_SLEEP_MS = 120UL * 1000UL;
 
