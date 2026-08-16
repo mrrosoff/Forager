@@ -212,9 +212,24 @@ static void armButtonWake() {
   esp_sleep_enable_ext1_wakeup(wakeMask, ESP_EXT1_WAKEUP_ANY_HIGH);
 }
 
-// Survives deep sleep, zeroed by a power cycle -- which is correct here,
-// since losing power should land in the parked state anyway.
 RTC_DATA_ATTR static bool rtcParked = false;
+
+// Persisted, so the combo is asked for once in the device's life and not
+// again after every flash or power cycle.
+static bool everTurnedOn() {
+  Preferences p;
+  p.begin("forager", /*readOnly=*/true);
+  bool on = p.getBool("poweredOn", false);
+  p.end();
+  return on;
+}
+
+static void markTurnedOn() {
+  Preferences p;
+  p.begin("forager", /*readOnly=*/false);
+  p.putBool("poweredOn", true);
+  p.end();
+}
 
 /**
  * Parks: blank panel, buttons armed, and rtcParked set so the next wake
@@ -252,6 +267,7 @@ static void gatePowerCombo() {
   if (!rtcParked) return;
   if (powerComboHeld()) {
     rtcParked = false;
+    markTurnedOn();
     return;
   }
   armButtonWake();
@@ -260,13 +276,15 @@ static void gatePowerCombo() {
 }
 
 /**
- * There is no power switch, so connecting the battery boots straight into
- * setup(). Park rather than waking the marmot at whatever moment the cell
- * went in. Also catches a post-flash reboot.
+ * Parks on the very first power-up ever, so a new device waits to be turned
+ * on rather than waking the marmot whenever the cell went in. Later
+ * power-ups, flashes and brownouts boot straight through -- being asked for
+ * the combo every time was worse than the problem it solved.
  */
 static void parkUntilFirstPress() {
 #if !DEV_MODE_NO_SLEEP
   if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_UNDEFINED) return;
+  if (everTurnedOn()) return;
   enterParked();
 #endif
 }
@@ -310,11 +328,13 @@ static void doResetGame() {
   // lose the networks the player set up and hand them back whatever secrets.h
   // was compiled with.
   wifistore::load();
+  bool wasOn = everTurnedOn();  // device setup, not game state -- same as WiFi
   Preferences p;
   p.begin("forager", /*readOnly=*/false);
   p.clear();
   p.end();
   wifistore::persist();
+  if (wasOn) markTurnedOn();
   esp_restart();
 }
 

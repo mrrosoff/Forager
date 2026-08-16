@@ -286,20 +286,24 @@ static const int STAGE_X = 10, STAGE_Y = 34, STAGE_W = 280, STAGE_H = 330;
 // Weather glyph (sun / rain / cloud), sized to sit in the same header row as
 // the battery gauge -- about 15x14, against the battery's 20x10, rather than
 // the ~28px it used to be.
-// Solid silhouette, not outlined-and-dithered: overlapping strokes cut
-// through the interior and a Bayer fill this small is speckle. The rect
-// spans the full width so the base stays flat.
+// Pure outline: only the top arc of each lobe is drawn, so nothing strokes
+// through the interior. drawCircleHelper skips the cardinal points, hence
+// the explicit pixel at the dome's apex.
 static void drawCloudShape(int x, int y) {
-  epd.fillRect(x + 1, y + 8, 14, 5, C_BLACK);
-  epd.fillCircle(x + 5, y + 8, 4, C_BLACK);
-  epd.fillCircle(x + 10, y + 6, 5, C_BLACK);
+  epd.drawCircleHelper(x + 4, y + 7, 3, 0x1, C_BLACK);
+  epd.drawCircleHelper(x + 8, y + 5, 4, 0x3, C_BLACK);
+  epd.drawCircleHelper(x + 11, y + 7, 3, 0x2, C_BLACK);
+  epd.drawPixel(x + 8, y + 1, C_BLACK);
+  epd.drawFastVLine(x + 1, y + 7, 5, C_BLACK);
+  epd.drawFastVLine(x + 14, y + 7, 5, C_BLACK);
+  epd.drawFastHLine(x + 1, y + 11, 14, C_BLACK);
 }
 
 static void drawWeatherGlyph(int x, int y, const WeatherData& w) {
   if (!w.valid) return;
   if (w.postRain) {
-    drawCloudShape(x, y - 3);  // higher, so the drips fit in the header row
-    for (int i = 0; i < 3; i++) epd.drawLine(x + 4 + i * 4, y + 11, x + 3 + i * 4, y + 15, C_BLACK);
+    drawCloudShape(x, y - 2);  // higher, so the drips fit in the header row
+    for (int i = 0; i < 3; i++) epd.drawLine(x + 4 + i * 4, y + 10, x + 3 + i * 4, y + 13, C_BLACK);
   } else if (w.tempC >= 18.0f) {
     epd.drawCircle(x + 7, y + 7, 4, C_BLACK);
     for (int a = 0; a < 360; a += 45) {
