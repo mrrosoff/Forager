@@ -114,6 +114,7 @@
 #include "bitmaps/tokens/token_toadstool.h"
 #include "bitmaps/tokens/token_tree.h"
 #include "bitmaps/tokens/token_wood.h"
+#include "bitmaps/weather/cloud.h"
 #include "config.h"
 #include "creature.h"
 #include "epd_adapter.h"
@@ -286,17 +287,8 @@ static const int STAGE_X = 10, STAGE_Y = 34, STAGE_W = 280, STAGE_H = 330;
 // Weather glyph (sun / rain / cloud), sized to sit in the same header row as
 // the battery gauge -- about 15x14, against the battery's 20x10, rather than
 // the ~28px it used to be.
-// Pure outline: only the top arc of each lobe is drawn, so nothing strokes
-// through the interior. drawCircleHelper skips the cardinal points, hence
-// the explicit pixel at the dome's apex.
 static void drawCloudShape(int x, int y) {
-  epd.drawCircleHelper(x + 4, y + 7, 3, 0x1, C_BLACK);
-  epd.drawCircleHelper(x + 8, y + 5, 4, 0x3, C_BLACK);
-  epd.drawCircleHelper(x + 11, y + 7, 3, 0x2, C_BLACK);
-  epd.drawPixel(x + 8, y + 1, C_BLACK);
-  epd.drawFastVLine(x + 1, y + 7, 5, C_BLACK);
-  epd.drawFastVLine(x + 14, y + 7, 5, C_BLACK);
-  epd.drawFastHLine(x + 1, y + 11, 14, C_BLACK);
+  epd.drawBitmap(x, y + 1, CLOUD_BITMAP, CLOUD_W, CLOUD_H, C_BLACK);
 }
 
 static void drawWeatherGlyph(int x, int y, const WeatherData& w) {
