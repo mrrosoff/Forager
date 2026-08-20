@@ -5,3 +5,4 @@ include/secrets.h
 .claude
 .vscode
 *.bak
+CLAUDE.md
