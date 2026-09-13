@@ -1,164 +1,132 @@
 # Forager
 
-A battery-powered e-ink shelf artifact: a foraging tamagotchi. A hoary
-marmot lives on the display, born the first time you power it on, and grows
-up as you feed it real Pacific Northwest species — reflecting real Seattle
-weather/season and what's worth foraging right now. It sleeps almost all
-the time; ENTER wakes it, it refreshes, and it drops back to deep sleep
-after two minutes idle. Neglect it for about a week and it dies.
+A hoary marmot that lives on a shelf. It is an e-ink tamagotchi in a small
+3D-printed enclosure, and it is born the first time you power it on. You keep
+it alive by feeding it real Pacific Northwest species, and what it offers you
+depends on the season, the month, and the actual weather in Seattle.
+Chanterelles show up after an autumn rain and not in March. Neglect it for
+about a week and it dies.
+
+Most of its life is deep sleep. Press ENTER, it wakes in a couple of seconds,
+redraws the panel, and drops back to sleep after two minutes of being ignored.
+A charge lasts a long time because the radio almost never runs.
 
 <p align="center">
-  <img src="assets/device.jpg" alt="Forager device: a hand-held e-ink marmot tamagotchi in a green 3D-printed enclosure" width="480">
+  <img src="assets/device.jpg" alt="Forager: a hand-held e-ink marmot tamagotchi in a green 3D-printed enclosure" width="480">
 </p>
 
 ## Getting started
 
-```sh
-cp include/secrets.example.h include/secrets.h   # fill in WiFi networks
-~/.platformio/penv/bin/pio run -t upload          # build + flash
+You need [PlatformIO](https://platformio.org/) and a WiFi network. Copy
+`include/secrets.example.h` to `include/secrets.h` and list one or more
+networks. On each sync it scans and joins whichever known network is
+strongest, so you can leave both your house and your phone hotspot in there.
+
+```cpp
+static const WifiCred WIFI_NETWORKS[] = {
+    {"home-ssid",  "home-pass"},
+    {"phone-ssid", "hotspot-pass"},
+};
 ```
 
-Wire the hardware per the pin map below, then press ENTER. First-ever wake
-runs a birth sequence and prompts you to name the marmot.
+Wire it up per the pin table in `include/config.h`, then build and flash over
+the XIAO's USB-C port.
+
+```sh
+pio run              # build
+pio run -t upload    # flash
+pio device monitor   # serial monitor (115200)
+```
+
+esptool will claim it reset the board, but on USB-serial-JTAG it doesn't
+actually start the app. Tap RESET after a flash.
+
+There is no power switch, because the enclosure lost it. A brand new device
+sits on a blank screen with its buttons armed until you press LEFT and RIGHT
+together, which is the power-on gesture. That only ever happens once per
+device. After that it runs the birth sequence and asks you to name the marmot.
+
+Everything else configures itself. Weather comes from
+[wttr.in](https://wttr.in/) and the clock from NTP, and neither one needs a
+key.
+
+## How it lives
+
+**Four bars, three of them lethal.** Hunger, Happiness and Energy all decay
+over roughly a week and will kill the marmot at either extreme. Curiosity is a
+fourth bar that just sulks. Young marmots decay slower, which is the grace
+period for figuring out what the buttons do. Every bar has something that
+fills it. Eating and Snack Hunt cover Hunger, Marmot Says and resolved events
+cover Happiness, Burrow Maze covers Energy, and the species games and
+Discoveries cover Curiosity.
+
+**It grows up on variety, not on time.** Baby to Juvenile to Adult is driven
+by how many *distinct* species it has eaten, so a marmot fed the same
+huckleberry every day stays a baby.
+
+**Four views, LEFT and RIGHT to walk between them.** Minigames, Status, Main,
+Foraging, with Main in the middle. Main is the marmot itself, along with its
+mood, the weather and anything currently demanding attention. Foraging pages
+through what is in season right now, sorted by what is actually worth picking,
+and ENTER eats it. Status is the raw numbers for when you want to know exactly
+how bad things are.
+
+**Events happen while you're away.** Every six hours or so there's a chance
+the next wake opens on a discovery, an animal sighting, a trail mishap, a
+weather turn, a treasure, or an encounter, and it holds Main until you deal
+with it. Playing with the thing regularly raises the odds, which is the point.
+
+**Five minigames, all turn-based.** A panel refresh takes most of a second, so
+nothing here can be scored on reflexes. Every game waits for you. Snack Hunt
+and Marmot Says are there from birth, Forest Memory arrives at Juvenile,
+Burrow Maze at Adult, and the Species Quiz once you've discovered 50 species.
+Locked games aren't listed at all. Each one keeps a high score and gets a
+one-time reveal screen when it unlocks.
+
+**Winter is coming, specifically.** Snack Hunt's finds pile up in a stash
+across days, and only the first run of each day counts, so you can't clear the
+goal in one determined evening. The first December wake settles the books
+against a 120-point goal. Falling short stings a little. It is not a second
+way to kill the marmot.
+
+The SETTINGS button (the one on the display module) gets you Achievements,
+WiFi networks, Reset Game and Power Off.
 
 ## Hardware
 
 | Part | Detail |
 |------|--------|
-| MCU | Seeed Studio XIAO ESP32S3, 8MB flash (onboard LiPo charging via USB-C) |
-| Display | Waveshare 4.2" e-ink, 400×300 physical / 300×400 logical portrait, SPI, 1-bit (official `epd4in2_V2` driver) |
-| Buttons | 4× tactile (LEFT / RIGHT / ENTER / SETTINGS) |
-| Battery | LiPo 3.7V, soldered to BAT+/BAT- |
+| MCU | Seeed XIAO ESP32S3, 8 MB flash, charges the cell over the same USB-C you flash through |
+| Display | Waveshare 4.2" e-ink, 400×300 physical, mounted portrait for a 300×400 canvas |
+| Buttons | 4× tactile, LEFT / RIGHT / ENTER, plus the display module's own KEY1 as SETTINGS |
+| Battery | LiPo 3.7 V, soldered to BAT+/BAT- |
 
-| Signal | Wire | GPIO | Pad |
-|--------|------|------|-----|
-| E-ink BUSY | Purple | 44 | D7 |
-| E-ink RST | White | 4 | D3 |
-| E-ink DC | Green | 43 | D6 |
-| E-ink CS | Orange | 8 | D9 |
-| E-ink SCK | Yellow | 7 | D8 |
-| E-ink DIN (MOSI) | Blue | 9 | D10 |
-| E-ink GND | Brown | GND | — |
-| E-ink VCC | Grey | 3V3 | — |
-| ENTER (deep-sleep wake) | — | 2 | D1 |
-| SETTINGS | — | 5 | D4 |
-| LEFT / RIGHT | — | 1 / 3 | D0 / D2 |
-| Battery sense (200k/200k divider) | — | 6 | D5 |
+The XIAO breaks out exactly eleven GPIO and this needs exactly eleven, so
+there is no spare and no room to change your mind. GPIO43/44 are neither
+RTC-capable nor ADC, which rules them out for the three wake buttons and for
+the battery divider, so they take display signals instead.
 
-The XIAO breaks out exactly 11 GPIOs (1-9, 43, 44) and this project needs
-exactly 11, so there is no spare. **GPIO43/44 are neither RTC-capable nor
-ADC**, which rules them out for LEFT/RIGHT/ENTER (all three wake from deep
-sleep) and for the battery divider — leaving them for display signals.
+LEFT, RIGHT and ENTER are pulled down, read active-HIGH, and all three wake
+the board out of deep sleep. SETTINGS rides the display board's KEY1, which is
+wired to ground and therefore active-LOW, the opposite polarity from
+everything else. It isn't a wake source, so Settings only exists once the
+device is already awake.
 
-LEFT/RIGHT/ENTER read `INPUT_PULLDOWN`, active-HIGH, and wake the board from
-deep sleep (`esp_sleep_enable_ext1_wakeup`, ANY_HIGH); ENTER needs an
-RTC-capable GPIO. SETTINGS rides the display module's own KEY1 button
-instead — wired switch-to-GND (`INPUT_PULLUP`, active-LOW, opposite polarity
-from the rest) and not a wake source, so Settings only works once awake.
+One thing worth knowing before you debug the wrong end. This board will not
+associate at the default 20 dBm. Scanning works fine the whole time and
+reports a strong signal, because a scan only needs the receive path. Dropping
+TX power to 8.5 dBm fixes it in about 1.6 seconds.
 
-## Behavior
-
-- **Sleep/wake**: deep sleep between interactions (screen holds its image at
-  zero power); ENTER wakes it, or a 24h timer backstop. Idle sleep is two
-  minutes, stretched to five while a minigame run is in progress — run state
-  is RAM-only, so sleeping mid-run would throw the run away. A wake reads
-  cached weather, recomputes mood/growth/death, checks for an event and
-  renders — no radio, so it responds in about a second. The WiFi/NTP/weather
-  pass runs *before* sleeping instead, and only when the cached weather is
-  over 6h old. The exception is a cold boot with an unset clock, which has to
-  sync before anything time-derived means anything, and says so on screen
-  while it does.
-- **Growing up**: three stages (Baby / Juvenile / Adult) based on distinct
-  species eaten, not elapsed time. Species only appear in the Foraging list
-  once discovered via a wake-time event.
-- **Staying alive**: Hunger, Happiness, and Energy are persisted bars that
-  each decay over about a week without feeding/interaction; any one maxing
-  out (Hunger) or bottoming out (Happiness/Energy) kills the marmot and
-  resets to a fresh birth. Curiosity is a fourth bar but is **not** lethal —
-  it tracks whether anything new has turned up lately. Decay slows for young
-  marmots (×1.8 as a Baby, ×1.35 as a Juvenile), since they have fewer of
-  the games unlocked to do anything about it.
-- **Every bar has an activity**: eating and Snack Hunt fill Hunger, Marmot
-  Says and resolved events lift Happiness, Burrow Maze restores Energy, and
-  the two species games plus Discovery events feed Curiosity. Any finished
-  run also counts as play, which holds off the Happiness and Energy decay
-  regardless of score.
-- **Views** (LEFT/RIGHT cycle, ENTER acts): Minigames ← Status ← **Main**
-  → Foraging. Main shows the marmot + mood + weather + pending events;
-  Foraging pages the discovered species list and eats on ENTER; Status shows
-  the raw stats.
-- **Minigames**: five turn-based games, unlocked as the marmot grows and the
-  journal fills — Snack Hunt and Marmot Says (from birth), Forest Memory
-  (Juvenile), Burrow Maze (Adult), and Species Quiz (50 species discovered).
-  Nothing here is scored on reaction time; the panel refresh makes that
-  unplayable, so every game is one that was always turn-based. Locked games
-  aren't listed at all — the menu grows as they unlock, rather than opening on
-  a wall of locks. Each keeps a persisted high score, a scoring run tops up
-  that game's stat once per wake, and crossing an unlock threshold shows a
-  one-time reveal screen.
-  - **Snack Hunt** — four bushes, rummage under one; every bush shifts aside
-    afterward so you see what you walked past. Five picks a run. Under a bush
-    there might be stash material (dry grass, leaves, wood, a wildflower),
-    nothing at all, a harmless critter, or — rarely — a predator, which ends
-    the run early. Nothing already banked is ever lost; the cost is the rest
-    of the day's picks.
-  - **Marmot Says** — Simon: repeat a growing sequence of three calls.
-    Reaching 25 wins the run outright.
-  - **Forest Memory** — concentration on a 4×3 grid of forest tokens, with a
-    miss budget.
-  - **Burrow Maze** — a tunnel dig that grows 5×5 → 6×6 → 7×7 as you clear
-    them, with meltwater rising behind you. Three buttons can't steer in four
-    directions, so it never asks for one: at each junction it lists the
-    tunnels out of that cell, LEFT/RIGHT cycle them, ENTER commits, and the
-    marmot walks the whole corridor by itself. One press per *decision*.
-  - **Species Quiz** — name a species from a clue, photo revealed on a right
-    answer.
-- **Winter Stash**: what Snack Hunt turns up (dry grass, leaves, wood, the
-  odd wildflower — den-stuffing, deliberately not foraging species)
-  accumulates in a persisted stockpile across days. **Only the first run of
-  each calendar day stocks it**; later runs still play and still score, they
-  just don't gather, so the season's goal can't be ground out in one sitting.
-  Reach 120 points before December and the marmot dens up fat and content;
-  fall short and it goes into winter hungry — unless it was born within 60
-  days of winter, in which case it's let off, since it never had a season to
-  gather in. Settled once on the first December wake, then cleared for the
-  next year. A marmot less than a week old at winter skips the screen
-  entirely — the year settles quietly rather than opening with a failure
-  notice. Progress shows on the Status view as well as in the game.
-- **Wake-time events**: roughly every 6h of wall-clock time, a chance of a
-  Discovery/sighting/find/mishap/weather/treasure/encounter event takes over
-  the Main view until resolved. Frequent use raises the odds; browsing all
-  views quickly guarantees one.
-- **Settings** (via SETTINGS button): Achievements (Adult only; 9 unlockable
-  badges), WiFi Networks (add/remove, on-screen keyboard — used for the clock
-  and the weather; the marmot works offline without it, and Reset Game leaves
-  saved networks alone), Reset Game (wipes progress, confirm required), Power
-  Off (true off, confirm required).
-
-See `CLAUDE.md` for implementation details (NVS layout, display driver
-quirks, hardware gotchas, art-sourcing pipeline) not covered here.
-
-## Data sources
-
-- **Time**: NTP, no RTC module, Pacific time with DST.
-- **Weather**: [wttr.in](https://wttr.in) JSON for Seattle.
-- **Foraging reference**: 200 PNW species (`src/foraging/foraging_species.h`),
-  most paired with a real sourced photo.
-- **Quiz clues**: a separate 322-entry bank covering all 200 species
-  (`src/minigames/quiz_facts.h`), written apart from the reference text so
-  the quiz isn't quoting a card you can page over to. 115 species carry two
-  or more clues, so meeting a familiar one again isn't the same question.
-- **Animal sightings**: 25 PNW animals, 21 with a real photo.
-- **Achievement badges**: 9 flat icons from openly-licensed Commons sets.
-
-## Build / Format / Lint
+## Build, format, lint
 
 ```sh
-~/.platformio/penv/bin/pio run                                        # build
-~/.platformio/penv/bin/pio run -t upload                              # flash
-~/.platformio/penv/bin/pio device monitor                             # serial @ 115200
+pio run              # build
+pio run -t upload    # flash
+pio device monitor   # serial @ 115200
+
 clang-format -i $(find src include -name '*.cpp' -o -name '*.h' | grep -v epd_official)
-~/.platformio/penv/bin/pio run -t compiledb && clang-tidy ...         # against src/, excluding epd_official/
+pio run -t compiledb    # then clang-tidy against src/, skipping epd_official/
 ```
 
-Or use the PlatformIO IDE extension in VSCode (`.vscode/extensions.json`).
+Or just use the PlatformIO extension in VSCode, which
+`.vscode/extensions.json` will offer you.
